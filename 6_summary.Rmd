@@ -1,5 +1,10 @@
-#script purpose: select models
+---
+title: "Untitled"
+output: html_document
+date: '2023-01-09'
+---
 
+```{r setup, include=FALSE}
 ##################################################################################################
 # SETUP
 ##################################################################################################
@@ -21,13 +26,56 @@ pacman::p_load(tidyverse#,
 set.seed(1)
 
 source("file_paths.R")
-source("0_functions.R")
+source("functions.R")
+var_names <- read_rds(file.path("Output", "keep_vars.rda"))
 
+```
 
+```{r}
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
 
-model_eval0 <- readRDS(file.path(hei_aim1a_path, "model_eval.rda"))
-#model_eval <- filter(model_eval0,)
+model_eval0 <- readRDS(file.path("Output", "model_eval.rda")) %>%
+  filter(reference == "gs_estimate") %>%
+  mutate(
+    variable = factor(variable, levels = var_names)
+  )
+
+
+ 
+
+```
+
+
+
+
+# Model Performance
+
+```{r}
+model_eval0 %>%
+  group_by(variable, out_of_sample, design, version) %>%
+  summarize(
+    n = n(),
+    mean_r2 = mean(MSE_based_R2),
+    rmse = mean(RMSE)
+  )
+
+model_eval0 %>%
+  filter(out_of_sample == "CV") %>%
+  ggplot(aes(x=variable, y=MSE_based_R2, fill=version)) + 
+  #facet_wrap(~design) + 
+  geom_boxplot()
+  
+```
+
+
+
+# Prediction Scatterplots/correlations
+
+```{r}
+
+
+```
+
 

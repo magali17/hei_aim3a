@@ -82,11 +82,12 @@ cov_names <- st_drop_geometry(annual) %>% ungroup() %>%
   select(log_m_to_a1:last_col()) %>% names() # 224 covarites
 
 pls_comp_n <- 2
+saveRDS(pls_comp_n, file.path("Output", "pls_comp_n.rda"))
 
 #k-folds for CV
 
 # --> UPDATE!
-k <- 2#5  
+k <- 5  
 
 #var_names <- unique(annual$variable)
 
@@ -203,10 +204,10 @@ uk_pls <- function(modeling_data, # data for fitting pls-uk models
   
   #save predictions
   predictions <- select(new_data, -all_of(cov_names.)) %>%
-    mutate(prediction = uk_model$var1.pred,
+    mutate(prediction = uk_model$var1.pred#,
            
            #TEST 
-           var1.var = uk_model$var1.var
+           #var1.var = uk_model$var1.var
            )
   
   #return(result)
@@ -222,6 +223,8 @@ uk_pls <- function(modeling_data, # data for fitting pls-uk models
   }
   
 }
+
+saveRDS(uk_pls, file.path("Output", "UK Predictions", "uk_pls_model.rda"))
 
 ##################################################################################################
 # CV function

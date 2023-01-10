@@ -103,11 +103,41 @@ model_perf <- lapply(group_split(predictions, campaign, design, version, variabl
                        validation_stats, prediction = "prediction", reference = "estimate") %>%
   bind_rows()
 
+
+# SAVE DATA
+select(model_perf , -no_sites) %>%
+  saveRDS(., file.path("Output", "model_eval.rda"))
+
+##################################################################################################
+# ARRANGE PERFORMANCES
+##################################################################################################
+
+mid_campaign <- floor(max(model_perf$campaign)/2)
+
+selected_campaigns <- model_perf %>%
+  filter(reference == "gs_estimate",
+         #out_of_sample == "CV",
+         variable %in% c("no2", "ns_total_conc")
+         ) %>%
+   
+  group_by(variable, design, version, out_of_sample) %>%
+  mutate(
+    # coding ensures only 1 campaign is selected for each category even if e.g., multiple campaigns have R2=0
+    performance = ifelse(MSE_based_R2 == sort(MSE_based_R2)[max(model_perf$campaign)], "best",
+                         ifelse(MSE_based_R2 == sort(MSE_based_R2)[1], "worst",
+                                ifelse(MSE_based_R2 == sort(MSE_based_R2)[mid_campaign], "average",
+                                       NA
+                                )))
+    ) %>%
+  drop_na(performance) %>%
+  ungroup()
+
+saveRDS(selected_campaigns, file.path("Output", "selected_campaigns.rda"))
+
+
 ##################################################################################################
 # SAVE DATA
 ##################################################################################################
-select(model_perf , -no_sites) %>%
-  saveRDS(., file.path("Output", "model_eval.rda"))
 
 
 message("done with 3_model_eval.R")

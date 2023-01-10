@@ -20,11 +20,10 @@ pacman::p_load(tidyverse,
 load(file.path("Output", "uk_workspace.rdata"))
 if(!dir.exists(file.path("Output", "UK Predictions"))){dir.create(file.path("Output", "UK Predictions"))}
 
-set.seed(1)
-
 ##################################################################################################
 # TEST SET PREDICTIONS
 ##################################################################################################
+set.seed(1)
 
 # WARNNINGS: In fit.variogram(object, x, fit.sills = fit.sills, fit.ranges = fit.ranges,  ... : singular model in variogram fit
 # see Note in help(fit.variogram). This has to do with flat variograms w/ little spatial correlation. Try plotting the variograms.
@@ -57,7 +56,7 @@ for(i in seq_along(var_names)) {
 }
 
 test_set_predictions <- test_set_predictions0 %>% 
-  select(common_vars) %>%
+  select(all_of(common_vars)) %>%
   mutate(out_of_sample = "Test")
 
 ##################################################################################################
@@ -68,16 +67,18 @@ saveRDS(test_set_predictions, file.path("Output", "UK Predictions", "test_set_pr
 ##################################################################################################
 # SAVE UK PARAMETERS WITH FULL TRAINING DATA FOR LATER ANALYSIS
 ##################################################################################################
+# set.seed(1)
+# 
 # model_parameters <- list()
 # 
 # for(i in seq_along(var_names)) {
 #   #i=1
-#   
-#   temp <- mclapply(group_split(filter(annual, design=="full", variable == var_names[i])),  
+# 
+#   temp <- mclapply(group_split(filter(annual, design=="full", variable == var_names[i])),
 #                    mc.cores = use_cores,
 #                    function(x) {
-#                      df = uk_pls(modeling_data = x, new_data = filter(annual_test_set, variable == var_names[i]), 
-#                                  fn_result = "models", 
+#                      df = uk_pls(modeling_data = x, new_data = filter(annual_test_set, variable == var_names[i]),
+#                                  fn_result = "models",
 #                                  # use an exponential variogram for all models
 #                                  var_choice = "Exp")   #Exp, Mat, Sph
 #                    })
