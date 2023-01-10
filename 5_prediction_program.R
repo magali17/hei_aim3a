@@ -2,12 +2,10 @@
 # ABOUT THIS SCRIPT
 ################################################################################
 # AUTHOR, DATE: 
-# Magali Blanco, 1/26/2022
+# Magali Blanco, 1/09/2023
 
 # OBJECTIVE
-# This program takes in a dataset with locations and their respective geographic covariates, and it returns a dataset with annual average air pollution predictions for UFP, BC, NO2, PM2.5 and CO2 at those locations.
-# Predictions are based on the data collected from a year-long air quality monitoring campaign in the greater Seattle area.
-# The campaign had 309 stop locations, each with approximately 29 repeat visits.
+# This program takes in a dataset with locations and their respective geographic covariates, and it returns a dataset with annual average air pollution predictions at those locations.
 
 # INPUTS
 # 4 inputs are required: 
@@ -25,8 +23,9 @@
 #   2. there are locations with missing covariate values or missing covariates altogether that are required for the prediction models to run
 
 # EXAMPLE OF HOW TO USE THIS PROGRAM
-# in a terminal open to the R program project directory, type: rscript 5_prediction_program.R <covariate_file_path> <prediction_directory> <prediction_file_format>
-
+# in a terminal open to the R program project directory, type: rscript 5_prediction_program.R  <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>
+## rscript 5_prediction_program.R Output/site_data_for_selected_campaigns.rda data/dr0311_grid_covars.rda Output/"UK Predictions"/grid rda
+ 
 ################################################################################
 # SETUP
 ################################################################################
@@ -40,7 +39,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 # load the required libraries for: plotting, modeling, spatial features, script timing
 if (!require("pacman")) {install.packages("pacman")}
-pacman::p_load(tidyverse, ggpubr, pls, gstat, sf, ggspatial, tictoc, tools)
+pacman::p_load(tidyverse, ggpubr, pls, gstat, sf, ggspatial, tictoc, tools,parallel)
 
 # report how long script takes to run
 tic()
@@ -58,7 +57,7 @@ user_arguments <- commandArgs(trailingOnly = TRUE)
 
 if (length(user_arguments) !=4) {
   print("Usage error. Enter: 1. the location of the covariate dataset for which you would like predictions, 2. where the prediction outputs should be saved, and 3. the desired prediction file fomat (csv or rda). Usage:")
-  print("rscript coding_example.R <covariate_file_path> <prediction_directory> <prediction_file_format>")
+  print("rscript coding_example.R <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>")
   stop()
 }
 
@@ -103,6 +102,8 @@ cov_names <- select(modeling_data, log_m_to_a1:last_col()) %>%
 monitoring_area <- readRDS(file.path("Output", "GIS", "monitoring_land_zero_water_shp.rda" #"monitoring_land_shp.rda"
                                      ))  
 lat_long_crs <- 4326
+
+var_names <- readRDS(file.path("Output", "keep_vars.rda"))
 
 ###########################################################################################
 # Universal Kriging - Partial Least Squares Model function
@@ -202,22 +203,29 @@ if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {print("Covar
 ###########################################################################################
 print("Generating predictions...")
 
-new_predictions0 <- lapply(group_split(modeling_data, campaign_id, design, version, variable, performance), function(x) {
-  temp <- dt %>%
-    mutate(
-      campaign_id = first(x$campaign_id), 
-      design = first(x$design), 
-      version = first(x$version), 
-      variable = first(x$variable),
-      performance = first(x$performance)
-    ) %>%
-    uk_pls(new_data = ., modeling_data = x)
-}) %>%
+new_predictions0 <- mclapply(group_split(modeling_data, campaign_id, design, version, variable, performance),
+                             mc.cores = 5,
+                             function(x) {
+                               temp <- dt %>%
+                                 mutate(
+                                   campaign_id = first(x$campaign_id), 
+                                    design = first(x$design), 
+                                    version = first(x$version), 
+                                    variable = first(x$variable),
+                                    performance = first(x$performance)
+                                   ) %>%
+                                 uk_pls(new_data = ., modeling_data = x)
+                               }) %>%
   bind_rows()  
 
 # save the location and prediction information
 new_predictions <- new_predictions0 %>%
-  select(contains(c("_id", "_key", "msa")), latitude, longitude, in_monitoring_area, campaign_id, design, version, variable, performance, prediction)
+  select(contains(c("_id", "_key", "msa")), latitude, longitude, in_monitoring_area, campaign_id, design, version, variable, performance, prediction) %>%
+  mutate(
+    prediction = exp(prediction),
+    variable = factor(variable, levels = var_names)
+  ) %>%
+  arrange(variable)
 
 
 ###########################################################################################
@@ -254,9 +262,9 @@ for (i in unique(new_predictions$variable)) {
   p[[i]] <- ggplot() +
     geom_sf(data=monitoring_area)  +
     geom_point(data= df, aes(x=longitude, y=latitude, col=prediction), alpha=0.6) + 
-    facet_wrap(~variable) +   
+    facet_wrap(~variable) +
     scale_colour_gradient(name = "Conc", low = "yellow", high = "red") +
-    # add scales & N arrow 
+    # add scales & N arrow
     annotation_scale(location = "tr", unit_category ="imperial", pad_y = unit(0.55, "cm")) +
     annotation_north_arrow(location = "tr", pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering) +
     theme_bw() +
