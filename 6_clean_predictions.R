@@ -29,8 +29,13 @@ if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(predictio
 
 
 var_names <- readRDS(file.path("Output", "keep_vars.rda"))
+grp1_vars <- c("no2", "ns_total_conc")
+grp2_vars <- setdiff(var_names, grp1_vars)
 
-predictions0 <- lapply(c("no2", "ns_total_conc"), function(x) {
+
+
+predictions0 <- lapply(var_names, #c("no2", "ns_total_conc"), 
+                       function(x) {
   read_csv(file.path(prediction_path, x, "predictions.csv"))
   }) %>%
   bind_rows() 
@@ -47,8 +52,13 @@ predictions <- predictions0 %>%
 
 #write.csv(predictions, file.path(prediction_path, "KP", "predictions_no2_total_pnc.csv"), row.names = F)
 #write_csv(predictions, file.path(prediction_path, "KP", "predictions_no2_total_pnc.csv.gz"))
-write_csv(predictions, file.path(prediction_path, "KP", "predictions_no2_total_pnc.csv"))
 
+#
+filter(predictions, variable %in% grp1_vars) %>%
+  write_csv(., file.path(prediction_path, "KP", "predictions_grp1.csv"))
+
+filter(predictions, variable %in% grp2_vars) %>%
+  write_csv(., file.path(prediction_path, "KP", "predictions_grp2.csv"))
 
 
   
