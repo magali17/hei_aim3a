@@ -24,7 +24,7 @@
 
 # EXAMPLE OF HOW TO USE THIS PROGRAM
 # in a terminal open to the R program project directory, type: rscript 5_prediction_program.R  <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>
-## rscript 5_prediction_program.R Output/site_data_for_selected_campaigns.rda data/dr0311_grid_covars.rda Output/"UK Predictions"/grid csv
+## rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_ns_total_conc_.rda data/dr0311_grid_covars.rda Output/"UK Predictions"/grid/ns_total_conc csv
  
 ################################################################################
 # SETUP
@@ -53,11 +53,11 @@ set.seed(1)
 #allow R to take input from the command line
 user_arguments <- commandArgs(trailingOnly = TRUE)
 # #test 
-# user_arguments <-c(file.path("Output", "site_data_for_selected_campaigns.rda"), file.path("data", "dr0311_grid_covars.rda"), "Output/UK Predictions/grid", "rda")
+# user_arguments <-c(file.path("Output", "site_data_for_ns_total_conc_.rda"), file.path("data", "dr0311_grid_covars.rda"), "Output/UK Predictions/grid/ns_total_conc", "rda")
 
 if (length(user_arguments) !=4) {
   print("Usage error. Enter: 1. the location of the covariate dataset for which you would like predictions, 2. where the prediction outputs should be saved, and 3. the desired prediction file fomat (csv or rda). Usage:")
-  print("rscript coding_example.R <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>")
+  print("rscript 5_prediction_program.R <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>")
   stop()
 }
 
@@ -204,16 +204,20 @@ if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {print("Covar
 set.seed(1)
 print("Generating predictions...")
 
-new_predictions0 <- mclapply(group_split(modeling_data, campaign_id, design, version, variable, performance),
-                             mc.cores = 5,
+new_predictions0 <- mclapply(group_split(modeling_data, campaign_id, 
+                                         #design, version, 
+                                         variable#, 
+                                         #performance
+                                         ),
+                             mc.cores = 4, #5
                              function(x) {
                                temp <- dt %>%
                                  mutate(
                                    campaign_id = first(x$campaign_id), 
-                                    design = first(x$design), 
-                                    version = first(x$version), 
+                                    # design = first(x$design), 
+                                    # version = first(x$version), 
                                     variable = first(x$variable),
-                                    performance = first(x$performance)
+                                    #performance = first(x$performance)
                                    ) %>%
                                  uk_pls(new_data = ., modeling_data = x)
                                }) %>%
@@ -221,7 +225,11 @@ new_predictions0 <- mclapply(group_split(modeling_data, campaign_id, design, ver
 
 # save the location and prediction information
 new_predictions <- new_predictions0 %>%
-  select(contains(c("_id", "_key", "msa")), latitude, longitude, in_monitoring_area, campaign_id, design, version, variable, performance, prediction) %>%
+  select(contains(c("_id", "_key", "msa")), latitude, longitude, in_monitoring_area, campaign_id, 
+         #design, version, 
+         variable, 
+         #performance, 
+         prediction) %>%
   mutate(
     prediction = exp(prediction),
     variable = factor(variable, levels = var_names)
@@ -240,70 +248,70 @@ if(prediction_file_format == "rda") {saveRDS(new_predictions, prediction_file_na
 print(paste0("Predictions saved: ", prediction_file_name))
 
 
-###########################################################################################
-# GENERATE SUMMARY FIGURES AND MAPS OF THE NEW PREDICTIONS
-###########################################################################################
-print("Generating prediction summary figures and maps...")
-
-# 1. prediction histograms 
-ggplot(data=new_predictions, aes(x=prediction)) + 
-  facet_wrap(~variable, scales = "free") + 
-  geom_histogram(bins=30) +
-  labs(title = "Prediction Histograms")
-
-ggsave(file.path(prediction_directory, "prediction_histograms.png"), height = 10, width = 8)
-
-# 2. prediction maps at all of the locations
-p <- list()
-
-for (i in unique(new_predictions$variable)) {
-  
-  df <- filter(new_predictions, variable == i)
-  
-  p[[i]] <- ggplot() +
-    geom_sf(data=monitoring_area)  +
-    geom_point(data= df, aes(x=longitude, y=latitude, col=prediction), alpha=0.6) + 
-    facet_wrap(~variable) +
-    scale_colour_gradient(name = "Conc", low = "yellow", high = "red") +
-    # add scales & N arrow
-    annotation_scale(location = "tr", unit_category ="imperial", pad_y = unit(0.55, "cm")) +
-    annotation_north_arrow(location = "tr", pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering) +
-    theme_bw() +
-    coord_sf(expand = F) 
-}
-
-ggarrange(plotlist = p) %>% 
-  annotate_figure(top = "UK-PLS predictions at all locations")
-
-ggsave(file.path(prediction_directory, "all_predictions.png"), height = 16, width = 16)
-
-# 3. prediction maps only at locations in monitoring area
-p <- list()
-
-for (i in unique(new_predictions$variable)) {
-  
-  df <- filter(new_predictions,
-               in_monitoring_area == TRUE,
-               variable == i)
-  
-  p[[i]] <- ggplot() +
-    geom_sf(data=monitoring_area)  +
-    geom_point(data= df, aes(x=longitude, y=latitude, col=prediction), alpha=0.6) + 
-    facet_wrap(~variable) + 
-    scale_colour_gradient(name = "Conc", low = "yellow", high = "red") +
-    # add scales & N arrow 
-    annotation_scale(location = "tr", unit_category ="imperial", pad_y = unit(0.55, "cm")) +
-    annotation_north_arrow(location = "tr", pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering) +
-    theme_bw() +
-    coord_sf(expand = F)
-}
-
-ggarrange(plotlist = p) %>% 
-  annotate_figure(top = "UK-PLS predictions at locations in monitoring area")
-
-ggsave(file.path(prediction_directory, "monitoring_predictions.png"), height = 16, width = 16)
-
-print(paste0("Figures and maps saved to the following directory: ", prediction_directory))
+# ###########################################################################################
+# # GENERATE SUMMARY FIGURES AND MAPS OF THE NEW PREDICTIONS
+# ###########################################################################################
+# print("Generating prediction summary figures and maps...")
+# 
+# # 1. prediction histograms 
+# ggplot(data=new_predictions, aes(x=prediction)) + 
+#   facet_wrap(~variable, scales = "free") + 
+#   geom_histogram(bins=30) +
+#   labs(title = "Prediction Histograms")
+# 
+# ggsave(file.path(prediction_directory, "prediction_histograms.png"), height = 10, width = 8)
+# 
+# # 2. prediction maps at all of the locations
+# p <- list()
+# 
+# for (i in unique(new_predictions$variable)) {
+#   
+#   df <- filter(new_predictions, variable == i)
+#   
+#   p[[i]] <- ggplot() +
+#     geom_sf(data=monitoring_area)  +
+#     geom_point(data= df, aes(x=longitude, y=latitude, col=prediction), alpha=0.6) + 
+#     facet_wrap(~variable) +
+#     scale_colour_gradient(name = "Conc", low = "yellow", high = "red") +
+#     # add scales & N arrow
+#     annotation_scale(location = "tr", unit_category ="imperial", pad_y = unit(0.55, "cm")) +
+#     annotation_north_arrow(location = "tr", pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering) +
+#     theme_bw() +
+#     coord_sf(expand = F) 
+# }
+# 
+# ggarrange(plotlist = p) %>% 
+#   annotate_figure(top = "UK-PLS predictions at all locations")
+# 
+# ggsave(file.path(prediction_directory, "all_predictions.png"), height = 16, width = 16)
+# 
+# # 3. prediction maps only at locations in monitoring area
+# p <- list()
+# 
+# for (i in unique(new_predictions$variable)) {
+#   
+#   df <- filter(new_predictions,
+#                in_monitoring_area == TRUE,
+#                variable == i)
+#   
+#   p[[i]] <- ggplot() +
+#     geom_sf(data=monitoring_area)  +
+#     geom_point(data= df, aes(x=longitude, y=latitude, col=prediction), alpha=0.6) + 
+#     facet_wrap(~variable) + 
+#     scale_colour_gradient(name = "Conc", low = "yellow", high = "red") +
+#     # add scales & N arrow 
+#     annotation_scale(location = "tr", unit_category ="imperial", pad_y = unit(0.55, "cm")) +
+#     annotation_north_arrow(location = "tr", pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering) +
+#     theme_bw() +
+#     coord_sf(expand = F)
+# }
+# 
+# ggarrange(plotlist = p) %>% 
+#   annotate_figure(top = "UK-PLS predictions at locations in monitoring area")
+# 
+# ggsave(file.path(prediction_directory, "monitoring_predictions.png"), height = 16, width = 16)
+# 
+# print(paste0("Figures and maps saved to the following directory: ", prediction_directory))
 
 ###########################################################################################
 #print the script run duration

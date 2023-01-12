@@ -21,9 +21,9 @@ load(file.path("Output", "uk_workspace.rdata"))
 
 set.seed(1)
 
-#source("file_paths.R")
 source("functions.R")
 if(!dir.exists(file.path("Output", "UK Predictions"))){dir.create(file.path("Output", "UK Predictions"))}
+if(!dir.exists(file.path("Output", "Selected Campaigns"))){dir.create(file.path("Output", "Selected Campaigns"))}
 
 ##################################################################################################
 # LOAD DATA
@@ -33,14 +33,24 @@ selected_campaigns0 <- read_rds(file.path("Output", "model_eval.rda")) %>%
   filter(out_of_sample == "Test",
          reference == "gs_estimate")
 
-saveRDS(selected_campaigns0, file.path("Output", "selected_campaigns.rda"))
+saveRDS(selected_campaigns0, file.path("Output", "Selected Campaigns", "selected_campaigns.rda"))
 
 
 # only keep annual averages for selected campaigns
 selected_campaigns  <- selected_campaigns0 %>%
   select(campaign, design, version, variable, performance, campaign_id) %>%
-  left_join(annual) 
+  left_join(annual) %>%
+  select(campaign_id, variable, location, value:last_col())
   
-saveRDS(selected_campaigns, file.path("Output", "site_data_for_selected_campaigns.rda"))
+# save all data (program has issues later w/ large file)
+saveRDS(selected_campaigns, file.path("Output", "Selected Campaigns", "site_data_for_all_selected_campaigns.rda"))
 
- 
+# save smallerfiles
+lapply(var_names, function(x) {
+  filter(selected_campaigns, variable== x) %>%
+    saveRDS(., file.path("Output", "Selected Campaigns", paste0("site_data_for_", x,".rda")))
+})
+
+
+
+
