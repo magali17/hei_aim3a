@@ -18,9 +18,9 @@ pacman::p_load(tidyverse,
                units # set_units()
 )    
 
-set.seed(1)
+use_cores <- 5
 
-source("file_paths.R")
+set.seed(1)
 
 ##################################################################################################
 # LOAD DATA
@@ -42,7 +42,9 @@ sims <- readRDS(file.path("Output", "annual_training_set.rda")) %>%
 
 
 #location lat/long 
-loc_lat_long <- readRDS(file.path(hei_aim1a_path, "location_lat_long.rda")) %>%
+loc_lat_long <- readRDS(file.path(#hei_aim1a_path, 
+  "data",
+  "location_lat_long.rda")) %>%
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
   st_transform(m_crs)  
 
@@ -93,16 +95,33 @@ saveRDS(validation_stats, file.path("Output", "validation_stats_fn.rda"))
 ##################################################################################################
 # don't do traditional assessment for spatial clustering - distance analysis
 message("calculating performance statistics")
-
-# model_perf <- mclapply(group_split(predictions, campaign, design, version, variable, out_of_sample, reference), 
-#                        mc.cores = 5,
-#                        validation_stats, prediction = "prediction", reference = "estimate") %>%
-#   bind_rows()
  
-model_perf <- lapply(group_split(predictions, campaign, design, version, variable, out_of_sample, reference), 
+
+model_perf0 <- mclapply(group_split(predictions, campaign, design, version, variable, out_of_sample, reference), 
+                       mc.cores = use_cores,
                        validation_stats, prediction = "prediction", reference = "estimate") %>%
   bind_rows()
 
+
+# label performance order 
+model_perf <- model_perf0 %>% 
+  group_by(design, version, variable, out_of_sample, reference) %>%
+  arrange(MSE_based_R2) %>%
+  mutate(performance = row_number()) %>%
+  
+  arrange(design, version, variable,
+          out_of_sample, 
+          #campaign, 
+          performance) %>%
+  
+  #group_by( design, version, variable, campaign) %>%
+  
+  ungroup() %>%
+  mutate(campaign_id = row_number() 
+         #campaign_id =cur_group_id()
+         ) %>%
+ungroup() 
+  
 
 # SAVE DATA
 select(model_perf , -no_sites) %>%
@@ -112,27 +131,15 @@ select(model_perf , -no_sites) %>%
 # ARRANGE PERFORMANCES
 ##################################################################################################
 
-mid_campaign <- floor(max(model_perf$campaign)/2)
+#mid_campaign <- floor(max(model_perf$campaign)/2)
 
-selected_campaigns <- model_perf %>%
-  filter(reference == "gs_estimate",
-         #out_of_sample == "CV",
-         variable %in% c("no2", "ns_total_conc")
-         ) %>%
-   
-  group_by(variable, design, version, out_of_sample) %>%
-  mutate(
-    # coding ensures only 1 campaign is selected for each category even if e.g., multiple campaigns have R2=0
-    performance = ifelse(MSE_based_R2 == sort(MSE_based_R2)[max(model_perf$campaign)], "best",
-                         ifelse(MSE_based_R2 == sort(MSE_based_R2)[1], "worst",
-                                ifelse(MSE_based_R2 == sort(MSE_based_R2)[mid_campaign], "average",
-                                       NA
-                                )))
-    ) %>%
-  drop_na(performance) %>%
-  ungroup()
-
-saveRDS(selected_campaigns, file.path("Output", "selected_campaigns.rda"))
+# selected_campaigns <- model_perf %>%
+#   filter(out_of_sample == "Test",
+#          reference == "gs_estimate")
+#          
+#         
+# 
+# saveRDS(selected_campaigns, file.path("Output", "selected_campaigns.rda"))
 
 
 ##################################################################################################

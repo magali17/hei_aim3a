@@ -43,14 +43,28 @@ model_eval0 <- readRDS(file.path("Output", "model_eval.rda")) %>%
   )
 
 
- 
+selected_campaigns <- read_rds(file.path("Output", "selected_campaigns.rda"))
+
+```
+
+
+# Campaigns
+
+
+```{r}
+# --> error 
+selected_campaigns %>% 
+  group_by(design, version, variable) %>% 
+  summarize(
+    campaigns = length(unique(campaign)),
+    locations = length(unique(location))
+    )
 
 ```
 
 
 
-
-# Model Performance
+# Model Performances
 
 ```{r}
 model_eval0 %>%
@@ -71,7 +85,7 @@ model_eval0 %>%
 
 
 
-# Prediction Scatterplots/correlations
+# Compare Predictions -  Scatterplots/correlations
 
 ```{r}
 

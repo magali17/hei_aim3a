@@ -24,7 +24,7 @@
 
 # EXAMPLE OF HOW TO USE THIS PROGRAM
 # in a terminal open to the R program project directory, type: rscript 5_prediction_program.R  <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>
-## rscript 5_prediction_program.R Output/site_data_for_selected_campaigns.rda data/dr0311_grid_covars.rda Output/"UK Predictions"/grid rda
+## rscript 5_prediction_program.R Output/site_data_for_selected_campaigns.rda data/dr0311_grid_covars.rda Output/"UK Predictions"/grid csv
  
 ################################################################################
 # SETUP
@@ -201,6 +201,7 @@ if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {print("Covar
 ###########################################################################################
 # PREDICT AT NEW DATASET
 ###########################################################################################
+set.seed(1)
 print("Generating predictions...")
 
 new_predictions0 <- mclapply(group_split(modeling_data, campaign_id, design, version, variable, performance),

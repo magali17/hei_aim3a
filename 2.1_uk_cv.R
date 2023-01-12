@@ -29,12 +29,8 @@ set.seed(1)
 ## each df in the list is a simulation; running 10-FCV within each simulation to get CV predictions
 print(paste0("random ", k, " FCV"))
 
-# cv_predictions0 <- mclapply(group_split(annual, spatial_temporal, design, version, campaign, variable), 
-#                                   mc.cores = use_cores, 
-#                                   FUN = do_cv, fold_name = "random_fold") %>%
-
-cv_predictions0 <- lapply(group_split(annual, spatial_temporal, design, version, campaign, variable), 
-                            #mc.cores = use_cores, 
+cv_predictions0 <- mclapply(group_split(annual, spatial_temporal, design, version, campaign, variable), 
+                            mc.cores = use_cores, 
                             FUN = do_cv, fold_name = "random_fold") %>%
   bind_rows() 
 

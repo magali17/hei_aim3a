@@ -64,32 +64,4 @@ test_set_predictions <- test_set_predictions0 %>%
 ##################################################################################################
 saveRDS(test_set_predictions, file.path("Output", "UK Predictions", "test_set_predictions.rda"))
 
-##################################################################################################
-# SAVE UK PARAMETERS WITH FULL TRAINING DATA FOR LATER ANALYSIS
-##################################################################################################
-# set.seed(1)
-# 
-# model_parameters <- list()
-# 
-# for(i in seq_along(var_names)) {
-#   #i=1
-# 
-#   temp <- mclapply(group_split(filter(annual, design=="full", variable == var_names[i])),
-#                    mc.cores = use_cores,
-#                    function(x) {
-#                      df = uk_pls(modeling_data = x, new_data = filter(annual_test_set, variable == var_names[i]),
-#                                  fn_result = "models",
-#                                  # use an exponential variogram for all models
-#                                  var_choice = "Exp")   #Exp, Mat, Sph
-#                    })
-#   model_parameters[i] <- temp
-#   names(model_parameters)[i] <- temp[[1]]$variable
-# }
-
-##################################################################################################
-# SAVE DATA
-##################################################################################################
-
-#saveRDS(model_parameters, file.path("Output", "full_model_parameters.rda"))
-
 message("done with 2_uk_test.R")

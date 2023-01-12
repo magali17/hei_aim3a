@@ -56,6 +56,7 @@ campaign_estimates <- annual %>% st_drop_geometry() %>%
 
 # combine predictions & estimates
 predictions0 <- rbind(test_set_predictions, cv_predictions) 
+# predictions0 <- test_set_predictions 
 
 predictions <- predictions0 %>%
   #left join b/c locations w/ predictions may be fewer than the 309 sites if dno't do 10FCV

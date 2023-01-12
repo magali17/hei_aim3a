@@ -51,14 +51,19 @@ annual <- readRDS(file.path("Output", "annual_training_set.rda")) %>%
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
   st_transform(m_crs) %>%
   # log transform before modeling
+  # some PNC annual avgs are 0, which causes issues logging values
+  mutate_at(vars(var_names), ~ifelse(.== 0, 1, .)) %>%
   mutate_at(vars(var_names), ~log(.)) %>%
   gather("variable", "value", var_names) %>%
   relocate(variable, value, .before = longitude) %>%
   
+  drop_na(value) %>% 
+  # # 3 largest bins have mostly 0s, which turn to -Inf when you log-transform
+  # filter(!value %in% c(Inf, -Inf)) %>%
   
-  # --> DO??? ~46 sites have NaN annual averages b/c e.g. 12 samples were all NAs?
-  drop_na(value) %>%st_as_sf()
+  st_as_sf()
   
+
 
 ## same for test set
 annual_test_set <- readRDS(file.path("Output", "annual_test_set.rda")) %>%
@@ -67,8 +72,10 @@ annual_test_set <- readRDS(file.path("Output", "annual_test_set.rda")) %>%
   #convert to sf
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
   st_transform(m_crs) %>%
-  # log transform before modeling
-  mutate(value = log(value))
+  # log transform annual averages before modeling
+  mutate(value = ifelse(value==0, 1, value),
+         value = log(value))  
+  
 
 saveRDS(annual_test_set, file.path("Output", "annual_test_set2.rda"))
 
@@ -85,11 +92,7 @@ pls_comp_n <- 2
 saveRDS(pls_comp_n, file.path("Output", "pls_comp_n.rda"))
 
 #k-folds for CV
-
-# --> UPDATE!
 k <- 5  
-
-#var_names <- unique(annual$variable)
 
 ##################################################################################################
 # SETUP

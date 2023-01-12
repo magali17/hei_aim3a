@@ -19,7 +19,7 @@ pacman::p_load(tidyverse,
                )    
 
 source("functions.R")
-source("file_paths.R")
+#source("file_paths.R")
 set.seed(1)
 
 ## for future.apply::future_replicate()  
@@ -31,9 +31,6 @@ plan(multisession, workers = 6)
 # LOAD DATA
 ##################################################################################################
 #stop data with temporal variables included
-
-# --> HIDE FILE.PATHS
-
 
 # Nanoscan bin estimates
 ns_psd0 <- read_csv(file.path("data", "tr0090_averaged_stops.csv")) %>%
@@ -57,8 +54,7 @@ keep_vars1 <- c(#"ma200_ir_bc1", "co2_umol_mol", "pm2.5_ug_m3", "ns_total_conc",
 bins <- paste0("ns_", 
                c("11.5", "15.4", "20.5", "27.4", "36.5", "48.7", "64.9", "86.6", "115.5", "154.0","205.4", "273.8", "365.2"))
 
-keep_vars <- c(keep_vars1, #ns_bins
-               "ns_total_conc", bins)
+keep_vars <- c(keep_vars1, "ns_total_conc", bins)
 
 
 ns_psd <- ns_psd0 %>%
@@ -70,10 +66,6 @@ ns_psd <- ns_psd0 %>%
     hour = hour(time),
     #pollutant = variable
     ) %>%
-    #variable_relabel(var = "pollutant") %>%
-    # mutate(pollutant = ifelse(!grepl("ns_", pollutant),
-    #                            paste0("ns_", pollutant),
-    #                            as.character(pollutant))) %>% 
   mutate(variable = ifelse(!grepl("ns_", variable),
                             paste0("ns_", variable),
                             as.character(variable))) %>% 
@@ -87,10 +79,15 @@ ns_psd <- ns_psd0 %>%
   ungroup() %>%
   select(-value) %>%
   #use winsorized values for all subsequent data description
-  rename(value=win_value)
+  rename(value=win_value) %>%
+  # make bin count times the same as total_conc
+  group_by(location, stop_id) %>%
+  mutate(time = time[variable=="ns_total_conc"]) %>%
+  ungroup()
 
-
-stops_no2 <- readRDS(file.path(act_campaign_path, "stop_data_win_medians.rda")) %>%
+stops_no2 <- readRDS(file.path(#act_campaign_path, 
+  "data",
+  "stop_data_win_medians.rda")) %>%
   #drop duplicate UFP instruments
   filter(variable %in% keep_vars1) %>%
   select(names(ns_psd)) %>%
@@ -113,8 +110,6 @@ stops <- filter(stops_all, location %in% non_test_sites)
 # COMMON VARIABLES
 ##################################################################################################
 # number of simulations
-
-# --> TEMP!
 sim_n <- 30
 
 rush_hours <- c(7:10, 15:18)
@@ -126,10 +121,10 @@ unique_seasons <- unique(stops_all$season) %>% as.character()
 fewer_hrs_seasons_n <- 12
 
 ##################################################################################################
-# ONLY KEEP STOPS W/ LITTLE MISSINGNESS
+# ONLY KEEP STOPS W/ LITTLE MISSINGNESS & MOSTLY NON-ZEROS
 ##################################################################################################
 
-keep_times0 <- stops %>% #stops_all %>%
+keep_times0 <- stops %>% 
   distinct(stop_id, time, variable, value) %>%
   pivot_wider(names_from = "variable", values_from = "value") %>% 
   mutate(original_stops = n()) 
@@ -141,31 +136,44 @@ prop_time_missing <- apply(keep_times0, 2, function(x) sum(is.na(x))/length(x)) 
 
 prop_time_missing
 
-bad_bins <- filter(prop_time_missing, .>0.5) %>% pull(rowname)
+# drop bins with mostly 0s
+(zero_counts <- stops %>%
+  group_by(variable) %>%
+  summarize(n = n(),
+            n_zero = sum(value==0),
+            prop_zero = n_zero/n) 
+  )
+
+zero_counts <- filter(zero_counts, prop_zero > .6) %>% pull(variable)
+
+# drop bins w/ lot of missingness or mostly zero counts
+bad_bins <- filter(prop_time_missing, .>0.5) %>% pull(rowname) %>%
+  c(., zero_counts)
 keep_vars <- setdiff(keep_vars, bad_bins)
 saveRDS(keep_vars, file.path("Output", "keep_vars.rda"))
 
 #stops_all <- filter(stops_all, variable %in% keep_vars)
 stops <- filter(stops, variable %in% keep_vars)
 
+
+# ############## DON'T DO??? ##############
 # keep_times0 <- keep_times0 %>%
 #   drop_na() %>%
 #   mutate(
 #     remaining_stops = n(),
 #     prop_remaining_stops = remaining_stops/original_stops
-#     ) 
-
-# 9,047 total original stops (309 site x ~26 visits/site)
-# after dropping stops w/o all 5 pollutant measures, we have: 8,137 in the training & 810 (see later code) in the test set
-# keep_times0
-
+#     )
+# # 
 # keep_times <- keep_times0 %>% #7345 stops left (90.12%)
 #   distinct(time) %>% pull()
 # 
 # stops <- filter(stops, time %in% keep_times)
+# 
+# ##############################################
 
-#stops_w <- spread(stops, variable, value)
-stops_w <- pivot_wider(data = stops, names_from = "variable",values_from =  "value")
+# 7,806/8163 = 96% stops remain
+stops_w <- pivot_wider(data = stops, names_from = "variable",values_from =  "value") %>%
+  drop_na()
 
 saveRDS(stops_w, file.path("Output", "stops_used.rda"))
 
@@ -245,8 +253,8 @@ one_sample_avg <- function(my_list,# = stops_w_list,
 ## notice that a few sites (e.g., MS0138 in winter) have < 6 samples/season, so we'll sample w/ replacement to keep the numebr of samples the same
 message("fewer seasons")
 
-#season_n <- c(1:4)  
-season_n <- c(2:3)  
+season_n <- c(1:4)  
+#season_n <- c(2:3)  
 
 season_times <- data.frame()
 
@@ -279,12 +287,6 @@ for (i in seq_along(season_n)) {
   season_times <- rbind(season_times, temp)
 
 }
-
-##################################################################################################
-## randomly select fewer samples for the campaign 
-#message("fewer visits")
-#visit_n <- seq(4,24,4) 
-
 
 ##################################################################################################
 message("BH, RH")
@@ -340,14 +342,6 @@ temporal_sims <- rbind(
 
 
 ##################################################################################################
-## SPATIAL simulations: fewer stops (lower density) 
-##################################################################################################
-### fewer number of stops/sites 
-
-#site_n <- c(25, seq(50, 250, 50))
-
-
-##################################################################################################
 # FEWER SITES & VISITS (TOTAL STOPS)
 ##################################################################################################
 # site_n <- c(25, seq(50, 250, 50))
@@ -357,7 +351,7 @@ message("fewer total stops")
 
 #site_n2 <- append(site_n, length(unique(stops_w$location)))
 
-site_n2 <- 278
+site_n2 <- c(150, 278)
 #visit_n2 <- append(visit_n, round(mean(true_annual$visits))) 
 visit_n2 <- 12
 
