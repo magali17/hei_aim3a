@@ -1,3 +1,4 @@
+# Rscript 5.2_summarize_predictions.R Output/'UK Predictions'/cohort/ns_total_conc
 
 ################################################################################
 # SETUP
@@ -19,8 +20,7 @@ pacman::p_load(tidyverse, ggpubr, pls, gstat, sf, ggspatial, tictoc, tools,paral
 ###########################################################################################
 #allow R to take input from the command line
 user_arguments <- commandArgs(trailingOnly = TRUE)
-# #test 
-# user_arguments <-c("Output/UK Predictions/grid/ns_total_conc")
+# user_arguments <-c("Output/UK Predictions/grid/ns_27.4")
 
 if (length(user_arguments) !=1) {
   print("Usage error. Enter: 1. the location of the predictions. Usage:")
@@ -30,7 +30,11 @@ if (length(user_arguments) !=1) {
 
 # new covariate file
 prediction_directory <- user_arguments[1]
-new_predictions <- file.path(prediction_directory, "predictions.csv")
+print(paste("running", prediction_directory))
+
+new_predictions <- read_csv(file.path(prediction_directory, "predictions.csv"), show_col_types = F)
+
+monitoring_area <- readRDS(file.path("Output", "GIS", "monitoring_land_zero_water_shp.rda"))  
 
 ###########################################################################################
 # GENERATE SUMMARY FIGURES AND MAPS OF THE NEW PREDICTIONS
@@ -95,7 +99,6 @@ ggarrange(plotlist = p) %>%
 
 ggsave(file.path(prediction_directory, "monitoring_predictions.png"), height = 16, width = 16)
 
-print(paste0("Figures and maps saved to the following directory: ", prediction_directory))
-
+print("Figures and maps saved.")
 print("DONE")
 

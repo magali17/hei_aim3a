@@ -25,7 +25,8 @@
 # EXAMPLE OF HOW TO USE THIS PROGRAM
 # in a terminal open to the R program project directory, type: rscript 5_prediction_program.R  <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>
 ## rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_ns_total_conc_.rda data/dr0311_grid_covars.rda Output/"UK Predictions"/grid/ns_total_conc csv
- 
+
+
 ################################################################################
 # SETUP
 ################################################################################
