@@ -2,7 +2,11 @@
 .Rhistory
 .RData
 .Ruserdata
+.DS_Store
+.RDataTmp
 Output/
 data/
+old/
 *.pdf
 *.Rproj
+file_paths.R
