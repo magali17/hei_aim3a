@@ -1,0 +1,8 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+Output/
+data/
+*.pdf
+*.Rproj
