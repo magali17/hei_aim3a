@@ -50,7 +50,9 @@ predictions <- predictions0 %>%
   ) %>%
   select(location_id, start_date, end_date, model, 
          variable,
-         prediction)
+         prediction) %>%
+  #reduce large file sizes
+  drop_na(prediction)
 
 
 #write.csv(predictions, file.path(prediction_path, "KP", "predictions_no2_total_pnc.csv"), row.names = F)
