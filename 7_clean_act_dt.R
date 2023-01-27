@@ -70,8 +70,8 @@ count_remaining_sample <- function(dt, description., notes.=NA) {
 health_dt_path <-file.path("data", "issue_12", "issue_012_degapped_0113.rda")
 
 if(file.exists(health_dt_path)) {health0 <- readRDS(health_dt_path)} else {
-    health0 <- haven::read_sas(gsub(".rda", ".sas7bdat", health_dt_path) , NULL)
-    saveRDS(health0, health_dt_path)
+  health0 <- haven::read_sas(gsub(".rda", ".sas7bdat", health_dt_path) , NULL)
+  saveRDS(health0, health_dt_path)
 }
 
 exclusion_table <- count_remaining_sample(health0, description. = "Full dataset")
@@ -101,7 +101,7 @@ exposure_dt_path <- file.path("data", "issue_17", "issue_017v2_01262023.rda")
 
 if(file.exists(exposure_dt_path)) {
   exposure0 <- readRDS(exposure_dt_path)
-  } else {
+} else {
   exposure0 <- haven::read_sas(file.path("..", "..", "issue_17", gsub(".rda", ".sas7bdat", basename(exposure_dt_path))), NULL)
   saveRDS(exposure0, exposure_dt_path)
 }
@@ -172,14 +172,14 @@ exclusion_table <- count_remaining_sample(health, description. = "Valid CASI sco
 
 ######################################################################
 # check that exposure coverage variables are similar across datasets. # looks good
- # select(health,
- #        study_id,
- #        health_avg_wc_ufp_10_42_MM_05_yr = avg_wc_ufp_10_42_MM_05_yr,
- #        health_avg_wc_no2_MM_05_yr = avg_wc_no2_MM_05_yr) %>%
- #  left_join(distinct(exposure0, study_id, exp_coverage)) %>%
- #  mutate(diff_ufp = health_avg_wc_ufp_10_42_MM_05_yr - exp_coverage,
- #         diff_no2 = health_avg_wc_no2_MM_05_yr - exp_coverage) %>%
- #  summary()
+# select(health,
+#        study_id,
+#        health_avg_wc_ufp_10_42_MM_05_yr = avg_wc_ufp_10_42_MM_05_yr,
+#        health_avg_wc_no2_MM_05_yr = avg_wc_no2_MM_05_yr) %>%
+#  left_join(distinct(exposure0, study_id, exp_coverage)) %>%
+#  mutate(diff_ufp = health_avg_wc_ufp_10_42_MM_05_yr - exp_coverage,
+#         diff_no2 = health_avg_wc_no2_MM_05_yr - exp_coverage) %>%
+#  summary()
 
 # High exposure coverage
 coverage_threshold <- 0.95
@@ -192,7 +192,7 @@ exclusion_table <- count_remaining_sample(health, description. = "High exposure 
 
 # --> nses_z_cx will change to NDI
 model_covars <- c("visit_age_centered75", "year2", "apoe", "male", "degree", "race_white" #, "nses_z_cx"
-                  )
+)
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 
 health <- health %>%
@@ -208,7 +208,7 @@ health <- health %>%
     degree = ifelse(degree %in% c(1:2), 1, degree),
     degree = factor(degree),
     visit_age_centered75 = visit_age - 75
-    ) %>%
+  ) %>%
   select(study_id, casi_irt, all_of(model_covars),
          #QC variables for NO2 and UFP
          ends_with(c("no2_MM_05_yr", "ufp_10_42_MM_05_yr")),
