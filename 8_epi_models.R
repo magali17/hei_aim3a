@@ -9,12 +9,14 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 }
 
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, lubridate, kableExtra)    
+pacman::p_load(tidyverse, parallel)    
 
 set.seed(1)
 
 #source("functions.R")
 output_data_path <- file.path("Output", "epi")
+
+use_cores <- 4
 
 ######################################################################
 # LOAD DATA
@@ -41,12 +43,13 @@ lm_fn <- function(df, ap_prediction.=ap_prediction, model_covars. = model_covars
   return(result)
 }
 
-models <- lapply(group_split(cs, model), function(x) {lm_fn(df=x)})
+message("running models")
+models <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
 saveRDS(models, file.path(output_data_path, "models.rda"))
 
+message("saving model coeficients")
 # save coefficient estimates
-# x=models[[1]]
-model_coefs0 <- lapply(models, function(x) {
+model_coefs0 <- mclapply(models, mc.cores=use_cores, function(x) {
   temp <- data.frame(
     model_id = x$model_id,
     est = as.vector(coef(x)[ap_prediction]),
@@ -64,3 +67,5 @@ model_coefs0 <- lapply(models, function(x) {
 model_coefs <- left_join(model_coefs0, campaign_descriptions, by = "model_id")
 
 saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
+
+message("done with script")
