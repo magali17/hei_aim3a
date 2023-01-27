@@ -95,9 +95,6 @@ stops_no2 <- readRDS(file.path(#act_campaign_path,
 
 stops_all <- rbind(stops_no2, ns_psd) %>%
   mutate(tow2 = ifelse(day %in% c("Sat", "Sun"), "weekend", "weekday"))
-    
-
-# --> DROP? KEEP ALL SITES?
 
 # only use non-test sites for simulations
 non_test_sites <- readRDS(file.path("Output", "mm_cov_train_set_hei.rda")) %>%
@@ -212,27 +209,12 @@ saveRDS(annual_test_set, file.path("Output", "annual_test_set.rda"))
 
 ##################################################################################################
 # SAMPLING DESIGNS
-##################################################################################################
 # FEWER VISITS
-
 ##################################################################################################
-## functions 
-
-### sampling functions
-# s_tow2_sample_fn <- function(df, wkday_visits = 2, wkend_visits = 1) {
-#   
-#   no_visits <- ifelse(first(df$tow2) == "weekday", wkday_visits, wkend_visits)
-#   df0 <- slice_sample(df, n  = no_visits)
-#   
-#   return(df0)
-#   }
-
 # fn takes one random sample from each list item, according to FUN, and calculates a 'value' average
 #list should be in wide format (variable/pollutant names) so that same [temporal] samples are collected across pollutants
                              #list   #sample fn    #descriptor
-one_sample_avg <- function(my_list,# = stops_w_list, 
-                             my_sampling_fn # =s_tow2_sample_fn  
-                             ) {
+one_sample_avg <- function(my_list, my_sampling_fn) {
   result <- suppressWarnings( 
     mclapply(my_list, mc.cores = 6, FUN = my_sampling_fn) %>%
     #unlist results 
@@ -246,7 +228,6 @@ one_sample_avg <- function(my_list,# = stops_w_list,
     return(result)
 } 
 
-
 ##################################################################################################
 #2. fewer seasons. keep the number of samples the same. 6 is approximately the # of samples/site/season (i.e., max for season ==1)
 
@@ -254,7 +235,6 @@ one_sample_avg <- function(my_list,# = stops_w_list,
 message("fewer seasons")
 
 season_n <- c(1:4)  
-#season_n <- c(2:3)  
 
 season_times <- data.frame()
 
@@ -291,12 +271,9 @@ for (i in seq_along(season_n)) {
 ##################################################################################################
 message("BH, RH")
 
-rh_bh <- list(#sort(unique(c(rush_hours, business_hours))),
-              business_hours, rush_hours
-              )
+rh_bh <- list(business_hours, rush_hours)
 
-names(rh_bh) <- c(#"business & rush", 
-                  "business", "rush")
+names(rh_bh) <- c("business", "rush")
 
 rh_bh_df <- data.frame()
 
@@ -327,7 +304,6 @@ for(i in seq_along(rh_bh)) {
   
   }
 
-
 ##################################################################################################
 # combine TEMPORAL simulation results
 message("combining temporal sims")
@@ -344,21 +320,14 @@ temporal_sims <- rbind(
 ##################################################################################################
 # FEWER SITES & VISITS (TOTAL STOPS)
 ##################################################################################################
-# site_n <- c(25, seq(50, 250, 50))
-# visit_n <- seq(4,24,4) 
-
 message("fewer total stops")
 
-#site_n2 <- append(site_n, length(unique(stops_w$location)))
-
 site_n2 <- c(150, 278)
-#visit_n2 <- append(visit_n, round(mean(true_annual$visits))) 
 visit_n2 <- 12
 
 site_visit_df <- data.frame()
 
 for(v in visit_n2) {
-  # v = visit_n2[7]
   temp <- replicate(n = sim_n, simplify = F,
                          expr = mclapply(site_n2, mc.cores = 5, function(x) {
                                                  #sample sites
@@ -391,12 +360,6 @@ for(v in visit_n2) {
   }
 
 site_visit_df <- select(site_visit_df, names(temporal_sims))
-
-# # how many total stops are there in the 278 sites x 26 visits since some sites have a max od 21-25 visits? 
-# site_visit_df  %>% 
-#   filter(version == "26_visits 278_sites") %>% 
-#   distinct(location, visits) %>% 
-#   summarize(max_total_stops = sum(visits))
 
 ##################################################################################################
 # combine spatial and temporal simulations

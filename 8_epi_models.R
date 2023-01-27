@@ -20,39 +20,18 @@ output_data_path <- file.path("Output", "epi")
 # LOAD DATA
 ######################################################################
 campaign_descriptions <- readRDS("Output/Selected Campaigns/selected_campaigns.rda") %>%
-  mutate(
-    #model_id = paste0("mb_", campaign_id)
-          
-    # --> TEMP labeling
-    model_id = paste0("model_", rep(1:500, length.out=nrow(.)))
-         
-    
-    ) %>%
+  mutate(model_id = paste0("mb_", campaign_id)) %>%
   select(-campaign_id)
 
-
-################### 
-# # --> TEMP WHILE I WAIT FOR KP ISSUE 17 DATA
-# campaign_descriptions <- campaign_descriptions %>%
-#   slice(1:500) %>%
-#   mutate(model_id = paste0("model_", rep(1:500))) %>%
-#   select(-campaign_id)
-
-
-################### 
+cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
+  select(-c(ends_with(c("MM_05_yr", "coverage", "quality"))))
 
 model_covars <- readRDS(file.path(output_data_path, "model_covars.rda"))
+
 ap_prediction <- "avg_0_5_yr"
-
-cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
-  select(-c( ends_with(c("MM_05_yr", "coverage", "quality"))))
-
-
-
 ######################################################################
 # MAIN MODEL
 ######################################################################
-# df=cs
 lm_fn <- function(df, ap_prediction.=ap_prediction, model_covars. = model_covars) {
   result <- lm(as.formula(paste("casi_irt ~", ap_prediction., "+", paste(model_covars., collapse = "+"))), 
      data = df #, weights =
@@ -73,8 +52,7 @@ model_coefs0 <- lapply(models, function(x) {
     est = as.vector(coef(x)[ap_prediction]),
     lower = confint(x)[ap_prediction, 1],
     upper = confint(x)[ap_prediction, 2],
-    se = coef(summary(x))[ap_prediction, "Std. Error"]
-    )
+    se = coef(summary(x))[ap_prediction, "Std. Error"])
   }) %>%
   bind_rows() %>%
   mutate(significant = ifelse((lower <0 & upper <0) | 
@@ -86,6 +64,3 @@ model_coefs0 <- lapply(models, function(x) {
 model_coefs <- left_join(model_coefs0, campaign_descriptions, by = "model_id")
 
 saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
-
-
-

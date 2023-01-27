@@ -17,20 +17,18 @@ pacman::p_load(tidyverse, lubridate, kableExtra)
 
 set.seed(1)
 
-#source("functions.R")
 output_data_path <- file.path("Output", "epi")
 if(!file.exists(output_data_path)) {dir.create(output_data_path)}
 
-#image_path <- file.path("..", "manuscript", "images")
-# --> keep?
+if(!file.exists(file.path("data", "issue_12"))) {dir.create(file.path("data", "issue_12"))}
+if(!file.exists(file.path("data", "issue_17"))) {dir.create(file.path("data", "issue_17"))}
 
+# --> keep?
 print_diagnostics <- FALSE
 
 ######################################################################
 # FUNCTIONS
 ######################################################################
-
-
 # exclusion counts
 exclusion_table <- tibble(description = as.character(),  
                           persons = as.numeric(),
@@ -80,16 +78,32 @@ exclusion_table <- count_remaining_sample(health0, description. = "Full dataset"
 
 # exposure predictions from different models
 
-# --> UPDATE THIS TO ISSUE 17
 
-exposure_dt_path <- file.path("data", "issue_16", "issue_016_01132023.rda")
-# file.exists(exposure_dt_path) 
+
+# --> UPDATE FILE PATHS TO 17
+
+
+
+# exposure_dt_path <- file.path("data", "issue_16", "issue_016_01132023.rda")
+# # file.exists(exposure_dt_path) 
+# 
+# if(file.exists(exposure_dt_path)) {
+#   exposure0 <- readRDS(exposure_dt_path)
+#   } else {
+#   load(file.path("data", "issue_16", "issue_016_01132023.Rdata")) #loads as issue16
+#   saveRDS(issue16, file.path(exposure_dt_path))
+#   }
+
+
+
+exposure_dt_path <- file.path("data", "issue_17", "issue_017v2_01262023.rda")
+# file.exists(exposure_dt_path)
 
 if(file.exists(exposure_dt_path)) {
   exposure0 <- readRDS(exposure_dt_path)
   } else {
-  load(file.path("data", "issue_16", "issue_016_01132023.Rdata")) #loads as issue16
-  saveRDS(issue16, file.path(exposure_dt_path))
+  exposure0 <- haven::read_sas(file.path("..", "..", "issue_17", gsub(".rda", ".sas7bdat", basename(exposure_dt_path))), NULL)
+  saveRDS(exposure0, exposure_dt_path)
 }
 
 ######################################################################
@@ -105,30 +119,80 @@ save(first_exposure_year, file = file.path(output_data_path, "first_exposure_yea
 health <- filter(health0, VISIT==0)
 exclusion_table <- count_remaining_sample(health, description. = "Baseline data")
 
-# --> ONLY KEEP 2005+?
+
+######################################################################
+# TEST
+######################################################################
+# test <- health %>% 
+#   select(nses_z_cx, income, livingsb) %>% #, degree, race, male, hispanic,education,) 
+#   mutate(
+#     income =  recode_factor(factor(income),
+#                             "A" = "1.5",
+#                             "B" = "2.5",
+#                             "C" = "3.5", 
+#                             "D" = "4.5",
+#                             "E" = "5.5",
+#                             "F" = "6.5",
+#                             "9" = "NA"
+#                             ),
+#     income = as.numeric(as.character(income)),
+#     #livingsb = ifelse(livingsb==9, NA, livingsb)
+#     livingsb =  recode_factor(factor(livingsb),
+#                             "1" = "spouse",
+#                             "2" = "spouse+relatives",
+#                             "3" = "relatives/friends", 
+#                             "4" = "unrelated persons",
+#                             "5" = "nursing home",
+#                             "6" = "alone",
+#                             "9" = "NA"
+#     ),
+#   ) 
+# 
+# # test %>%
+# #   pivot_longer(-livingsb) %>%
+# # ggplot( aes(x=livingsb, y=value)) + facet_wrap(~name) + geom_boxplot()
+# 
+# # --> why does NSES decrease w/ higher income???
+# test %>%
+#   mutate(income = factor(income)) %>%
+#   ggplot(., aes(income, nses_z_cx)) + geom_boxplot()
+
+
+######################################################################
+
+# year 2000+
 health <- health %>%
   mutate(year = year(visitdt)) %>%
   filter(year >= first_exposure_year)
-exclusion_table <- count_remaining_sample(health, description. = "2005+")
+exclusion_table <- count_remaining_sample(health, description. = paste0(first_exposure_year, "+"))
 
 # valid casi score. everybody has a CASI score at baseline 
 health <- filter(health, casi_valid==1)
 exclusion_table <- count_remaining_sample(health, description. = "Valid CASI score")
 
+######################################################################
+# check that exposure coverage variables are similar across datasets. # looks good
+ # select(health,
+ #        study_id,
+ #        health_avg_wc_ufp_10_42_MM_05_yr = avg_wc_ufp_10_42_MM_05_yr,
+ #        health_avg_wc_no2_MM_05_yr = avg_wc_no2_MM_05_yr) %>%
+ #  left_join(distinct(exposure0, study_id, exp_coverage)) %>%
+ #  mutate(diff_ufp = health_avg_wc_ufp_10_42_MM_05_yr - exp_coverage,
+ #         diff_no2 = health_avg_wc_no2_MM_05_yr - exp_coverage) %>%
+ #  summary()
 
 # High exposure coverage
 coverage_threshold <- 0.95
 
-# --> avg_wc_ should also match health$exp_coverage...but it doesn't??
-
-# high exposure coverage. all bl exp_coverage values are the same for each participant. Only keep the ones w/ good coverage (i.e., in MM area)
+# high exposure coverage
 good_exposure_ids <- filter(exposure0, exp_coverage >= coverage_threshold) %>%
   distinct(study_id) %>% pull()
 health <- filter(health, study_id %in% good_exposure_ids)
 exclusion_table <- count_remaining_sample(health, description. = "High exposure coverage")
 
 # --> nses_z_cx will change to NDI
-model_covars <- c("visit_age_centered75", "year2", "apoe", "male", "degree", "race_white", "nses_z_cx")
+model_covars <- c("visit_age_centered75", "year2", "apoe", "male", "degree", "race_white" #, "nses_z_cx"
+                  )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 
 health <- health %>%
@@ -149,28 +213,19 @@ health <- health %>%
          #QC variables for NO2 and UFP
          ends_with(c("no2_MM_05_yr", "ufp_10_42_MM_05_yr")),
          -starts_with(c("cum_exp_", "var_avg_", "num_years_")),
-         
-         visitdt
-    )
-
-
+         visitdt)
 
 ######################################################################
 # MISSINGNESS
 ######################################################################
-# Proportion missing: 31% APOE, .3% race, 5% NSES is missing 
+# Proportion missing: APOE, .2% race, 5% NSES is missing 
 health %>%
   summarize_all(~sum(is.na(.))) %>%
   pivot_longer(everything(), names_to = "covariate", values_to = "count") %>%
   mutate(prop_missing = count/nrow(health)) %>%
   #filter(prop_missing >0) %>%
-  arrange(-prop_missing) 
-
-
-# --> ? impute missingness?
-
-
- 
+  arrange(-prop_missing) %>%
+  filter(count>0)
 
 ######################################################################
 # ?? IPW FOR APOE MISSINGNESS
@@ -195,26 +250,20 @@ exclusion_table <- count_remaining_sample(health, description. = "all covariates
 ######################################################################
 # COMBINE HEALTH AND EXPOSURE DATA
 ######################################################################
-
-# combine 
 cs <- left_join(health, exposure0, by="study_id")
-
-# #check that each study ID has same # of models.
-# cs%>% group_by(study_id) %>% summarize(models = n()) %>% distinct(models) %>% length() == 1
-
 
 ######################################################################
 # QC VARIABLES
 ######################################################################
-
-# --> WHY not the same?? Amanda looking into this?
-
-# these should be very similar/identical. they are off by as much as 11%
-summary(cs$exp_coverage-cs$avg_wc_ufp_10_42_MM_05_yr)
+# # a quick look at these. no red flags
+# cs %>%
+#   select(exact_coverage_prop = avg_ec_ufp_10_42_MM_05_yr, 
+#          imputed_address_prop = avg_ic_ufp_10_42_MM_05_yr, 
+#          imputation_quality = avg_iq_ufp_10_42_MM_05_yr) %>%
+#   summary()
 
 ######################################################################
 # SAVE DATA
 ######################################################################
 write.csv(exclusion_table, file.path(output_data_path, "exclusion_table.csv"), row.names = F)
 saveRDS(cs, file.path(output_data_path, "dt_for_cross_sectional_analysis.rda"))
-
