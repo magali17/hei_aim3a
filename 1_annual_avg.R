@@ -54,7 +54,7 @@ keep_vars1 <- c(#"ma200_ir_bc1", "co2_umol_mol", "pm2.5_ug_m3", "ns_total_conc",
 bins <- paste0("ns_", 
                c("11.5", "15.4", "20.5", "27.4", "36.5", "48.7", "64.9", "86.6", "115.5", "154.0","205.4", "273.8", "365.2"))
 
-keep_vars <- c(keep_vars1, "ns_total_conc", bins)
+keep_vars <- c("ns_total_conc", bins, keep_vars1)
 
 
 ns_psd <- ns_psd0 %>%

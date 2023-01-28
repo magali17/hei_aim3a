@@ -1,4 +1,4 @@
-# Rscript 5.2_summarize_predictions.R Output/'UK Predictions'/cohort/ns_total_conc
+# this script generates quick prediction maps for QC
 
 ################################################################################
 # SETUP

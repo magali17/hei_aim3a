@@ -1,7 +1,127 @@
+#######################################################################################################################
+# label designs
+#######################################################################################################################
+label_designs <- function(dt) {
+  
+  dt <- dt %>% mutate(
+    design = ifelse(design == "full", "all data", design),
+    design = str_to_title(design),
+    design = factor(design, levels = c("All Data",
+                                       "Fewer Total Stops",
+                                       "Balanced Seasons",
+                                       "Fewer Hours"
+                                       )),
+    
+    version = ifelse(version == "all training data", "all data", version),
+    version = str_to_title(version),
+    version = ifelse(version == "12_visits 150_sites", "1,800 Stops",
+                     ifelse(version == "12_visits 278_sites", "3,336 Stops",
+                            version))
+    ) 
+  
+  return(dt)
+}
 
+
+#######################################################################################################################
+# label NS bins and NO2
+#######################################################################################################################
+# dt = campaign_descriptions
+
+label_pollutants <- function(dt, label = "ufp_midpoint") {
+  
+  if(label == "ufp_midpoint") {
+    dt <- dt %>% mutate(
+      variable = case_when(
+        variable=="ns_total_conc" ~ "PNC, Total (pt/cm3)",
+        variable=="ns_11.5" ~ "PNC, 12 nm (pt/cm3)",  
+        variable=="ns_15.4" ~ "PNC, 15 nm (pt/cm3)",  
+        variable=="ns_20.5" ~ "PNC, 21 nm (pt/cm3)",
+        variable=="ns_27.4" ~ "PNC, 27 nm (pt/cm3)",
+        variable=="ns_36.5" ~ "PNC, 37 nm (pt/cm3)",
+        variable=="ns_48.7" ~ "PNC, 49 nm (pt/cm3)",
+        variable=="ns_64.9" ~ "PNC, 65 nm (pt/cm3)",
+        variable=="ns_86.6" ~ "PNC, 87 nm (pt/cm3)",
+        variable=="ns_115.5" ~ "PNC, 116 nm (pt/cm3)",
+        variable=="ns_154.0" ~ "PNC, 154 nm (pt/cm3)",
+        variable=="ns_205.4" ~ "PNC, 205 nm (pt/cm3)",
+        
+        variable=="no2" ~ "NO2 (ppb)"),
+      
+      variable = factor(variable, 
+                        levels = c("NO2 (ppb)",
+                                   "PNC, Total (pt/cm3)",
+                                   "PNC, 12 nm (pt/cm3)",  
+                                   "PNC, 15 nm (pt/cm3)",  
+                                   "PNC, 21 nm (pt/cm3)",
+                                   "PNC, 27 nm (pt/cm3)",
+                                   "PNC, 37 nm (pt/cm3)",
+                                   "PNC, 49 nm (pt/cm3)",
+                                   "PNC, 65 nm (pt/cm3)",
+                                   "PNC, 87 nm (pt/cm3)",
+                                   "PNC, 116 nm (pt/cm3)",
+                                   "PNC, 154 nm (pt/cm3)",
+                                   "PNC, 205 nm (pt/cm3)"))
+      )}
+  
+  if(label == "ufp_range") {
+    # source("file_paths.R")
+    # if(file.exists(file.path("Output", "ns_bin_defs.rda"))) {
+    #   bin_defs <- readRDS(file.path("Output", "ns_bin_defs.rda"))
+    #   } else{
+    #     bin_defs <-read.csv(file.path(hei_path, "documentation", "instruments", "NanoScan Bin Endpoints.csv"))
+    #     saveRDS(bin_defs, file.path("Output", "ns_bin_defs.rda"))
+    #     }
+    # 
+    # #round bin ranges for presentation
+    # round_val <-0
+    # bin_defs <- bin_defs %>%
+    #   mutate(lower_bound = round(lower_bound, round_val),
+    #          upper_bound = round(upper_bound, round_val),
+    #          variable = paste0("ns_", midpoint)
+    #          )
+    
+    dt <- dt %>% 
+      mutate(
+      variable = case_when(
+        variable=="ns_total_conc" ~ "PNC, 10-420 nm (pt/cm3)",
+        variable=="ns_11.5" ~ "PNC, 10-13 nm (pt/cm3)",
+        variable=="ns_15.4" ~ "PNC, 13-18 nm (pt/cm3)",
+        variable=="ns_20.5" ~ "PNC, 18-24 nm (pt/cm3)",
+        variable=="ns_27.4" ~ "PNC, 24-32 nm (pt/cm3)",
+        variable=="ns_36.5" ~ "PNC, 32-42 nm (pt/cm3)",
+        variable=="ns_48.7" ~ "PNC, 42-56 nm (pt/cm3)",
+        variable=="ns_64.9" ~ "PNC, 56-75 nm (pt/cm3)",
+        variable=="ns_86.6" ~ "PNC, 75-100 nm (pt/cm3)",
+        variable=="ns_115.5" ~ "PNC, 100-133 nm (pt/cm3)",
+        variable=="ns_154.0" ~ "PNC, 133-178 nm (pt/cm3)",
+        variable=="ns_205.4" ~ "PNC, 178-237 nm (pt/cm3)",
+        
+        variable=="no2" ~ "NO2 (ppb)"),
+      
+      variable = factor(variable, 
+                        levels = c("NO2 (ppb)",
+                                  "PNC, 10-420 nm (pt/cm3)",
+                                  "PNC, 10-13 nm (pt/cm3)",
+                                  "PNC, 13-18 nm (pt/cm3)",
+                                  "PNC, 18-24 nm (pt/cm3)",
+                                  "PNC, 24-32 nm (pt/cm3)",
+                                  "PNC, 32-42 nm (pt/cm3)",
+                                  "PNC, 42-56 nm (pt/cm3)",
+                                  "PNC, 56-75 nm (pt/cm3)",
+                                  "PNC, 75-100 nm (pt/cm3)",
+                                  "PNC, 100-133 nm (pt/cm3)",
+                                  "PNC, 133-178 nm (pt/cm3)",
+                                  "PNC, 178-237 nm (pt/cm3)"))
+      )
+    }
+
+  return(dt)
+}
 
 ######################################################################################################################
 # returns a new variable, 'win_value', which winsorizes an original variable, 'value', based on a quantile from the original variable
+######################################################################################################################
 winsorize_fn <- function(dt, value, trim_quantile =0.05) {
   
   dt1 <- dt %>%
@@ -342,7 +462,7 @@ add_season <- function(dt, .date_var) {
 
 alt_boxplot <- function(df, var, min_q=0.025, max_q=0.975){
   df <- df %>%
-    rename(var = var) %>%
+    rename(var = all_of(var)) %>%
     
     #calculate quantiles
     summarize(

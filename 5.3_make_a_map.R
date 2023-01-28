@@ -1,3 +1,5 @@
+# this script generates presentation and manuscript-quality maps
+
 ################################################################################
 # SETUP
 ################################################################################
@@ -18,13 +20,12 @@ pacman::p_load(tidyverse, ggpubr,
 
 set.seed(1)
 
-#personal file paths
+#load your personal file paths here
 source("file_paths.R") 
 grid_path <- hei_aim3a_path
 image_path <- joel_p01
 
 if(!dir.exists(file.path(image_path))){dir.create(file.path(image_path))}
-
 #########################################################################################################
 # Load Data
 #########################################################################################################
@@ -125,7 +126,7 @@ zm_lvl <- 10
 base_map <- suppressMessages(get_stamenmap( bbox = bbox, zoom = zm_lvl, maptype = "toner-lite"))
 # layer map w/ roads & airport
 roads <- suppressMessages(get_stamenmap(bbox = bbox,zoom = zm_lvl, maptype = "toner-hybrid"))
-# ggmap(ggmap = roads,)
+# ggmap(ggmap = roads)
 
 #########################################################################################################
 ## Plot

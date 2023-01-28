@@ -18,6 +18,12 @@ editor_options:
 # Setup 
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, 
+                      cache=F, cache.comments = F, 
+                      message = F, warning = F, 
+                      tidy.opts=list(width.cutoff=60), tidy=TRUE,
+                      fig.height = 10, fig.width = 10
+                      )  
 
 # Clear workspace of all objects and unload all extra (non-base) packages
 rm(list = ls(all = TRUE))
@@ -27,7 +33,10 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(tidyverse, KableExtra, PRISMAstatement)    
+pacman::p_load(tidyverse, #kableExtra, 
+               PRISMAstatement,table1
+               #ggpmisc #add line fit parameters to ggplot()
+               )    
 
 set.seed(1)
 
@@ -36,35 +45,36 @@ output_data_path <- file.path("Output", "epi")
 
 ```
 
-
-###--> add fn to create design & version ordered factors/labels
-
 ```{r}
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
-pollutants <-c("no2", "ns_total_conc")
+main_pollutants <-c("no2", "ns_total_conc")
 
 campaign_descriptions <- readRDS("Output/Selected Campaigns/selected_campaigns.rda") %>%
-  filter(variable %in% pollutants) %>%
+  filter(variable %in% main_pollutants) %>%
   mutate(model_id = paste0("mb_", campaign_id)) %>%
-  select(-campaign_id)
+  select(-campaign_id) %>%
+  label_pollutants() %>% label_designs()
+
+main_pollutants_labels <- unique(campaign_descriptions$variable)
 
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
-  rename(model_id = model) %>%
-  left_join(campaign_descriptions, by="model_id") %>%
-  
-  # --> TEMP
-  drop_na()
-  
-  
+  rename(model_id = model,
+         exposure = avg_0_5_yr) %>%
+  right_join(select(campaign_descriptions, model_id, variable, design, version, campaign), by="model_id") 
+
+model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>% 
+  filter(model_id %in% campaign_descriptions$model_id) %>%
+  label_pollutants() %>% label_designs()
+
+keep_vars <- readRDS(file.path("Output", "keep_vars.rda"))
 
 exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table.csv"))
 
-model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda"))%>%
-  filter(variable %in% pollutants)
-
-# --> add model def crosswalk
+#for boxplots
+bp_min <- 0.025
+bp_max <- 0.975
 
 ```
 
@@ -76,9 +86,8 @@ range(cs$visitdt)
 ```
 
 # QC variables
-wc, ic, ec, exposure_..., etc.
 
-### --> values across health & prediction datasets are slightly off? 
+these QC variable values from the exposure (issue 17) & health (issue 12) dataset should be identical or very similar, and they are. 
 
 ```{r}
 # names(cs)
@@ -107,169 +116,203 @@ cs %>%
 ```
 
 
-# Summarize Exposure Predictions
+# Exposure
 
-boxplots & tables: predictions vs design
+## predictions vs design
 
-N = 30 campaigns * 1421 participants
+N_predictions = 65400 participant predictions = 30 campaigns * 2128 participants/campaign
 
 ```{r}
 t1 <- cs %>%
   group_by(variable, design, version) %>%
-  alt_boxplot(var = "avg_0_5_yr")
+  alt_boxplot(var = "exposure")  #%>% label_pollutants() %>% label_designs() 
 
 t1
 
 t1 %>%
+  mutate(variable = gsub(" \\(", "\\\n(", unique(variable))) %>%
   ggplot(aes(x=version)) + 
    geom_boxplot(aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax),
    stat = "identity") + 
-  facet_grid(variable~design, scales = "free")
+  facet_grid(variable~design, scales = "free") + 
+  labs(y = "Predicted Exposure")
 
 ```
 
 
-boxplots & tables:OOS MSE-based R2 vs design 
+## Exposure  Model Performance
 
-### --> check that this looks similar to sampling paper results 
+30 campaigns per design-version-pollutant 
 
 ```{r}
-t2 <- cs %>%
+t2 <- campaign_descriptions %>%
   group_by(variable, design, version) %>%
-  alt_boxplot(var = "MSE_based_R2")
-
+  alt_boxplot(var = "MSE_based_R2", min_q=bp_min, max_q=bp_max) 
+ 
 t2
 
 t2 %>%
   ggplot(aes(x=version)) + 
    geom_boxplot(aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax),
    stat = "identity") + 
-  facet_grid(variable~design, scales = "free")
+  facet_grid(variable~design, scales = "free") + 
+  labs(y = "MSE-Based R2")
 
 ```
 
 
-scatterplots/best fit lines: design prediction vs full prediction
-
-# --> START HERE: need to join correctly
+## Compare Design Predictions
 
 ```{r}
-full <- filter(cs, design == "full") %>%
-  rename(full_prediction = avg_0_5_yr)
-samples <- filter(cs, design != "full")
+full <- filter(cs, grepl("All Data", design)) %>%
+  select(study_id, variable, exposure, model_id) %>%
+  rename(full_prediction = exposure)
 
+designs <- filter(cs, !model_id %in% full$model_id) %>%
+  select(study_id, variable, exposure, model_id, design, version, campaign) %>%
+  rename(design_prediction = exposure)
 
+comp <- left_join(select(full, -model_id), designs)
 
 ```
 
-distribution of correlations between full campaign and sampling design predictions
+scatter plots/best fit lines: design prediction vs full prediction
 
 ```{r}
+#pacman::p_load(ggpointdensity)
+# library(ggpmisc)
+
+# x = main_pollutants_labels[2]
+lapply(main_pollutants_labels, function(x){
+  p <- comp %>%
+    filter(variable==x) %>%
+    ggplot(aes(x=full_prediction, y=design_prediction, col=campaign
+               )) + 
+    facet_wrap_equal(~design+version) + 
+    geom_abline(intercept=0, slope = 1, linetype=2, alpha=0.5, size=0.2) +
+    #geom_pointdensity() +
+    #geom_point(alpha=0.05) + 
+    stat_smooth(geom="line", method="lm", aes(group=campaign), alpha=0.3, size=0.5) +
+    #geom_smooth(method = "lm", aes(group=campaign), se=F, alpha=0.2, size=0.2) +
+    stat_smooth(geom="line", method="lm", size=2) +
+    #stat_poly_line() +
+  # stat_poly_eq(aes(label = paste(after_stat(eq.label),
+  #                                after_stat(rr.label), sep = "*\", \"*"))) +
+     
+    labs(x = "All Data Prediction", y = "Design Prediction",
+         title = x
+         )
+  
+  print(p)
+  
+})
 
 ```
 
+distribution of correlations between full campaign and sampling design predictions (N= 30 correlations for each design-version)
+
+```{r}
+corr_table <- comp %>%
+  group_by(variable, design, version, campaign) %>%
+  summarize(n=n(),
+            r = cor(full_prediction, design_prediction)) %>%
+  group_by(variable, design, version) %>%
+  alt_boxplot(var = "r", min_q=bp_min, max_q=bp_max) 
+
+corr_table
+
+corr_table %>%
+    ggplot(aes(x=version, )) + 
+  geom_boxplot(aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax), stat = "identity") + 
+  facet_grid(variable~design, scales = "free") + 
+  labs(y = "Pearson Correlation (R)")
+  
+ 
 
 
-
-
-
+```
 
 # Table 1
-
---> example
 
 ```{r}
 # Table1 tutorials: 
 ## https://cran.r-project.org/web/packages/table1/table1.pdf 
 ## https://cran.r-project.org/web/packages/table1/vignettes/table1-examples.html
 
+# person-level dataset
+pop <- cs %>%
+  filter(design== "All Data") %>% 
+  group_by(variable) %>%
+  mutate(high_exposure = exposure > median(exposure),
+         visit_age = visit_age_centered75+75
+         ) %>%
+  distinct(study_id, casi_irt, visit_age, year2, apoe, male, degree, race_white, variable, exposure, high_exposure) %>%
+  pivot_wider(names_from = variable, values_from = c(high_exposure, exposure))  
+
+names(pop) <- gsub("\\ .*|\\,.*", "", names(pop))
+ 
+# table labels
 t1_labels <- list(
   labels = list(
-    male = "Sex",
-    #intakeage = "Age at Intake",
-    age_start_exposure = "Age at Baseline",
-    follow_up_years = "Follow-Up Years",
-    corrected_anydementia = "All-Cause Dementia Cases",
-    ad_nincds = "Alzheimer's Disease Dementia Cases",
-    vad_dementia = "Vascular Dementia",
-    mixed_dementia = "Mixed Dementia",
-    other_dementia = "Other Dementia",
-    non_ad_dementia = "Non-Alzheimer's Disease Dementia Cases",
-    #birth_cohort = "Birth Cohort",
-    race_white = "Race",
-    degree = "Degree",
-    income_cat = "2,000 Census Tract Income at Baseline",
+    casi_irt = "CASI-IRT",
+    visit_age = "Visit Age",
+    year2 = "Calendar Year (2 yr Cat)",
     apoe = "APOE e4 Allele",
-    apoe_available = "Included in Main Analysis",
-    model_wt = "IPW for Modeling Cohort",
-    above_avg_ufp_10_42 = "Above Avg (PNC)",
-    pollutant_prediction_ufp_10_42 = "Residential PNC (pt/cm3) Level",
-    pollutant_prediction_no2 = "Residential NO2 (ppb) Level",
-    pollutant_prediction_bc = "Residential BC (ng/m3) Level" #,  pollutant_prediction_pm25 = "PM2.5 (ug/m3)"
+    male = "Sex",
+    degree = "Degree",
+    race_white = "Race",
+    variable = "Pollutant",
+    #apoe_available = "Included in Main Analysis",
+    #model_wt = "IPW for Modeling Cohort",
+    high_exposure_PNC = "High PNC Exposure  (>Median)",
+    high_exposure_NO2 = "NO2 Above Median",
+    exposure_NO2 = "Residential NO2 (ppb) Exposure",
+    exposure_PNC = "Residential PNC (pt/cm3) Exposure"
     ),
   units = list(
-    #intakeage = "Years"
-    age_start_exposure = "Years"
+    visit_age = "Years"
      ),
   categoricals = list(
+    apoe = list('1' = "Carriers",
+                '0' = "Non-Carriers"),
+    # apoe_available = list('TRUE' = "Included in Main Analysis",
+    #                       'FALSE' = "Not Included in Main Analysis"),
     male = list('1' = "Male",
                 '0' = "Female"),
-    corrected_anydementia = list('1' = "Yes",
-                                 '0' = "No"),
-    vad_dementia = list('1' = "Yes", 
-                        '0' = "No"),
-    mixed_dementia = list('1' = "Yes", 
-                        '0' = "No"),
-    other_dementia = list('1' = "Yes", 
-                        '0' = "No"),
-    non_ad_dementia = list('1' = "Yes", 
-                        '0' = "No"),
-    ad_nincds = list('1' = "Yes",
-                     '0' = "No"
-                                 ),
-    #birth_cohort = list(sort(unique(sur_person$birth_cohort))),
-    race_white = list('1' = "White",
-                      '0' = "People of Color"),
-    degree = list('0' = "None",
+     
+        degree = list('0' = "None",
                   '1' = "GED/High School",
                   '3' = "Bachelor's",
                   '4' = "Master's",
                   '5' = "Doctorate",
                   '6' = "Other"),
-    income_cat = list('1' = "<$35,000",
-                      '2' = "$35,000 - <$50,000",
-                      '3' = "$50,000 - <$75,000",
-                      '4' = ">$75,000"),
-    apoe = list('1' = "Carriers",
-                '0' = "Non-Carriers"),
-    apoe_available = list('TRUE' = "Included in Main Analysis",
-                          'FALSE' = "Not Included in Main Analysis"),
-    above_average_ufp_10_42 = list('FALSE' = "PNC Below Avg",
-                                   'TRUE' = "PNC Above Avg")
-    )#, groups=list("", "PNC Conc", "")
+    race_white = list('1' = "White",
+                      '0' = "People of Color"),
+
+    # income_cat = list('1' = "<$35,000",
+    #                   '2' = "$35,000 - <$50,000",
+    #                   '3' = "$50,000 - <$75,000",
+    #                   '4' = ">$75,000"),
+    
+    high_exposure_PNC = list('FALSE' = "PNC Below Median",
+                                   'TRUE' = "PNC Above Median"),
+    high_exposure_NO2 = list('FALSE' = "No",
+                                   'TRUE' = "Yes")
+    ) 
   ) 
 
-print("Baseline cohort characteristics stratified by whether 10-year average PNC concentration at baseline was below or above that year's average.")
+print("Baseline cohort characteristics stratified by whether 5-year median PNC concentration at baseline was below or above the median.")
 # Main Table 1
-t1read(filter(sur_person_t1, apoe_available==TRUE), t1_labels) %>%
-  table1(~age_start_exposure + follow_up_years + male + race_white +degree + income_cat + apoe + model_wt + corrected_anydementia + ad_nincds + non_ad_dementia +  
-           pollutant_prediction_ufp_10_42 + pollutant_prediction_no2 + pollutant_prediction_bc  
-         |above_average_ufp_10_42 , data=., 
-         #groupspan=c(1,2,1)
-         # render.continuous = my.render.cont,
-         # render.categorical = my.render.cat
-         )
-
- 
+t1read(filter(pop), t1_labels) %>%
+  table1(~ visit_age + male + year2 + casi_irt + apoe + degree + race_white + exposure_PNC + exposure_NO2 + high_exposure_NO2 | high_exposure_PNC, data=.)
 
 ```
 
 
 
-# Model Results
+# Air Pollution & Baseline CASI-IRT Health Model Results
 
-distribution of betas across designs: min/q/median/max
-proportion that are statistically significant 
+distribution of betas across designs (n=30 campaign models for each design-version)
 
 ```{r}
 prop_sign <- model_coefs %>%
@@ -279,18 +322,51 @@ prop_sign <- model_coefs %>%
             prop_sign = mean(significant)
             )
 
-model_coefs %>%
+coef_table <- model_coefs %>%
   group_by(variable, design, version) %>%
   alt_boxplot(var = "est") %>%
   left_join(prop_sign)
 
+coef_table
 
-t1 %>%
+coef_table %>%
   ggplot(aes(x=version)) + 
    geom_boxplot(aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax),
    stat = "identity") + 
-  facet_grid(variable~design, scales = "free")
+  facet_grid(variable~design, scales = "free") + 
+  labs(y = "Coefficient Estimate")
 
+
+
+```
+
+# --> modify models? 
+
+```{r}
+# x = main_pollutants_labels[2]
+true_betas <- model_coefs %>%
+  filter(design == "All Data") %>%
+  select(variable, est, lower, upper)
+
+print("beta estiamtes from the all data campaign")
+true_betas
+
+lapply(main_pollutants_labels, function(x){ 
+    #p <- 
+      model_coefs %>%
+      filter(variable == x) %>%
+    
+      ggplot(aes(x=campaign, col=significant)) +  #col=version
+      facet_wrap(~design+version) + 
+      geom_hline(yintercept = 0, linetype=1, col="red") +
+      geom_rect(inherit.aes = F, data=filter(true_betas, variable==x), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.3) +
+      geom_hline(data=filter(true_betas, variable==x), aes(yintercept = est), linetype=1) +
+      geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
+      labs(title=x, col = "Statistically\nSignificant") 
+
+  #print(p)
+  
+})
 
 
 ```
@@ -299,9 +375,7 @@ t1 %>%
 
 ```{r}
 
-
 ```
-
 
 
 

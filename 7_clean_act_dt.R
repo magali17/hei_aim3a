@@ -77,25 +77,6 @@ if(file.exists(health_dt_path)) {health0 <- readRDS(health_dt_path)} else {
 exclusion_table <- count_remaining_sample(health0, description. = "Full dataset")
 
 # exposure predictions from different models
-
-
-
-# --> UPDATE FILE PATHS TO 17
-
-
-
-# exposure_dt_path <- file.path("data", "issue_16", "issue_016_01132023.rda")
-# # file.exists(exposure_dt_path) 
-# 
-# if(file.exists(exposure_dt_path)) {
-#   exposure0 <- readRDS(exposure_dt_path)
-#   } else {
-#   load(file.path("data", "issue_16", "issue_016_01132023.Rdata")) #loads as issue16
-#   saveRDS(issue16, file.path(exposure_dt_path))
-#   }
-
-
-
 exposure_dt_path <- file.path("data", "issue_17", "issue_017v2_01262023.rda")
 # file.exists(exposure_dt_path)
 
@@ -191,7 +172,9 @@ health <- filter(health, study_id %in% good_exposure_ids)
 exclusion_table <- count_remaining_sample(health, description. = "High exposure coverage")
 
 # --> nses_z_cx will change to NDI
-model_covars <- c("visit_age_centered75", "year2", "apoe", "male", "degree", "race_white" #, "nses_z_cx"
+# --> TEMP: dont include RACE??
+
+model_covars <- c("visit_age_centered75", "year2", "apoe", "male", "degree"#, "race_white" #, "nses_z_cx"
 )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 

@@ -43,11 +43,11 @@ lm_fn <- function(df, ap_prediction.=ap_prediction, model_covars. = model_covars
   return(result)
 }
 
-message("running models")
+message("running models...")
 models <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
 saveRDS(models, file.path(output_data_path, "models.rda"))
 
-message("saving model coeficients")
+message("saving model coeficients...")
 # save coefficient estimates
 model_coefs0 <- mclapply(models, mc.cores=use_cores, function(x) {
   temp <- data.frame(
