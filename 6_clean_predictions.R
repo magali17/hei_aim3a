@@ -42,6 +42,10 @@ predictions0 <- lapply(var_names,
   bind_rows() 
 
 predictions <- predictions0 %>%
+  # only predict at locations in the monitoring area w/o NAs
+  filter(in_monitoring_area,
+         !is.na(prediction)) %>%
+  
   mutate(
     # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
     start_date = ymd("1988-01-01 "),
@@ -50,9 +54,9 @@ predictions <- predictions0 %>%
   ) %>%
   select(location_id, start_date, end_date, model, 
          variable,
-         prediction) %>%
-  #reduce large file sizes
-  drop_na(prediction)
+         prediction) 
+  
+  
 
 
 #write.csv(predictions, file.path(prediction_path, "KP", "predictions_no2_total_pnc.csv"), row.names = F)
