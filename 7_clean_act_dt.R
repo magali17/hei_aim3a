@@ -104,13 +104,13 @@ exclusion_table <- count_remaining_sample(health, description. = "Baseline data"
 ######################################################################
 # TEST
 ######################################################################
-# test <- health %>% 
-#   select(nses_z_cx, income, livingsb) %>% #, degree, race, male, hispanic,education,) 
+# test <- health %>%
+#   select(nses_z_cx, income, livingsb) %>% #, degree, race, male, hispanic,education,)
 #   mutate(
 #     income =  recode_factor(factor(income),
 #                             "A" = "1.5",
 #                             "B" = "2.5",
-#                             "C" = "3.5", 
+#                             "C" = "3.5",
 #                             "D" = "4.5",
 #                             "E" = "5.5",
 #                             "F" = "6.5",
@@ -121,13 +121,13 @@ exclusion_table <- count_remaining_sample(health, description. = "Baseline data"
 #     livingsb =  recode_factor(factor(livingsb),
 #                             "1" = "spouse",
 #                             "2" = "spouse+relatives",
-#                             "3" = "relatives/friends", 
+#                             "3" = "relatives/friends",
 #                             "4" = "unrelated persons",
 #                             "5" = "nursing home",
 #                             "6" = "alone",
 #                             "9" = "NA"
 #     ),
-#   ) 
+#   )
 # 
 # # test %>%
 # #   pivot_longer(-livingsb) %>%
@@ -174,7 +174,7 @@ exclusion_table <- count_remaining_sample(health, description. = "High exposure 
 # --> nses_z_cx will change to NDI
 # --> TEMP: dont include RACE??
 
-model_covars <- c("visit_age_centered75", "year2", "apoe", "male", "degree"#, "race_white" #, "nses_z_cx"
+model_covars <- c("visit_age_centered75", "year2", "male", "degree", "apoe"#, "race_white" #, "nses_z_cx"
 )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 

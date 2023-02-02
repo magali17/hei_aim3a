@@ -14,8 +14,8 @@ label_designs <- function(dt) {
     
     version = ifelse(version == "all training data", "all data", version),
     version = str_to_title(version),
-    version = ifelse(version == "12_visits 150_sites", "1,800 Stops",
-                     ifelse(version == "12_visits 278_sites", "3,336 Stops",
+    version = ifelse(version == "12_visits 150_sites", "1,800", #Stops
+                     ifelse(version == "12_visits 278_sites", "3,336", #Stops
                             version))
     ) 
   

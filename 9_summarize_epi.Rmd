@@ -21,8 +21,7 @@ editor_options:
 knitr::opts_chunk$set(echo = F, 
                       cache=F, cache.comments = F, 
                       message = F, warning = F, 
-                      tidy.opts=list(width.cutoff=60), tidy=TRUE,
-                      fig.height = 10, fig.width = 10
+                      tidy.opts=list(width.cutoff=60), tidy=TRUE#, fig.height = 10, fig.width = 10
                       )  
 
 # Clear workspace of all objects and unload all extra (non-base) packages
@@ -33,8 +32,9 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(tidyverse, #kableExtra, 
-               PRISMAstatement,table1
+pacman::p_load(tidyverse, 
+               PRISMAstatement,table1,
+               knitr, kableExtra
                #ggpmisc #add line fit parameters to ggplot()
                )    
 
@@ -42,6 +42,12 @@ set.seed(1)
 
 source("functions.R")
 output_data_path <- file.path("Output", "epi")
+image_path <- file.path("..", "Manuscript", "Images")
+
+
+# ggplot settings
+theme_set(theme_bw())
+theme_update(legend.position = "bottom")
 
 ```
 
@@ -49,13 +55,13 @@ output_data_path <- file.path("Output", "epi")
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
-main_pollutants <-c("no2", "ns_total_conc")
+#main_pollutants <- readRDS(file.path(output_data_path, "main_pollutants.rda"))
 
-campaign_descriptions <- readRDS("Output/Selected Campaigns/selected_campaigns.rda") %>%
-  filter(variable %in% main_pollutants) %>%
-  mutate(model_id = paste0("mb_", campaign_id)) %>%
-  select(-campaign_id) %>%
-  label_pollutants() %>% label_designs()
+campaign_descriptions <- readRDS(file.path("Output", "Selected Campaigns", "selected_campaigns_v2.rda")) %>%
+  label_pollutants() %>% label_designs() %>%
+  # --> upate this to restrict descriptives to e.g., pollutants  
+  filter(!grepl("NO2", variable))
+
 
 main_pollutants_labels <- unique(campaign_descriptions$variable)
 
@@ -68,7 +74,7 @@ model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
   filter(model_id %in% campaign_descriptions$model_id) %>%
   label_pollutants() %>% label_designs()
 
-keep_vars <- readRDS(file.path("Output", "keep_vars.rda"))
+#keep_vars <- readRDS(file.path("Output", "keep_vars.rda"))
 
 exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table.csv"))
 
@@ -111,14 +117,54 @@ cs %>%
     Mean = mean(value),
     Q75 = quantile(value, 0.75),
     Max = max(value)
-  )
+  ) %>%
+  kable(caption = "QC variables", digits = 2) %>%
+  kable_styling()
 
 ```
 
 
 # Exposure
 
-## predictions vs design
+## R2
+
+30 campaigns per design-version-pollutant 
+
+```{r}
+t2 <- campaign_descriptions %>%
+  group_by(variable, design, version) %>%
+  alt_boxplot(var = "MSE_based_R2", min_q=bp_min, max_q=bp_max) %>%
+  ungroup()
+ 
+t2 %>%
+  kable(caption = "Distribution of MSE-based R2 for each design", 
+        digits = 2) %>%
+  kable_styling()
+
+print("dashed line is the All Data design performance")
+
+#t2 %>%
+campaign_descriptions %>%
+  filter(design != "All Data") %>%
+  ggplot(aes(x=version,
+             y=MSE_based_R2
+             )) + 
+  geom_hline(data=select(filter(t2, design=="All Data"), variable, Q50), aes(yintercept = Q50), linetype=2, alpha=0.5) + 
+  geom_boxplot(
+   #  aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax),
+   # stat = "identity"
+   ) + 
+  facet_grid(variable~design, scales = "free", switch = "both") + 
+  labs(y = "MSE-Based R2",
+       x = "Design" #x = "Design-Version"
+       )
+
+ggsave(file.path(image_path, "SI", "r2.png"), width = 6, height = 6)
+
+```
+
+
+## prediction comparisons
 
 N_predictions = 65400 participant predictions = 30 campaigns * 2128 participants/campaign
 
@@ -127,38 +173,26 @@ t1 <- cs %>%
   group_by(variable, design, version) %>%
   alt_boxplot(var = "exposure")  #%>% label_pollutants() %>% label_designs() 
 
-t1
+t1 %>%
+  kable(caption = "Predicted exposures by design", 
+        digits = 1) %>%
+  kable_styling()
 
 t1 %>%
   mutate(variable = gsub(" \\(", "\\\n(", unique(variable))) %>%
   ggplot(aes(x=version)) + 
    geom_boxplot(aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax),
    stat = "identity") + 
-  facet_grid(variable~design, scales = "free") + 
-  labs(y = "Predicted Exposure")
+  facet_grid(variable~design, scales = "free", switch = "both") + 
+  labs(y = "Predicted Exposure",
+       x = "Design" #x = "Design-Version"
+       )
+
+ggsave(file.path(image_path, "SI", "predicted_exposure.png"), width = 6, height = 6)
 
 ```
 
 
-## Exposure  Model Performance
-
-30 campaigns per design-version-pollutant 
-
-```{r}
-t2 <- campaign_descriptions %>%
-  group_by(variable, design, version) %>%
-  alt_boxplot(var = "MSE_based_R2", min_q=bp_min, max_q=bp_max) 
- 
-t2
-
-t2 %>%
-  ggplot(aes(x=version)) + 
-   geom_boxplot(aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax),
-   stat = "identity") + 
-  facet_grid(variable~design, scales = "free") + 
-  labs(y = "MSE-Based R2")
-
-```
 
 
 ## Compare Design Predictions
@@ -178,11 +212,8 @@ comp <- left_join(select(full, -model_id), designs)
 
 scatter plots/best fit lines: design prediction vs full prediction
 
-```{r}
-#pacman::p_load(ggpointdensity)
-# library(ggpmisc)
-
-# x = main_pollutants_labels[2]
+```{r, fig.height=8}
+# x = main_pollutants_labels[1]
 lapply(main_pollutants_labels, function(x){
   p <- comp %>%
     filter(variable==x) %>%
@@ -191,10 +222,8 @@ lapply(main_pollutants_labels, function(x){
     facet_wrap_equal(~design+version) + 
     geom_abline(intercept=0, slope = 1, linetype=2, alpha=0.5, size=0.2) +
     #geom_pointdensity() +
-    #geom_point(alpha=0.05) + 
     stat_smooth(geom="line", method="lm", aes(group=campaign), alpha=0.3, size=0.5) +
-    #geom_smooth(method = "lm", aes(group=campaign), se=F, alpha=0.2, size=0.2) +
-    stat_smooth(geom="line", method="lm", size=2) +
+    stat_smooth(geom="line", method="lm", size=1.2) +
     #stat_poly_line() +
   # stat_poly_eq(aes(label = paste(after_stat(eq.label),
   #                                after_stat(rr.label), sep = "*\", \"*"))) +
@@ -205,40 +234,49 @@ lapply(main_pollutants_labels, function(x){
   
   print(p)
   
+  ggsave(file.path(image_path, "SI", paste0("prediction_comp_", gsub("\\,.*| .*", "", x), ".png")), width = 8, height = 6)
+
 })
 
 ```
 
-distribution of correlations between full campaign and sampling design predictions (N= 30 correlations for each design-version)
+correlations (N= 30 correlations for each design-version)
 
 ```{r}
 corr_table <- comp %>%
   group_by(variable, design, version, campaign) %>%
   summarize(n=n(),
-            r = cor(full_prediction, design_prediction)) %>%
-  group_by(variable, design, version) %>%
-  alt_boxplot(var = "r", min_q=bp_min, max_q=bp_max) 
-
-corr_table
+            r = cor(full_prediction, design_prediction)) #%>%
+  # group_by(variable, design, version) %>%
+  # alt_boxplot(var = "r", min_q=bp_min, max_q=bp_max) 
 
 corr_table %>%
-    ggplot(aes(x=version, )) + 
-  geom_boxplot(aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax), stat = "identity") + 
-  facet_grid(variable~design, scales = "free") + 
-  labs(y = "Pearson Correlation (R)")
+  group_by(variable, design, version) %>%
+  alt_boxplot(var = "r", min_q=bp_min, max_q=bp_max) %>%
   
- 
+  kable(caption = "Distribution of Pearson correlations (R) between full campaign and sampling design predictions (N= 30 correlations for each design-version)", 
+        digits = 2) %>%
+  kable_styling()
 
+corr_table %>%
+    ggplot(aes(x=version, 
+               y=r
+               )) + 
+  geom_boxplot(
+    #aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax), stat = "identity"
+    ) + 
+  facet_grid(variable~design, scales = "free", switch="both") + 
+  labs(y = "Pearson Correlation (R)",
+       x = "Design" #x = "Design-Version"
+       )
+
+ggsave(file.path(image_path, "SI", "prediction_correlations.png"), width = 6, height = 6)
 
 ```
 
-# Table 1
+# CASI
 
 ```{r}
-# Table1 tutorials: 
-## https://cran.r-project.org/web/packages/table1/table1.pdf 
-## https://cran.r-project.org/web/packages/table1/vignettes/table1-examples.html
-
 # person-level dataset
 pop <- cs %>%
   filter(design== "All Data") %>% 
@@ -246,10 +284,30 @@ pop <- cs %>%
   mutate(high_exposure = exposure > median(exposure),
          visit_age = visit_age_centered75+75
          ) %>%
-  distinct(study_id, casi_irt, visit_age, year2, apoe, male, degree, race_white, variable, exposure, high_exposure) %>%
+  distinct(study_id, casi_irt, visit_age, year2, apoe, male, degree, 
+           #race_white, 
+           variable, exposure, high_exposure) %>%
   pivot_wider(names_from = variable, values_from = c(high_exposure, exposure))  
 
 names(pop) <- gsub("\\ .*|\\,.*", "", names(pop))
+```
+
+```{r}
+pop %>%
+  alt_boxplot(var="casi_irt") %>%
+  kable(caption = "Distribution of CASI-IRT", 
+        digits = 2) %>%
+  kable_styling()
+
+```
+
+
+# Table 1
+
+```{r}
+# Table1 tutorials: 
+## https://cran.r-project.org/web/packages/table1/table1.pdf 
+## https://cran.r-project.org/web/packages/table1/vignettes/table1-examples.html
  
 # table labels
 t1_labels <- list(
@@ -260,13 +318,13 @@ t1_labels <- list(
     apoe = "APOE e4 Allele",
     male = "Sex",
     degree = "Degree",
-    race_white = "Race",
+    #race_white = "Race",
     variable = "Pollutant",
     #apoe_available = "Included in Main Analysis",
     #model_wt = "IPW for Modeling Cohort",
     high_exposure_PNC = "High PNC Exposure  (>Median)",
-    high_exposure_NO2 = "NO2 Above Median",
-    exposure_NO2 = "Residential NO2 (ppb) Exposure",
+    #high_exposure_NO2 = "NO2 Above Median",
+    #exposure_NO2 = "Residential NO2 (ppb) Exposure",
     exposure_PNC = "Residential PNC (pt/cm3) Exposure"
     ),
   units = list(
@@ -286,8 +344,8 @@ t1_labels <- list(
                   '4' = "Master's",
                   '5' = "Doctorate",
                   '6' = "Other"),
-    race_white = list('1' = "White",
-                      '0' = "People of Color"),
+    # race_white = list('1' = "White",
+    #                   '0' = "People of Color"),
 
     # income_cat = list('1' = "<$35,000",
     #                   '2' = "$35,000 - <$50,000",
@@ -295,31 +353,38 @@ t1_labels <- list(
     #                   '4' = ">$75,000"),
     
     high_exposure_PNC = list('FALSE' = "PNC Below Median",
-                                   'TRUE' = "PNC Above Median"),
-    high_exposure_NO2 = list('FALSE' = "No",
-                                   'TRUE' = "Yes")
+                                   'TRUE' = "PNC Above Median")
+    # high_exposure_NO2 = list('FALSE' = "No",
+    #                                'TRUE' = "Yes")
     ) 
   ) 
 
-print("Baseline cohort characteristics stratified by whether 5-year median PNC concentration at baseline was below or above the median.")
+print("Baseline cohort characteristics stratified by whether 5-year PNC exposure at baseline was below or above the median.")
 # Main Table 1
 t1read(filter(pop), t1_labels) %>%
-  table1(~ visit_age + male + year2 + casi_irt + apoe + degree + race_white + exposure_PNC + exposure_NO2 + high_exposure_NO2 | high_exposure_PNC, data=.)
+  table1(~ visit_age + male + year2 + casi_irt + apoe + degree + #race_white + 
+           exposure_PNC  #exposure_NO2 + high_exposure_NO2 
+           | high_exposure_PNC, data=.)
 
 ```
 
 
 
-# Air Pollution & Baseline CASI-IRT Health Model Results
 
-distribution of betas across designs (n=30 campaign models for each design-version)
+
+
+
+# Health Model Results
+
+## Estimates 
+
+tables include the proportion significant
 
 ```{r}
 prop_sign <- model_coefs %>%
   group_by(variable, design, version) %>%
-  summarize(prop_sign_neg = mean(lower<0 & upper<0),
-            prop_sign_pos = mean(lower>0 & upper>0),
-            prop_sign = mean(significant)
+  summarize(prop_sign = mean(significant),
+            sd = sd(est)
             )
 
 coef_table <- model_coefs %>%
@@ -327,67 +392,251 @@ coef_table <- model_coefs %>%
   alt_boxplot(var = "est") %>%
   left_join(prop_sign)
 
-coef_table
-
 coef_table %>%
-  ggplot(aes(x=version)) + 
-   geom_boxplot(aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax),
-   stat = "identity") + 
-  facet_grid(variable~design, scales = "free") + 
-  labs(y = "Coefficient Estimate")
+  kable(caption = "Distribution of health effect estimates from each design, and the proportion of campaigns that produce significant findings", 
+        digits = 3) %>%
+  kable_styling()
 
 
+#######################################
+prop_sign %>%
+  group_by(variable) %>%
+  filter(grepl("Total Stops|Seasons", design)) %>%
+  alt_boxplot(var = "prop_sign") %>%
+  mutate_if(is.numeric, ~round(., 2)) %>%
+  kable(caption = "Distribution of proportion of significant findings for fewer stops & seasons") %>%
+  kable_styling()
 
+#######################################
 ```
 
-# --> modify models? 
+The black horizontal line and gray area are the health effect estimate from the full campaign
 
-```{r}
+```{r, fig.height=8, fig.width=8}
 # x = main_pollutants_labels[2]
 true_betas <- model_coefs %>%
   filter(design == "All Data") %>%
-  select(variable, est, lower, upper)
+  select(variable, est, lower, upper, se)
 
-print("beta estiamtes from the all data campaign")
-true_betas
+true_betas %>%
+  mutate_if(is.numeric, ~round(., 3)) %>%
+  kable(caption = "beta estiamtes from the all data campaign") %>%
+  kable_styling()
 
+# x = main_pollutants_labels[1]
 lapply(main_pollutants_labels, function(x){ 
-    #p <- 
-      model_coefs %>%
-      filter(variable == x) %>%
+    
+      p <- model_coefs %>%
+      filter(variable == x,
+             design != "All Data") %>%
     
       ggplot(aes(x=campaign, col=significant)) +  #col=version
       facet_wrap(~design+version) + 
-      geom_hline(yintercept = 0, linetype=1, col="red") +
-      geom_rect(inherit.aes = F, data=filter(true_betas, variable==x), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.3) +
-      geom_hline(data=filter(true_betas, variable==x), aes(yintercept = est), linetype=1) +
+      geom_hline(yintercept = 0, linetype=2, #col="red", 
+                 alpha=0.2) +
+      geom_rect(inherit.aes = F, data=filter(true_betas, variable==x), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.25) +
+      geom_hline(data=filter(true_betas, variable==x), aes(yintercept = est)) +
       geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
-      labs(title=x, col = "Statistically\nSignificant") 
-
-  #print(p)
+      labs(title=x, col = "Statistically Significant",
+           x="Campaign No.",
+           y = "Beta Estimate"
+           )
+      
+      print(p)
+  
+  ggsave(file.path(image_path, paste0("beta_", gsub("\\,.*| .*", "", x), ".png")), 
+         width = 8, height = 8)
   
 })
 
+```
+
+summary boxplots of betas 
+
+solid horizontal line is the estimate from the all-data campaign 
+
+```{r}
+model_coefs %>%
+  filter(grepl("Total Stops|Seasons", design)) %>%
+  group_by(variable) %>%
+  alt_boxplot(var = "est") %>%
+  kable(caption = "distribution of beta estimates for fewer stops & seasons", digits = 3) %>%
+  kable_styling()
+
+
+model_coefs %>%
+  filter(design != "All Data") %>%
+  ggplot(aes(x=version, y=est)) +
+  facet_grid(variable~design, scales="free", switch="both") + 
+  #geom_rect(inherit.aes = F, data=true_betas, aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.25) +
+  geom_hline(data=true_betas, aes(yintercept = est), linetype=1, alpha=0.5) +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+  
+  geom_boxplot() + 
+  labs(y = "Beta Estimate",
+       x = "Design" #x = "Design-Version"
+       )
+
 
 ```
 
-### --> repeat above as scatterplots, colored by significantly positive/negative/neighter?
+
+
+
+## Beta bias
 
 ```{r}
+bias0 <- model_coefs %>%
+  group_by(variable) %>%
+  mutate(ref = est[design == "All Data"],
+         error = est - ref,
+         error_pct = round(error/abs(ref)*100, 1)) %>%
+  filter(design != "All Data") 
+
+
+
+bias <- bias0 %>%
+  group_by(variable, design, version) %>%
+  alt_boxplot(var = "error") 
+
+bias %>% 
+  kable(caption = "Distribution of beta errors for each design", 
+        digits = 3) %>%
+  kable_styling()
+
+#######################################
+bias0 %>%
+  filter(grepl("Total Stops|Seasons", design)) %>%
+  alt_boxplot(var = "error") %>%
+                        # rounding impacts % error estimate (14 vs 17%)
+  mutate_if(is.numeric, ~round(., 3)) %>% 
+  kable(caption = "Distribution of beta errors for fewer stops & seasons") %>%
+  kable_styling()
+
+bias0 %>%
+  filter(grepl("Fewer Hours", design)) %>%
+  alt_boxplot(var = "error") %>%
+  mutate_if(is.numeric, ~round(.,3)) %>%
+  kable(caption = "Distribution of beta errors for fewer hours") %>%
+  kable_styling()
+#######################################
+
+#bias %>%
+bias0 %>%
+  ggplot(aes(x=version, 
+             y=error
+             )) +
+  facet_grid(variable~design, scales = "free", switch="both") +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.5) + 
+  geom_boxplot(
+    #aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax), stat = "identity"
+    ) +
+  # scale_y_continuous(sec.axis = sec_axis(~./unique(bias0$ref[1]), 
+  #                                        name="Second Axis"))+
+  
+  
+  labs(y = "Beta Error",
+       x = "Design" #x = "Design-Version"
+       )
+  
+
+ggsave(file.path(image_path, "bias.png"), width = 6, height = 6)
+
 
 ```
 
 
-
-
-distribution of the SEs across designs
+Percent error in the estimated betas (n=30 campaign models for each design-version)
 
 ```{r}
 
+bias_pct <- bias0 %>%
+  group_by(variable, design, version) %>%
+  alt_boxplot(var = "error_pct") 
+
+bias_pct %>% 
+  #select(-c(Qmin, Qmax)) %>%
+  mutate_if(is.numeric, ~round(.)) %>%
+  kable(caption = "Distribution of beta errors (%) for each design") %>%
+  kable_styling()
+
+
+#######################################
+bias0 %>%
+  filter(grepl("Total Stops|Seasons", design)) %>%
+  alt_boxplot(var = "error_pct") %>%
+  mutate_if(is.numeric, ~round(.)) %>%
+  kable(caption = "Distribution of beta errors (%) for fewer stops & seasons") %>%
+  kable_styling()
+
+bias0 %>%
+  filter(grepl("Fewer Hours", design)) %>%
+  alt_boxplot(var = "error_pct") %>%
+  mutate_if(is.numeric, ~round(.)) %>%
+  kable(caption = "Distribution of beta errors (%) for fewer hours") %>%
+  kable_styling()
+#######################################
+
+
+#bias_pct %>%
+bias0 %>%
+  ggplot(aes(x=version, y=error_pct)) +
+  facet_grid(variable~design, scales = "free", switch="both") +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.5) + 
+  geom_boxplot(
+    #aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax), stat = "identity"
+    ) +
+  # scale_y_continuous(sec.axis = sec_axis(~./unique(bias0$ref[1]), 
+  #                                        name="Beta Error"))+
+ 
+  labs(y = "Beta Error (%)",
+       x = "Design" #x = "Design-Version"
+       )
+  
+
+ggsave(file.path(image_path, "bias_pct.png"), width = 6, height = 6)
 
 ```
 
+
+## SD of Betas 
+
+N = 30 campaigns per design-version
+
 ```{r}
+model_coefs %>%
+  filter(design != "All Data") %>%
+
+  group_by(variable, design, version) %>%
+  summarize(N = n(),
+            SD_of_betas = sd(est)) %>%
+  
+  ggplot(aes(x=version, y=SD_of_betas)) + 
+  facet_grid(variable~design, scales = "free", switch="both") + 
+  geom_point() + 
+  labs(y = "SD of Beta Estimates",
+       x = "Design" #x = "Design-Version"
+       )
+   
+
+ggsave(file.path(image_path, "SI", "sd_of_betas.png"), width = 5, height = 5)
+
+```
+
+## Beta SEs 
+
+```{r}
+
+model_coefs %>%
+  filter(design != "All Data") %>%
+  
+  ggplot(aes(x=version, y=se)) +
+  facet_grid(variable~design, scales = "free") +
+  geom_hline(data=true_betas, aes(yintercept = se), alpha=0.5, linetype=2) +
+  geom_boxplot() + 
+  labs(col = "Statistically\nSignificant", y="Beta SE")
+  
+  ggsave(file.path(image_path, "SI", "se.png"), width = 6, height = 6)
 
 ```
 
@@ -396,14 +645,13 @@ distribution of the SEs across designs
 # Appendix
 ## Inclusion/exclusion table
 
--->example
-
 ```{r}
 # https://cran.r-project.org/web/packages/PRISMAstatement/vignettes/exclusionflowcharts.html 
 
 # --> last row looks weird
 
-# persons
+print("persons")
+
 flow_exclusions(
   incl_counts = exclusion_table$persons,
   total_label = "Full Cohort",
@@ -412,7 +660,9 @@ flow_exclusions(
   format_args = list(big.mark  = ",")
   )
 
-# person-years
+
+print("person-years")
+
 flow_exclusions(
   incl_counts = exclusion_table$person_years,
   total_label = "Full Cohort",
