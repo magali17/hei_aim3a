@@ -104,39 +104,6 @@ exclusion_table <- count_remaining_sample(health, description. = "Baseline data"
 ######################################################################
 # TEST
 ######################################################################
-# test <- health %>%
-#   select(nses_z_cx, income, livingsb) %>% #, degree, race, male, hispanic,education,)
-#   mutate(
-#     income =  recode_factor(factor(income),
-#                             "A" = "1.5",
-#                             "B" = "2.5",
-#                             "C" = "3.5",
-#                             "D" = "4.5",
-#                             "E" = "5.5",
-#                             "F" = "6.5",
-#                             "9" = "NA"
-#                             ),
-#     income = as.numeric(as.character(income)),
-#     #livingsb = ifelse(livingsb==9, NA, livingsb)
-#     livingsb =  recode_factor(factor(livingsb),
-#                             "1" = "spouse",
-#                             "2" = "spouse+relatives",
-#                             "3" = "relatives/friends",
-#                             "4" = "unrelated persons",
-#                             "5" = "nursing home",
-#                             "6" = "alone",
-#                             "9" = "NA"
-#     ),
-#   )
-# 
-# # test %>%
-# #   pivot_longer(-livingsb) %>%
-# # ggplot( aes(x=livingsb, y=value)) + facet_wrap(~name) + geom_boxplot()
-# 
-# # --> why does NSES decrease w/ higher income???
-# test %>%
-#   mutate(income = factor(income)) %>%
-#   ggplot(., aes(income, nses_z_cx)) + geom_boxplot()
 
 
 ######################################################################
