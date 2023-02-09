@@ -58,23 +58,24 @@ theme_update(legend.position = "bottom")
 #main_pollutants <- readRDS(file.path(output_data_path, "main_pollutants.rda"))
 
 campaign_descriptions <- readRDS(file.path("Output", "Selected Campaigns", "selected_campaigns_v2.rda")) %>%
-  label_pollutants() %>% label_designs() %>%
+  label_pollutants() %>% label_designs() #%>%
   # --> upate this to restrict descriptives to e.g., pollutants  
-  filter(!grepl("NO2", variable))
+  #filter(grepl("PNC", variable))
 
+all_pollutants_labels <- unique(campaign_descriptions$variable)
+main_pollutants_labels <- all_pollutants_labels[str_detect(all_pollutants_labels, "Total")]
 
-main_pollutants_labels <- unique(campaign_descriptions$variable)
 
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(model_id = model,
          exposure = avg_0_5_yr) %>%
   right_join(select(campaign_descriptions, model_id, variable, design, version, campaign), by="model_id") 
 
-model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>% 
+model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda"))
+
+model_coefs <- model_coefs0 %>% 
   filter(model_id %in% campaign_descriptions$model_id) %>%
   label_pollutants() %>% label_designs()
-
-#keep_vars <- readRDS(file.path("Output", "keep_vars.rda"))
 
 exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table.csv"))
 
@@ -132,6 +133,7 @@ cs %>%
 
 ```{r}
 t2 <- campaign_descriptions %>%
+  filter(variable %in% main_pollutants_labels) %>%
   group_by(variable, design, version) %>%
   alt_boxplot(var = "MSE_based_R2", min_q=bp_min, max_q=bp_max) %>%
   ungroup()
@@ -145,7 +147,8 @@ print("dashed line is the All Data design performance")
 
 #t2 %>%
 campaign_descriptions %>%
-  filter(design != "All Data") %>%
+  filter(variable %in% main_pollutants_labels,
+         design != "All Data") %>%
   ggplot(aes(x=version,
              y=MSE_based_R2
              )) + 
@@ -170,6 +173,7 @@ N_predictions = 65400 participant predictions = 30 campaigns * 2128 participants
 
 ```{r}
 t1 <- cs %>%
+  filter(variable %in% main_pollutants_labels) %>%
   group_by(variable, design, version) %>%
   alt_boxplot(var = "exposure")  #%>% label_pollutants() %>% label_designs() 
 
@@ -198,11 +202,16 @@ ggsave(file.path(image_path, "SI", "predicted_exposure.png"), width = 6, height 
 ## Compare Design Predictions
 
 ```{r}
-full <- filter(cs, grepl("All Data", design)) %>%
+full <- cs %>% 
+  filter(grepl("All Data", design),
+         variable %in% main_pollutants_labels
+         ) %>%
   select(study_id, variable, exposure, model_id) %>%
   rename(full_prediction = exposure)
 
-designs <- filter(cs, !model_id %in% full$model_id) %>%
+designs <- filter(cs, 
+                  variable %in% main_pollutants_labels,
+                  !model_id %in% full$model_id) %>%
   select(study_id, variable, exposure, model_id, design, version, campaign) %>%
   rename(design_prediction = exposure)
 
@@ -279,7 +288,8 @@ ggsave(file.path(image_path, "SI", "prediction_correlations.png"), width = 6, he
 ```{r}
 # person-level dataset
 pop <- cs %>%
-  filter(design== "All Data") %>% 
+  filter(variable %in% main_pollutants_labels,
+         design== "All Data") %>% 
   group_by(variable) %>%
   mutate(high_exposure = exposure > median(exposure),
          visit_age = visit_age_centered75+75
@@ -368,12 +378,6 @@ t1read(filter(pop), t1_labels) %>%
 
 ```
 
-
-
-
-
-
-
 # Health Model Results
 
 ## Estimates 
@@ -393,6 +397,7 @@ coef_table <- model_coefs %>%
   left_join(prop_sign)
 
 coef_table %>%
+  filter(variable %in% main_pollutants_labels) %>%
   kable(caption = "Distribution of health effect estimates from each design, and the proportion of campaigns that produce significant findings", 
         digits = 3) %>%
   kable_styling()
@@ -400,8 +405,10 @@ coef_table %>%
 
 #######################################
 prop_sign %>%
+  filter(variable %in% main_pollutants_labels,
+         grepl("Total Stops|Seasons", design)
+         ) %>%
   group_by(variable) %>%
-  filter(grepl("Total Stops|Seasons", design)) %>%
   alt_boxplot(var = "prop_sign") %>%
   mutate_if(is.numeric, ~round(., 2)) %>%
   kable(caption = "Distribution of proportion of significant findings for fewer stops & seasons") %>%
@@ -409,6 +416,32 @@ prop_sign %>%
 
 #######################################
 ```
+
+summary boxplots of betas 
+
+```{r}
+# comparison of all-data betas
+model_coefs %>%
+  filter(design == "All Data") %>% 
+  mutate(
+    variable = gsub("PNC, ", "", variable),
+    variable = gsub(" nm.*", "", variable),
+    variable = gsub("Total \\(pt/cm3\\)", "Total (10-420)", variable),
+    
+    variable = factor(variable, levels = c("12", "21", "27", "37", "49", "65", "87", "116", "154", "Total (10-420)"))
+  ) %>%  
+
+  ggplot(aes(x=variable, col=significant)) +  
+  facet_wrap(~design+version) + 
+  geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+  geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
+      labs(col = "Statistically Significant",
+           x="Size-Specific PNC, nm",
+           y = "Beta Estimate (per 1k pt/cm3)"
+           )
+
+```
+
 
 The black horizontal line and gray area are the health effect estimate from the full campaign
 
@@ -423,8 +456,8 @@ true_betas %>%
   kable(caption = "beta estiamtes from the all data campaign") %>%
   kable_styling()
 
-# x = main_pollutants_labels[1]
-lapply(main_pollutants_labels, function(x){ 
+# x = all_pollutants_labels[1]
+lapply(all_pollutants_labels, function(x){ 
     
       p <- model_coefs %>%
       filter(variable == x,
@@ -444,14 +477,24 @@ lapply(main_pollutants_labels, function(x){
       
       print(p)
   
-  ggsave(file.path(image_path, paste0("beta_", gsub("\\,.*| .*", "", x), ".png")), 
+      if(grepl("Total", x)) {
+        fp <- image_path
+        } else {
+        fp <- file.path(image_path, "SI")
+      }
+      
+  ggsave(file.path(fp, paste0("beta_", 
+                                      #gsub("\\,.*| .*", "", x), 
+                                      gsub(" \\(.*| nm.*", "", x), 
+                                      ".png")), 
          width = 8, height = 8)
   
 })
 
 ```
 
-summary boxplots of betas 
+
+
 
 solid horizontal line is the estimate from the all-data campaign 
 
@@ -491,7 +534,8 @@ bias0 <- model_coefs %>%
   mutate(ref = est[design == "All Data"],
          error = est - ref,
          error_pct = round(error/abs(ref)*100, 1)) %>%
-  filter(design != "All Data") 
+  filter(design != "All Data",
+         variable %in% main_pollutants_labels) 
 
 
 
@@ -528,13 +572,7 @@ bias0 %>%
              )) +
   facet_grid(variable~design, scales = "free", switch="both") +
   geom_hline(yintercept = 0, linetype=2, alpha=0.5) + 
-  geom_boxplot(
-    #aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax), stat = "identity"
-    ) +
-  # scale_y_continuous(sec.axis = sec_axis(~./unique(bias0$ref[1]), 
-  #                                        name="Second Axis"))+
-  
-  
+  geom_boxplot()+
   labs(y = "Beta Error",
        x = "Design" #x = "Design-Version"
        )
@@ -605,8 +643,9 @@ N = 30 campaigns per design-version
 
 ```{r}
 model_coefs %>%
-  filter(design != "All Data") %>%
-
+  filter(design != "All Data",
+         variable %in% main_pollutants_labels
+         ) %>%
   group_by(variable, design, version) %>%
   summarize(N = n(),
             SD_of_betas = sd(est)) %>%
@@ -628,11 +667,14 @@ ggsave(file.path(image_path, "SI", "sd_of_betas.png"), width = 5, height = 5)
 ```{r}
 
 model_coefs %>%
-  filter(design != "All Data") %>%
+  filter(design != "All Data",
+         variable %in% main_pollutants_labels
+         ) %>%
   
   ggplot(aes(x=version, y=se)) +
   facet_grid(variable~design, scales = "free") +
-  geom_hline(data=true_betas, aes(yintercept = se), alpha=0.5, linetype=2) +
+  geom_hline(data=filter(true_betas, variable %in% main_pollutants_labels), 
+             aes(yintercept = se), alpha=0.5, linetype=2) +
   geom_boxplot() + 
   labs(col = "Statistically\nSignificant", y="Beta SE")
   
