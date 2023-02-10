@@ -34,25 +34,24 @@ plan(multisession, workers = 6)
 
 # Nanoscan bin estimates
 ns_psd0 <- read_csv(file.path("data", "tr0090_averaged_stops.csv")) %>%
-  filter(grepl("PMSCAN_", instrument_id)) %>%
+  filter(grepl("PMSCAN_", instrument_id),
+         # don't trust these large bins - have a lot of missingness 
+         !variable %in% c("205.4", "273.8", "365.2")
+         ) %>%
   select(-c(instrument_id, primary_instrument, mean_value)) %>%
   mutate(variable = if_else(variable=="total.conc", "ns_total_conc", as.character(variable))) %>%
   rename(value = median_value)  
 
 # ns_bins <- ns_psd0 %>%
 #   #filter(!grepl("total", variable)) %>%
-#   distinct(variable) %>% pull() %>% 
+#   distinct(variable) %>% pull() %>%
 #   sort(decreasing = T)
 
-
-# --> drop pnc_noscreen to increase visits/site later?
-
-keep_vars1 <- c(#"ma200_ir_bc1", "co2_umol_mol", "pm2.5_ug_m3", "ns_total_conc",
-  "no2"#, "pnc_noscreen" 
-  )
+keep_vars1 <- c("no2")
 
 bins <- paste0("ns_", 
-               c("11.5", "15.4", "20.5", "27.4", "36.5", "48.7", "64.9", "86.6", "115.5", "154.0","205.4", "273.8", "365.2"))
+               c("11.5", "15.4", "20.5", "27.4", "36.5", "48.7", "64.9", "86.6", "115.5", "154.0" #,"205.4", "273.8", "365.2"
+                 ))
 
 keep_vars <- c("ns_total_conc", bins, keep_vars1)
 
@@ -85,7 +84,7 @@ ns_psd <- ns_psd0 %>%
   mutate(time = time[variable=="ns_total_conc"]) %>%
   ungroup()
 
-stops_no2 <- readRDS(file.path(#act_campaign_path, 
+stops_no2 <- readRDS(file.path( 
   "data",
   "stop_data_win_medians.rda")) %>%
   #drop duplicate UFP instruments
@@ -96,13 +95,15 @@ stops_no2 <- readRDS(file.path(#act_campaign_path,
 stops_all <- rbind(stops_no2, ns_psd) %>%
   mutate(tow2 = ifelse(day %in% c("Sat", "Sun"), "weekend", "weekday"))
 
-# only use non-test sites for simulations
-non_test_sites <- readRDS(file.path("Output", "mm_cov_train_set_hei.rda")) %>%
-  distinct(location) %>% pull()
+# # only use non-test sites for simulations
+# non_test_sites <- readRDS(file.path("Output", "mm_cov_train_set_hei.rda")) %>%
+#   distinct(location) %>% pull()
+# 
+# # 278 locations from 309
+# stops <- filter(stops_all, location %in% non_test_sites)
 
-# 278 locations from 309
-stops <- filter(stops_all, location %in% non_test_sites)
-
+# using all sites
+stops <- stops_all
 ##################################################################################################
 # COMMON VARIABLES
 ##################################################################################################
@@ -149,26 +150,10 @@ bad_bins <- filter(prop_time_missing, .>0.5) %>% pull(rowname) %>%
 keep_vars <- setdiff(keep_vars, bad_bins)
 saveRDS(keep_vars, file.path("Output", "keep_vars.rda"))
 
-#stops_all <- filter(stops_all, variable %in% keep_vars)
 stops <- filter(stops, variable %in% keep_vars)
 
-
-# ############## DON'T DO??? ##############
-# keep_times0 <- keep_times0 %>%
-#   drop_na() %>%
-#   mutate(
-#     remaining_stops = n(),
-#     prop_remaining_stops = remaining_stops/original_stops
-#     )
-# # 
-# keep_times <- keep_times0 %>% #7345 stops left (90.12%)
-#   distinct(time) %>% pull()
-# 
-# stops <- filter(stops, time %in% keep_times)
-# 
-# ##############################################
-
-# 7,806/8163 = 96% stops remain
+# 8671/9047 = 96% stops remain (using 309 sites now)
+#OLD? 7,806/8163 = 96% stops remain
 stops_w <- pivot_wider(data = stops, names_from = "variable",values_from =  "value") %>%
   drop_na()
 
@@ -190,22 +175,22 @@ true_annual <- stops_w %>%
   ungroup()
   
    
-# save est set annual averages for validation later
-## this also uses the winsorized stop data & the same date ranges
-annual_test_set <- stops_all %>%
-  filter(!location %in% non_test_sites,
-         #same date range as training data; only keep times where all pollutants have values
-         #time %in% keep_times
-         ) %>%
-  group_by(variable, location) %>%
-  summarize(value = mean(value,  na.rm=T),
-            visits = n(),
-            campaign = 1,
-            design = "test set",
-            version = "test set"
-  )
-
-saveRDS(annual_test_set, file.path("Output", "annual_test_set.rda"))
+# # save est set annual averages for validation later
+# ## this also uses the winsorized stop data & the same date ranges
+# annual_test_set <- stops_all %>%
+#   filter(!location %in% non_test_sites,
+#          #same date range as training data; only keep times where all pollutants have values
+#          #time %in% keep_times
+#          ) %>%
+#   group_by(variable, location) %>%
+#   summarize(value = mean(value,  na.rm=T),
+#             visits = n(),
+#             campaign = 1,
+#             design = "test set",
+#             version = "test set"
+#   )
+# 
+# saveRDS(annual_test_set, file.path("Output", "annual_test_set.rda"))
 
 ##################################################################################################
 # SAMPLING DESIGNS
@@ -278,7 +263,6 @@ names(rh_bh) <- c("business", "rush")
 rh_bh_df <- data.frame()
 
 for(i in seq_along(rh_bh)) {
-  #i=1
   temp <- future_replicate(n = sim_n,
                            simplify = F,
                            expr = one_sample_avg(my_list = group_split(stops_w, location), 
@@ -310,7 +294,6 @@ message("combining temporal sims")
 
 temporal_sims <- rbind(
   true_annual,
-  #days,
   season_times, 
   rh_bh_df
   ) %>%
@@ -345,7 +328,6 @@ for(v in visit_n2) {
                                                    )
                                                  })
                          ) %>%
-  #unlist
   bind_rows() %>%
     
   ungroup() %>%

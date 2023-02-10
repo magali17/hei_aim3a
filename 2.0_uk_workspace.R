@@ -13,7 +13,6 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 pacman::p_load(tidyverse, 
                kableExtra, 
                parallel, #mclapply; detectCores()
-               #future.apply, #future_replicate()
                pls, 
                gstat, #variogram()
                sf, #for spatial data; st_
