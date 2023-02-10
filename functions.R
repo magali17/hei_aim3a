@@ -34,6 +34,7 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
     dt <- dt %>% mutate(
       variable = case_when(
         variable=="ns_total_conc" ~ "PNC, Total (pt/cm3)",
+        variable=="ns_10_100" ~ "PNC, <100 nm (pt/cm3)",  
         variable=="ns_11.5" ~ "PNC, 12 nm (pt/cm3)",  
         variable=="ns_15.4" ~ "PNC, 15 nm (pt/cm3)",  
         variable=="ns_20.5" ~ "PNC, 21 nm (pt/cm3)",
@@ -51,6 +52,7 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
       variable = factor(variable, 
                         levels = c("NO2 (ppb)",
                                    "PNC, Total (pt/cm3)",
+                                   "PNC, <100 nm (pt/cm3)",  
                                    "PNC, 12 nm (pt/cm3)",  
                                    "PNC, 15 nm (pt/cm3)",  
                                    "PNC, 21 nm (pt/cm3)",
@@ -85,6 +87,7 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
       mutate(
       variable = case_when(
         variable=="ns_total_conc" ~ "PNC, 10-420 nm (pt/cm3)",
+        variable=="ns_10_100" ~ "PNC, 10-100 nm (pt/cm3)",  
         variable=="ns_11.5" ~ "PNC, 10-13 nm (pt/cm3)",
         variable=="ns_15.4" ~ "PNC, 13-18 nm (pt/cm3)",
         variable=="ns_20.5" ~ "PNC, 18-24 nm (pt/cm3)",
@@ -102,6 +105,7 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
       variable = factor(variable, 
                         levels = c("NO2 (ppb)",
                                   "PNC, 10-420 nm (pt/cm3)",
+                                  "PNC, 10-100 nm (pt/cm3)",
                                   "PNC, 10-13 nm (pt/cm3)",
                                   "PNC, 13-18 nm (pt/cm3)",
                                   "PNC, 18-24 nm (pt/cm3)",

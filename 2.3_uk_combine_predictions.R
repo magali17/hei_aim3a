@@ -20,10 +20,10 @@ set.seed(1)
 ##################################################################################################
 # estimates
 annual <- readRDS(file.path("Output", "annual_training_set2.rda"))
-annual_test_set <- readRDS(file.path("Output", "annual_test_set2.rda"))
+#annual_test_set <- readRDS(file.path("Output", "annual_test_set2.rda"))
 
 #predictions
-test_set_predictions <- readRDS(file.path("Output", "UK Predictions", "test_set_predictions.rda"))
+#test_set_predictions <- readRDS(file.path("Output", "UK Predictions", "test_set_predictions.rda"))
 cv_predictions <- readRDS(file.path("Output", "UK Predictions", "cv_predictions.rda"))
 
 ##################################################################################################
@@ -39,13 +39,13 @@ annual_gs_estimates <- annual %>% st_drop_geometry() %>%
   distinct(location, variable, value) %>%
   rename(gs_estimate = value)
 
-#GS estimates for 31 sites
-test_gs_estimates <- annual_test_set %>% st_drop_geometry() %>%
-  distinct(location, variable, value) %>%
-  rename(gs_estimate = value)
+# #GS estimates for 31 sites
+# test_gs_estimates <- annual_test_set %>% st_drop_geometry() %>%
+#   distinct(location, variable, value) %>%
+#   rename(gs_estimate = value)
 
 #GS estimates for all 309 sites
-gs_estimates <- bind_rows(annual_gs_estimates, test_gs_estimates)
+#gs_estimates <- bind_rows(annual_gs_estimates, test_gs_estimates)
 
 # estimates from specific campaign simultaions (n=278 sites)
 ## note that these only change w/ temporal sims where fewer visits/site are used to estimate annual averages
@@ -55,12 +55,13 @@ campaign_estimates <- annual %>% st_drop_geometry() %>%
 
 
 # combine predictions & estimates
-predictions0 <- rbind(test_set_predictions, cv_predictions) 
+#predictions0 <- cv_predictions
+#predictions0 <- rbind(test_set_predictions, cv_predictions) 
 # predictions0 <- test_set_predictions 
 
-predictions <- predictions0 %>%
+predictions <- cv_predictions %>%
   #left join b/c locations w/ predictions may be fewer than the 309 sites if dno't do 10FCV
-  left_join(gs_estimates) %>%
+  left_join(annual_gs_estimates) %>%
   left_join(campaign_estimates) %>%
   #put back on native scale before evaluating
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
@@ -73,4 +74,4 @@ print("saving predictions")
 saveRDS(predictions, file.path("Output", "UK Predictions", "all_predictions.rda"))
 
 
-message("done with 2_uk_combine_predictions.R") 
+message("done with 2.3") 

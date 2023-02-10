@@ -42,17 +42,26 @@ m_crs <- 32148
 lambert_proj <- "+proj=lcc +lat_1=33 +lat_2=45 +lat_0=39 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
 
 ##################################################################################################
+# 
+training_set <- readRDS(file.path(hei_aim1a_path, "mm_cov_train_set_hei.rda")) 
+modeling_covars <- readRDS(file.path(hei_aim1a_path, "mm_cov_test_set.rda")) %>%
+  select(names(training_set)) %>%
+  rbind(training_set)
+
+
+
+
 # mm annual estimates
 annual <- readRDS(file.path("Output", "annual_training_set.rda")) %>%
   #add covariates
-  left_join(readRDS(file.path(hei_aim1a_path, "mm_cov_train_set_hei.rda"))) %>%
+  left_join(modeling_covars) %>%
   #convert to sf
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
   st_transform(m_crs) %>%
   # log transform before modeling
   # some PNC annual avgs are 0, which causes issues logging values
-  mutate_at(vars(var_names), ~ifelse(.== 0, 1, .)) %>%
-  mutate_at(vars(var_names), ~log(.)) %>%
+  mutate_at(vars(all_of(var_names)), ~ifelse(.== 0, 1, .)) %>%
+  mutate_at(vars(all_of(var_names)), ~log(.)) %>%
   gather("variable", "value", var_names) %>%
   relocate(variable, value, .before = longitude) %>%
   
@@ -63,20 +72,19 @@ annual <- readRDS(file.path("Output", "annual_training_set.rda")) %>%
   st_as_sf()
   
 
-
-## same for test set
-annual_test_set <- readRDS(file.path("Output", "annual_test_set.rda")) %>%
-  #add covariates
-  left_join(readRDS(file.path(hei_aim1a_path, "mm_cov_test_set.rda"))) %>%
-  #convert to sf
-  st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
-  st_transform(m_crs) %>%
-  # log transform annual averages before modeling
-  mutate(value = ifelse(value==0, 1, value),
-         value = log(value))  
-  
-
-saveRDS(annual_test_set, file.path("Output", "annual_test_set2.rda"))
+# ## same for test set
+# annual_test_set <- readRDS(file.path("Output", "annual_test_set.rda")) %>%
+#   #add covariates
+#   left_join(readRDS(file.path(hei_aim1a_path, "mm_cov_test_set.rda"))) %>%
+#   #convert to sf
+#   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
+#   st_transform(m_crs) %>%
+#   # log transform annual averages before modeling
+#   mutate(value = ifelse(value==0, 1, value),
+#          value = log(value))  
+#   
+# 
+# saveRDS(annual_test_set, file.path("Output", "annual_test_set2.rda"))
 
 
 ##################################################################################################
@@ -85,7 +93,7 @@ saveRDS(annual_test_set, file.path("Output", "annual_test_set2.rda"))
 
 # for modeling 
 cov_names <- st_drop_geometry(annual) %>% ungroup() %>%
-  select(log_m_to_a1:last_col()) %>% names() # 224 covarites
+  select(log_m_to_a1:last_col()) %>% names() # 188 covariates
 
 pls_comp_n <- 2
 saveRDS(pls_comp_n, file.path("Output", "pls_comp_n.rda"))
@@ -258,8 +266,7 @@ do_cv <- function (x, fold_name) {
 # COMMON VARIABLES
 ##################################################################################################
 
-common_vars <- c("location", "route", "visits", "campaign", "design", "version", "spatial_temporal", "variable", "prediction"#, "var1.var"
-                 )
+common_vars <- c("location", "route", "visits", "campaign", "design", "version", "spatial_temporal", "variable", "prediction")
 
 
 ##################################################################################################

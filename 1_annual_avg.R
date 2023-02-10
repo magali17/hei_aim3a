@@ -35,13 +35,24 @@ plan(multisession, workers = 6)
 # Nanoscan bin estimates
 ns_psd0 <- read_csv(file.path("data", "tr0090_averaged_stops.csv")) %>%
   filter(grepl("PMSCAN_", instrument_id),
-         # don't trust these large bins - have a lot of missingness 
-         !variable %in% c("205.4", "273.8", "365.2")
-         ) %>%
+         # we don't trust these large bins - they have a lot of missingness 
+         !variable %in% c("205.4", "273.8", "365.2")) %>%
   select(-c(instrument_id, primary_instrument, mean_value)) %>%
   mutate(variable = if_else(variable=="total.conc", "ns_total_conc", as.character(variable))) %>%
   rename(value = median_value)  
 
+
+##################################################################################################
+# counts < 100 nm
+small_ufp <- ns_psd0 %>%
+  filter(variable %in% c("11.5", "15.4", "20.5", "27.4", "36.5", "48.7", "64.9", "86.6")) %>%
+  group_by(runname, date, time, location, stop_id) %>%
+  summarize(value = sum(value)) %>%
+  mutate(variable = "10_100")
+
+ns_psd0 <- bind_rows(ns_psd0, small_ufp)
+
+##################################################################################################
 # ns_bins <- ns_psd0 %>%
 #   #filter(!grepl("total", variable)) %>%
 #   distinct(variable) %>% pull() %>%
@@ -50,7 +61,7 @@ ns_psd0 <- read_csv(file.path("data", "tr0090_averaged_stops.csv")) %>%
 keep_vars1 <- c("no2")
 
 bins <- paste0("ns_", 
-               c("11.5", "15.4", "20.5", "27.4", "36.5", "48.7", "64.9", "86.6", "115.5", "154.0" #,"205.4", "273.8", "365.2"
+               c("10_100", "11.5", "15.4", "20.5", "27.4", "36.5", "48.7", "64.9", "86.6", "115.5", "154.0"#"205.4", "273.8", "365.2"
                  ))
 
 keep_vars <- c("ns_total_conc", bins, keep_vars1)

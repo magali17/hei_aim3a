@@ -30,8 +30,7 @@ if(!dir.exists(file.path("Output", "Selected Campaigns"))){dir.create(file.path(
 ##################################################################################################
 
 selected_campaigns0 <- read_rds(file.path("Output", "model_eval.rda")) %>%
-  filter(out_of_sample == "Test",
-         reference == "gs_estimate")
+  filter(reference == "gs_estimate")
 
 saveRDS(selected_campaigns0, file.path("Output", "Selected Campaigns", "selected_campaigns.rda"))
 
@@ -52,5 +51,5 @@ lapply(var_names, function(x) {
 })
 
 
-
+message("done with 4")
 

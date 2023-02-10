@@ -19,7 +19,6 @@ pacman::p_load(tidyverse,
 load(file.path("Output", "uk_workspace.rdata"))
 if(!dir.exists(file.path("Output", "UK Predictions"))){dir.create(file.path("Output", "UK Predictions"))}
 
-
 set.seed(1)
 
 ##################################################################################################
@@ -27,7 +26,7 @@ set.seed(1)
 ##################################################################################################
 
 ## each df in the list is a simulation; running 10-FCV within each simulation to get CV predictions
-print(paste0("random ", k, " FCV"))
+print(paste0("Running random ", k, " FCV"))
 
 cv_predictions0 <- mclapply(group_split(annual, spatial_temporal, design, version, campaign, variable), 
                             mc.cores = use_cores, 
@@ -44,6 +43,7 @@ cv_predictions <- cv_predictions0 %>%
 # SAVE PREDICTIONS
 ##################################################################################################
 
+message("saving predictions")
 saveRDS(cv_predictions, file.path("Output", "UK Predictions", "cv_predictions.rda"))
 
-message("done with 2_uk_cv.R")
+message("done with 2.1")

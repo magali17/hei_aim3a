@@ -31,10 +31,7 @@ m_crs <- 32148
  
 # uk predictions
 predictions <- readRDS(file.path("Output", "UK Predictions", "all_predictions.rda")) %>% 
-  #gather("reference", "estimate", contains("estimate")) %>%
-  pivot_longer(contains("estimate"), names_to = "reference", values_to = "estimate") %>%
-  # some campaigns don't have "estimtes" for test set locations
-  drop_na(estimate)
+  pivot_longer(contains("estimate"), names_to = "reference", values_to = "estimate")  
 
 # simulation details
 sims <- readRDS(file.path("Output", "annual_training_set.rda")) %>%  
@@ -42,29 +39,15 @@ sims <- readRDS(file.path("Output", "annual_training_set.rda")) %>%
 
 
 #location lat/long 
-loc_lat_long <- readRDS(file.path(#hei_aim1a_path, 
+loc_lat_long <- readRDS(file.path(
   "data",
   "location_lat_long.rda")) %>%
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
   st_transform(m_crs)  
 
-# # monitoring area shp 
-# monitoring_region <- readRDS(file.path("..", "..", "1. Our Campaign", "Our Campaign R", "Data", "Output", "GIS", "monitoring_land_shp.rda")) %>%
-#   st_transform(m_crs)
-
- 
-##################################################################################################
-# update datasets
-
-#monitoring_area <- st_area(monitoring_region) %>% set_units("km2") %>% drop_units()
-
 ##################################################################################################
 # CV STATS FUNCTION
 ##################################################################################################
-
-# dt = group_split(predictions, campaign, design, version, variable, out_of_sample, reference)[[33]]
-# prediction = "prediction"
-# reference = "estimate"
 
 # Fn returns RMSE and MSE-based R2 for a given dataset
 validation_stats <- function(dt, prediction, reference){
@@ -126,21 +109,6 @@ ungroup()
 # SAVE DATA
 select(model_perf , -no_sites) %>%
   saveRDS(., file.path("Output", "model_eval.rda"))
-
-##################################################################################################
-# ARRANGE PERFORMANCES
-##################################################################################################
-
-#mid_campaign <- floor(max(model_perf$campaign)/2)
-
-# selected_campaigns <- model_perf %>%
-#   filter(out_of_sample == "Test",
-#          reference == "gs_estimate")
-#          
-#         
-# 
-# saveRDS(selected_campaigns, file.path("Output", "selected_campaigns.rda"))
-
 
 ##################################################################################################
 # SAVE DATA

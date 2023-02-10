@@ -27,8 +27,6 @@ if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(predictio
 ##################################################################################################
 
 var_names <- readRDS(file.path("Output", "keep_vars.rda"))
-# # TEMP - having issues w/ last bin
-# var_names <- setdiff(var_names, "ns_205.4")
 
 grp1_vars <- c("no2", "ns_total_conc")
 grp2_vars <- setdiff(var_names, grp1_vars)
