@@ -48,9 +48,6 @@ modeling_covars <- readRDS(file.path(hei_aim1a_path, "mm_cov_test_set.rda")) %>%
   select(names(training_set)) %>%
   rbind(training_set)
 
-
-
-
 # mm annual estimates
 annual <- readRDS(file.path("Output", "annual_training_set.rda")) %>%
   #add covariates
