@@ -1,4 +1,4 @@
-#script purpose: select models
+#script purpose: select models to send to KPRI
 
 ##################################################################################################
 # SETUP
@@ -44,11 +44,11 @@ selected_campaigns  <- selected_campaigns0 %>%
 # save all data (program has issues later w/ large file)
 saveRDS(selected_campaigns, file.path("Output", "Selected Campaigns", "site_data_for_all_selected_campaigns.rda"))
 
-# save smallerfiles
-lapply(var_names, function(x) {
-  filter(selected_campaigns, variable== x) %>%
-    saveRDS(., file.path("Output", "Selected Campaigns", paste0("site_data_for_", x,".rda")))
-})
+# # save smallerfiles
+# lapply(var_names, function(x) {
+#   filter(selected_campaigns, variable== x) %>%
+#     saveRDS(., file.path("Output", "Selected Campaigns", paste0("site_data_for_", x,".rda")))
+# })
 
 
 message("done with 4")

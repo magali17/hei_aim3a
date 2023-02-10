@@ -19,7 +19,6 @@ pacman::p_load(tidyverse,
                )    
 
 source("functions.R")
-#source("file_paths.R")
 set.seed(1)
 
 ## for future.apply::future_replicate()  
@@ -158,6 +157,7 @@ zero_counts <- filter(zero_counts, prop_zero > .6) %>% pull(variable)
 # drop bins w/ lot of missingness or mostly zero counts
 bad_bins <- filter(prop_time_missing, .>0.5) %>% pull(rowname) %>%
   c(., zero_counts)
+
 keep_vars <- setdiff(keep_vars, bad_bins)
 saveRDS(keep_vars, file.path("Output", "keep_vars.rda"))
 

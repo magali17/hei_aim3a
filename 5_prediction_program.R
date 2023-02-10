@@ -205,12 +205,8 @@ if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {print("Covar
 set.seed(1)
 print("Generating predictions...")
 
-new_predictions0 <- mclapply(group_split(modeling_data, campaign_id, 
-                                         #design, version, 
-                                         variable#, 
-                                         #performance
-                                         ),
-                             mc.cores = 4, #5
+new_predictions0 <- mclapply(group_split(modeling_data, campaign_id, variable),
+                             mc.cores = 4,
                              function(x) {
                                temp <- dt %>%
                                  mutate(
