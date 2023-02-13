@@ -41,14 +41,14 @@ selected_campaigns  <- selected_campaigns0 %>%
   left_join(annual) %>%
   select(campaign_id, variable, location, value:last_col())
   
-# save all data (program has issues later w/ large file)
+# save all data
 saveRDS(selected_campaigns, file.path("Output", "Selected Campaigns", "site_data_for_all_selected_campaigns.rda"))
 
-# # save smallerfiles
-# lapply(var_names, function(x) {
-#   filter(selected_campaigns, variable== x) %>%
-#     saveRDS(., file.path("Output", "Selected Campaigns", paste0("site_data_for_", x,".rda")))
-# })
+# save smaller files (program has issues later w/ large file)
+lapply(var_names, function(x) {
+  filter(selected_campaigns, variable== x) %>%
+    saveRDS(., file.path("Output", "Selected Campaigns", paste0("site_data_for_", x,".rda")))
+})
 
 
 message("done with 4")

@@ -2,7 +2,6 @@
 ##################################################################################################
 # SETUP
 ##################################################################################################
-
 # Clear workspace of all objects and unload all extra (non-base) packages
 rm(list = ls(all = TRUE))
 if (!is.null(sessionInfo()$otherPkgs)) {
@@ -11,9 +10,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(#tidyverse
-  dplyr, readr, lubridate
-)    
+pacman::p_load(dplyr, readr, lubridate)    
 
 prediction_path <- file.path("Output", "UK Predictions", 
                              "cohort"
@@ -26,29 +23,25 @@ if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(predictio
 # PREP PREDICTION FILE FOR KP
 ##################################################################################################
 
-var_names <- readRDS(file.path("Output", "keep_vars.rda"))
+# var_names <- readRDS(file.path("Output", "keep_vars.rda"))
+# 
+# predictions0 <- lapply(var_names, 
+#                        function(x) {
+#                          read_csv(file.path(prediction_path, x, "predictions.csv"), show_col_types = FALSE)}) %>%
+#   bind_rows() 
 
-# grp1_vars <- c("no2", "ns_total_conc")
-# grp2_vars <- setdiff(var_names, grp1_vars)
-
-
-
-predictions0 <- lapply(var_names, 
-                       function(x) {
-                         read_csv(file.path(prediction_path, x, "predictions.csv"), show_col_types = FALSE)}) %>%
-  bind_rows() 
+predictions0 <- readRDS(file.path("Output", "UK Predictions", "cohort", "psd_and_no2.rda"))
 
 predictions <- predictions0 %>%
   # only predict at locations in the monitoring area w/o NAs
   filter(in_monitoring_area,
          !is.na(prediction)) %>%
-  
   mutate(
     # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
     start_date = ymd("1988-01-01 "),
     end_date = ymd("2021-07-09 "),
     model = paste0("mb_", campaign_id)
-  ) %>%
+    ) %>%
   select(location_id, start_date, end_date, model, 
          variable,
          prediction) 

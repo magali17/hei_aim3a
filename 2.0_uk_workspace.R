@@ -160,6 +160,8 @@ uk_pls <- function(modeling_data, # data for fitting pls-uk models
                    var_choice = "" #Exp
 ) {
   
+  set.seed(1)
+  
   #lambert projection for UK model
   lambert_proj <- "+proj=lcc +lat_1=33 +lat_2=45 +lat_0=39 +lon_0=-96 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs"
   ############################################################################################################
@@ -211,11 +213,7 @@ uk_pls <- function(modeling_data, # data for fitting pls-uk models
   
   #save predictions
   predictions <- select(new_data, -all_of(cov_names.)) %>%
-    mutate(prediction = uk_model$var1.pred#,
-           
-           #TEST 
-           #var1.var = uk_model$var1.var
-           )
+    mutate(prediction = uk_model$var1.pred)
   
   #return(result)
   # return the desired output: either the predictions or the modeling specifications
