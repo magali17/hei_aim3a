@@ -40,12 +40,9 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 # load the required libraries for: plotting, modeling, spatial features, script timing
 if (!require("pacman")) {install.packages("pacman")}
-pacman::p_load(tidyverse, ggpubr, pls, gstat, sf, ggspatial, tools,parallel)
+pacman::p_load(tidyverse, ggpubr, pls, gstat, sf, ggspatial, tools, parallel)
 
-
-# ensure reproducibility 
 set.seed(1)
-
 ###########################################################################################
 # TAKE IN USER ARGUMENTS 
 ###########################################################################################
@@ -110,7 +107,6 @@ pls_comp_n <- read_rds(file.path("Output", "pls_comp_n.rda"))
 
 #prediction model
 uk_pls <- readRDS(file.path("Output", "UK Predictions", "uk_pls_model.rda"))
-
 
 ###########################################################################################
 # GENERATE NEW COVARIATES FOR THE DATASET
@@ -198,7 +194,6 @@ if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {print("Covar
 ###########################################################################################
 # PREDICT AT NEW DATASET
 ###########################################################################################
-set.seed(1)
 print("Generating predictions...")
 
 #x = group_split(modeling_data, campaign_id, variable)[[1]]
