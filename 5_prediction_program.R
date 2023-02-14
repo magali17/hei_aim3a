@@ -40,7 +40,10 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 # load the required libraries for: plotting, modeling, spatial features, script timing
 if (!require("pacman")) {install.packages("pacman")}
-pacman::p_load(tidyverse, ggpubr, pls, gstat, sf, ggspatial, tools, parallel)
+pacman::p_load(tidyverse, pls, tools, parallel,
+               gstat, sf
+               #ggpubr, #ggspatial, 
+               )
 
 set.seed(1)
 ###########################################################################################

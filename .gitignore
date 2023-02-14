@@ -10,3 +10,4 @@ old/
 *.pdf
 *.Rproj
 file_paths.R
+*.html

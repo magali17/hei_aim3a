@@ -5,7 +5,7 @@
 
 #############################################################################################
 
-#Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_no2.rda ../../dr0357/update_20220404/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/no2 rda
+Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_no2.rda ../../dr0357/update_20220404/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/no2 rda
 
 #Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_ns_total_conc.rda ../../dr0357/update_20220404/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/ns_total_conc rda
 
