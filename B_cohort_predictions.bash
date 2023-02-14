@@ -5,8 +5,6 @@
 
 #############################################################################################
 
-Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_no2.rda data/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/no2 rda
-
 Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_ns_total_conc.rda data/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/ns_total_conc rda
 
 Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_ns_10_100.rda data/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/ns_10_100 rda
@@ -32,6 +30,8 @@ Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_ns_115.
 Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_ns_154.0.rda data/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/ns_154.0 rda
 
 Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_ns_205.4.rda data/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/ns_205.4 rda
+
+Rscript 5_prediction_program.R Output/"Selected Campaigns"/site_data_for_no2.rda data/dr0357_cohort_covar_20220404.csv Output/"UK Predictions"/cohort/no2 rda
 
 #############################################################################################
 
