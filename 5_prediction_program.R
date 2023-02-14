@@ -201,8 +201,10 @@ print("Generating predictions...")
 
 #x = group_split(modeling_data, campaign_id, variable)[[1]]
 
-new_predictions0 <- mclapply(group_split(modeling_data, campaign_id, variable),
-                             mc.cores = 4,
+new_predictions0 <- #mclapply(
+  lapply(
+  group_split(modeling_data, campaign_id, variable),
+                             #mc.cores = 4,
                              function(x) {
                                temp <- dt %>%
                                  mutate(campaign_id = first(x$campaign_id),
