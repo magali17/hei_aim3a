@@ -1,3 +1,8 @@
+user_arguments <- c(file.path("Output", "Selected Campaigns", "site_data_for_ns_10_100.rda"), 
+                    file.path("data", "dr0311_grid_covars.rda"), 
+                    "Output/UK Predictions/grid_test/test", 
+                    "rda")
+
 ################################################################################
 # ABOUT THIS SCRIPT
 ################################################################################
@@ -67,7 +72,7 @@ cov_ext <- tools::file_ext(covariate_file_path)
 #where predictions should be saved
 prediction_directory <- user_arguments[3]
 ## create the directory if it does not already exists
-if(!dir.exists(prediction_directory)) {dir.create(prediction_directory)}
+if(!dir.exists(prediction_directory)) {dir.create(prediction_directory, recursive = T)}
 
 # the prediction file format (e.g., 'rda')
 prediction_file_format <- tolower(user_arguments[4])
@@ -200,9 +205,12 @@ if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {print("Covar
 print("Generating predictions...")
 
 #x = group_split(modeling_data, campaign_id, variable)[[1]]
+#temp <- filter(modeling_data, campaign_id <=66) 
 
 new_predictions0 <- mclapply(
-  group_split(modeling_data, campaign_id, variable),
+  group_split(modeling_data, 
+              #temp,
+              campaign_id, variable),
                              mc.cores = 1,# 4,
                              function(x) {
                                temp <- dt %>%
@@ -214,8 +222,7 @@ new_predictions0 <- mclapply(
 
 # save the location and prediction information
 new_predictions <- new_predictions0 %>%
-  select(#contains(c("_id", "_key", "msa")), 
-         location_id,
+  select(location_id,
          latitude, longitude, in_monitoring_area, campaign_id, variable, prediction) %>%
   mutate(
     prediction = exp(prediction),
