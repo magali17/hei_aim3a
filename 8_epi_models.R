@@ -21,8 +21,8 @@ use_cores <- 4
 ######################################################################
 # LOAD DATA
 ######################################################################
-main_pollutants <-c(#"no2", 
-  "ns_total_conc",
+main_pollutants <-c( 
+  "ns_total_conc", "ns_10_100",
   "ns_11.5", "ns_64.9",
   "ns_20.5", "ns_27.4", "ns_36.5", "ns_48.7", "ns_86.6", "ns_115.5", "ns_154.0"
   )
@@ -45,6 +45,13 @@ campaign_descriptions <- readRDS(file.path("Output", "Selected Campaigns", "sele
          !(design == "balanced seasons" & version=="4"))
 
 saveRDS(campaign_descriptions, file.path("Output", "Selected Campaigns", "selected_campaigns_v2.rda"))
+
+#save reference model_ids
+campaign_descriptions %>%
+  filter(version=="all training data") %>%
+  select(model_id, design, version, variable) %>%  
+  saveRDS(file.path("Output", "Selected Campaigns", "all_data_campaign_refs.rda"))
+
 
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(model_id = model) %>%

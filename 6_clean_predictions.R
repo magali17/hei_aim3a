@@ -10,27 +10,33 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(dplyr, readr, lubridate)    
+pacman::p_load(dplyr, readr, lubridate, sf)    
 
 prediction_path <- file.path("Output", "UK Predictions", 
-                             "cohort"
+                             #"cohort"
                              #"grid"
-)
+                             "grid_test"#, "test", "predictions.rda"
+                             )
 
 if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(prediction_path, "KP"))}
 
 ##################################################################################################
 # PREP PREDICTION FILE FOR KP
 ##################################################################################################
+# var_names = "test"
 
-# var_names <- readRDS(file.path("Output", "keep_vars.rda"))
-# 
-# predictions0 <- lapply(var_names, 
-#                        function(x) {
-#                          read_csv(file.path(prediction_path, x, "predictions.csv"), show_col_types = FALSE)}) %>%
-#   bind_rows() 
+var_names <- readRDS(file.path("Output", "keep_vars.rda"))
 
-predictions0 <- readRDS(file.path("Output", "UK Predictions", "cohort", "psd_and_no2.rda"))
+predictions0 <- lapply(var_names,
+                       function(x) {
+                         dt <- readRDS(file.path(prediction_path, x, "predictions.rda")) %>%
+                           st_drop_geometry()
+                         
+                         
+                         }) %>%
+  bind_rows()
+
+#predictions0 <- readRDS(file.path("Output", "UK Predictions", "cohort", "psd_and_no2.rda"))
 
 predictions <- predictions0 %>%
   # only predict at locations in the monitoring area w/o NAs
