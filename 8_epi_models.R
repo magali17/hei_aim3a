@@ -46,13 +46,6 @@ campaign_descriptions <- readRDS(file.path("Output", "Selected Campaigns", "sele
 
 saveRDS(campaign_descriptions, file.path("Output", "Selected Campaigns", "selected_campaigns_v2.rda"))
 
-#save reference model_ids
-campaign_descriptions %>%
-  filter(version=="all training data") %>%
-  select(model_id, design, version, variable) %>%  
-  saveRDS(file.path("Output", "Selected Campaigns", "all_data_campaign_refs.rda"))
-
-
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(model_id = model) %>%
   filter(model_id %in% campaign_descriptions$model_id) %>%

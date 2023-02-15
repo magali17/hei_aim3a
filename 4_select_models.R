@@ -35,6 +35,14 @@ selected_campaigns0 <- read_rds(file.path("Output", "model_eval.rda")) %>%
 saveRDS(selected_campaigns0, file.path("Output", "Selected Campaigns", "selected_campaigns.rda"))
 
 
+#save reference model_ids
+selected_campaigns0 %>%
+  filter(version=="all training data") %>%
+  mutate(model_id = paste0("mb_", campaign_id)) %>%
+  select(model_id, design, version, variable) %>%  
+  saveRDS(file.path("Output", "Selected Campaigns", "all_data_campaign_refs.rda"))
+
+
 # only keep annual averages for selected campaigns
 selected_campaigns  <- selected_campaigns0 %>%
   select(campaign, design, version, variable, performance, campaign_id) %>%

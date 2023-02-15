@@ -13,9 +13,9 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 pacman::p_load(dplyr, readr, lubridate, sf)    
 
 prediction_path <- file.path("Output", "UK Predictions", 
-                             #"cohort"
+                             "cohort"
                              #"grid"
-                             "grid_test"#, "test", "predictions.rda"
+                             #"grid_test"#, "test", "predictions.rda"
                              )
 
 if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(prediction_path, "KP"))}
@@ -36,8 +36,6 @@ predictions0 <- lapply(var_names,
                          }) %>%
   bind_rows()
 
-#predictions0 <- readRDS(file.path("Output", "UK Predictions", "cohort", "psd_and_no2.rda"))
-
 predictions <- predictions0 %>%
   # only predict at locations in the monitoring area w/o NAs
   filter(in_monitoring_area,
@@ -52,23 +50,33 @@ predictions <- predictions0 %>%
          variable,
          prediction) 
   
-  
-#write.csv(predictions, file.path(prediction_path, "KP", "predictions_no2_total_pnc.csv"), row.names = F)
-#write_csv(predictions, file.path(prediction_path, "KP", "predictions_no2_total_pnc.csv.gz"))
-
-saveRDS(predictions, file.path(prediction_path, "KP", "predictions_all.rda"))
+saveRDS(predictions, file.path(prediction_path, "KP", paste0("predictions_", Sys.Date(),".rda")))
 
 predictions %>%
   select(-variable) %>%
   write_csv(., file.path(prediction_path, "KP", paste0("predictions_", Sys.Date(),".csv")))
 
-# filter(predictions, variable %in% grp1_vars) %>%  
-#   select(-variable) %>%
-#   write_csv(., file.path(prediction_path, "KP", "predictions_grp1.csv"))
-# 
-# filter(predictions, variable %in% grp2_vars) %>%
-#   select(-variable) %>%
-#   write_csv(., file.path(prediction_path, "KP", "predictions_grp2.csv"))
+
+##################################################################################################
+# save the true, all data predictions for UFP separately (e.g., for survival/other analyses)
+##################################################################################################
+all_data_campaign_refs <- readRDS(file.path("Output", "Selected Campaigns", "all_data_campaign_refs.rda")) %>%
+  select(model=model_id, variable) %>%
+  filter(variable != "no2")
+
+all_data_predictions <- predictions %>%
+  filter(model %in% all_data_campaign_refs$model) %>%
+  left_join(all_data_campaign_refs)
+
+saveRDS(all_data_predictions, file.path(prediction_path, "KP", paste0("all_data_psd_predictions_", Sys.Date(),".rda")))
+
+all_data_predictions %>%
+  select(-variable) %>%
+  write_csv(., file.path(prediction_path, "KP", paste0("all_data_psd_predictions_", Sys.Date(),".csv")))
+
+
+
+
 
 
 ##################################################################################################
