@@ -94,4 +94,11 @@ model_coefs <- left_join(model_coefs0, campaign_descriptions, by = "model_id")
 
 saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
 
+######################################################################
+# EXTENDED MODEL: Race, SES
+######################################################################
+# --> add results to beta estimate plots
+
+
+
 message("done with script")

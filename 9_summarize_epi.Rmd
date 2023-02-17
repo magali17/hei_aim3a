@@ -314,6 +314,8 @@ pop %>%
 
 # Table 1
 
+# --> ? add race, SES? 
+
 ```{r}
 # Table1 tutorials: 
 ## https://cran.r-project.org/web/packages/table1/table1.pdf 
@@ -381,6 +383,10 @@ t1read(filter(pop), t1_labels) %>%
 # Health Model Results
 
 ## Estimates 
+
+
+# --> extended model rusults to beta plots. Main + race + SES? 
+# --> ? somehow incorporate IQR into these plots??
 
 tables include the proportion significant
 
