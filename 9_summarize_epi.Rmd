@@ -127,6 +127,16 @@ cs %>%
 
 # Exposure
 
+## Correlations
+
+# --> comprea UFP bins, ?no2
+
+```{r}
+
+```
+
+
+
 ## R2
 
 30 campaigns per design-version-pollutant 
