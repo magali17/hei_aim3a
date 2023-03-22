@@ -1,3 +1,5 @@
+# --> NEED TO UPDATE dt_path when get new dataset
+
 ######################################################################
 # SETUP
 ######################################################################
@@ -13,8 +15,12 @@ pacman::p_load(tidyverse, parallel)
 
 set.seed(1)
 
-#source("functions.R")
-output_data_path <- file.path("Output", "epi")
+# --> TEMP UNTIL  NEW DT COMES IN
+
+#dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+dt_path <- file.path("Output", "v1_20230131")
+
+output_data_path <- file.path(dt_path, "epi")
 
 use_cores <- 4
 
@@ -36,7 +42,21 @@ ap_prediction <- "avg_0_5_yr"
 pnc_units <- 1000
 no2_units <- 5
 
-campaign_descriptions <- readRDS(file.path("Output", "Selected Campaigns", "selected_campaigns.rda")) %>%
+# --> TEMP - UPDATE replace "Output" with dt_path
+
+campaign_descriptions <- readRDS(
+  # file.path("Output", "Selected Campaigns", 
+  #                                          #"selected_campaigns.rda"
+  #                                          
+  #                                          # --> TEMP - NEEDS TO BE UPDATED WHEN ISSUE 17 HAS ALL 309 (VS 278) SITES
+  #                                         "old", "20230126 full has 278 sites",  "selected_campaigns2.rda")
+  file.path(dt_path, "Selected Campaigns", 
+            
+            # --> TEMP 
+            #"20230126 full has 278 sites",
+            
+            "selected_campaigns2.rda")
+                                           ) %>%
   mutate(model_id = paste0("mb_", campaign_id)) %>%
   select(-campaign_id) %>%
   
@@ -44,7 +64,11 @@ campaign_descriptions <- readRDS(file.path("Output", "Selected Campaigns", "sele
          # drop repetitive design
          !(design == "balanced seasons" & version=="4"))
 
-saveRDS(campaign_descriptions, file.path("Output", "Selected Campaigns", "selected_campaigns_v2.rda"))
+saveRDS(campaign_descriptions, file.path(dt_path, "Selected Campaigns", "selected_campaigns_v2.rda"))
+# --> TEMP. REMOVE "#" WHEN GET NEW ISSUE
+#saveRDS(campaign_descriptions, file.path("Output", "Selected Campaigns", "old", "20230126 full has 278 sites", "selected_campaigns_v2.rda"))
+
+
 
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(model_id = model) %>%

@@ -1,7 +1,13 @@
-user_arguments <- c(file.path("Output", "Selected Campaigns", "site_data_for_ns_10_100.rda"), 
-                    file.path("data", "dr0311_grid_covars.rda"), 
-                    "Output/UK Predictions/grid_test/test", 
-                    "rda")
+
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+
+
+
+
+# user_arguments <- c(file.path("Output", "Selected Campaigns", "site_data_for_ns_10_100.rda"), 
+#                     file.path("data", "dr0311_grid_covars.rda"), 
+#                     "Output/UK Predictions/grid_test/test", 
+#                     "rda")
 
 ################################################################################
 # ABOUT THIS SCRIPT
@@ -102,19 +108,19 @@ cov_names <- select(modeling_data, log_m_to_a1:last_col()) %>%
   names()
 
 # load a spatial file of the original monitoring area to assess spatial extrapolation later
-monitoring_area <- readRDS(file.path("Output", "GIS", "monitoring_land_zero_water_shp.rda"))  
+monitoring_area <- readRDS(file.path("data", "GIS", "monitoring_land_zero_water_shp.rda"))  
 lat_long_crs <- 4326
 
-var_names <- readRDS(file.path("Output", "keep_vars.rda"))
+var_names <- readRDS(file.path(dt_path, "keep_vars.rda"))
 
 ###########################################################################################
 # Universal Kriging - Partial Least Squares Model function
 
 # desired PLS components to use (from a different script): 3
-pls_comp_n <- read_rds(file.path("Output", "pls_comp_n.rda")) 
+pls_comp_n <- read_rds(file.path(dt_path, "pls_comp_n.rda")) 
 
 #prediction model
-uk_pls <- readRDS(file.path("Output", "UK Predictions", "uk_pls_model.rda"))
+uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 
 ###########################################################################################
 # GENERATE NEW COVARIATES FOR THE DATASET

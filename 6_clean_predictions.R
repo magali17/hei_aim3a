@@ -1,3 +1,7 @@
+#---> START HERE
+
+
+
 
 ##################################################################################################
 # SETUP
@@ -12,7 +16,9 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 pacman::p_load(dplyr, readr, lubridate, sf)    
 
-prediction_path <- file.path("Output", "UK Predictions", 
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+
+prediction_path <- file.path(dt_path, "UK Predictions", 
                              "cohort"
                              #"grid"
                              #"grid_test"#, "test", "predictions.rda"
@@ -25,7 +31,7 @@ if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(predictio
 ##################################################################################################
 # var_names = "test"
 
-var_names <- readRDS(file.path("Output", "keep_vars.rda"))
+var_names <- readRDS(file.path(prediction_path, "keep_vars.rda"))
 
 predictions0 <- lapply(var_names,
                        function(x) {
@@ -60,7 +66,7 @@ predictions %>%
 ##################################################################################################
 # save the true, all data predictions for UFP separately (e.g., for survival/other analyses)
 ##################################################################################################
-all_data_campaign_refs <- readRDS(file.path("Output", "Selected Campaigns", "all_data_campaign_refs.rda")) %>%
+all_data_campaign_refs <- readRDS(file.path(prediction_path, "Selected Campaigns", "all_data_campaign_refs.rda")) %>%
   select(model=model_id, variable) %>%
   filter(variable != "no2")
 

@@ -24,7 +24,11 @@ set.seed(1)
 ## for future.apply::future_replicate()  
 # availableCores() #8 
 plan(multisession, workers = 6)
- 
+
+latest_version <- "v3_20230321" 
+dt_path <- file.path("Output", latest_version)
+saveRDS(latest_version, file.path("Output", "latest_dt_version.rda"))
+if(!dir.exists(file.path(dt_path))) {dir.create(dt_path, recursive = T)}
 
 ##################################################################################################
 # LOAD DATA
@@ -159,7 +163,7 @@ bad_bins <- filter(prop_time_missing, .>0.5) %>% pull(rowname) %>%
   c(., zero_counts)
 
 keep_vars <- setdiff(keep_vars, bad_bins)
-saveRDS(keep_vars, file.path("Output", "keep_vars.rda"))
+saveRDS(keep_vars, file.path(dt_path, "keep_vars.rda"))
 
 stops <- filter(stops, variable %in% keep_vars)
 
@@ -168,7 +172,7 @@ stops <- filter(stops, variable %in% keep_vars)
 stops_w <- pivot_wider(data = stops, names_from = "variable",values_from =  "value") %>%
   drop_na()
 
-saveRDS(stops_w, file.path("Output", "stops_used.rda"))
+saveRDS(stops_w, file.path(dt_path, "stops_used.rda"))
 
 ##################################################################################################
 # TRUE ANNUAL AVERAGE
@@ -316,8 +320,9 @@ temporal_sims <- rbind(
 ##################################################################################################
 message("fewer total stops")
 
-site_n2 <- c(150, 278)
-visit_n2 <- 12
+site_n2 <- c(length(unique(stops_w$location)))
+visit_n2 <- c(12, 6#, 3
+              )
 
 site_visit_df <- data.frame()
 
@@ -330,13 +335,11 @@ for(v in visit_n2) {
                                                  #sample visits
                                                  filter(stops_w, location %in% sample_sites) %>%
                                                    group_by(location) %>%
-                                                   slice_sample(n = v) %>% 
+                                                   slice_sample(n = v, replace=T) %>% 
                                                    mutate(visits = n()) %>%
                                                    #calculate annual average
                                                    summarize_at(all_of(c(keep_vars, "visits")), ~mean(., na.rm=T)) %>%
-                                                   mutate(
-                                                     version = paste0(v, "_visits ", x, "_sites")
-                                                   )
+                                                   mutate(version = paste0(v, "_visits ", x, "_sites"))
                                                  })
                          ) %>%
   bind_rows() %>%
@@ -362,7 +365,7 @@ annual_training_set <- rbind(temporal_sims, site_visit_df)
 ##################################################################################################
 # SAVE DATA
 ##################################################################################################
-saveRDS(annual_training_set, file.path("Output", "annual_training_set.rda"))
+saveRDS(annual_training_set, file.path(dt_path, "annual_training_set.rda"))
 
 message("done with 1_act_annual.R")
 

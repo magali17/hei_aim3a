@@ -19,8 +19,9 @@ pacman::p_load(tidyverse,
 )    
 
 use_cores <- 5
-
 set.seed(1)
+
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
 ##################################################################################################
 # LOAD DATA
@@ -30,11 +31,11 @@ project_crs <- 4326  #lat/long
 m_crs <- 32148
  
 # uk predictions
-predictions <- readRDS(file.path("Output", "UK Predictions", "all_predictions.rda")) %>% 
+predictions <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>% 
   pivot_longer(contains("estimate"), names_to = "reference", values_to = "estimate")  
 
 # simulation details
-sims <- readRDS(file.path("Output", "annual_training_set.rda")) %>%  
+sims <- readRDS(file.path(dt_path, "annual_training_set.rda")) %>%  
   distinct(location, visits, campaign, design, version, spatial_temporal)
 
 
@@ -74,7 +75,7 @@ validation_stats <- function(dt, prediction, reference){
   
 }
 
-saveRDS(validation_stats, file.path("Output", "validation_stats_fn.rda"))
+saveRDS(validation_stats, file.path(dt_path, "validation_stats_fn.rda"))
 ##################################################################################################
 # don't do traditional assessment for spatial clustering - distance analysis
 message("calculating performance statistics")
@@ -100,6 +101,10 @@ model_perf <- model_perf0 %>%
   #group_by( design, version, variable, campaign) %>%
   
   ungroup() %>%
+  
+  #--> UPDATE
+  
+  
   mutate(campaign_id = row_number() 
          #campaign_id =cur_group_id()
          ) %>%
@@ -109,7 +114,7 @@ ungroup()
 # SAVE DATA
 ##################################################################################################
 select(model_perf , -no_sites) %>%
-  saveRDS(., file.path("Output", "model_eval.rda"))
+  saveRDS(., file.path(dt_path, "model_eval.rda"))
 
 message("done with 3_model_eval.R")
 

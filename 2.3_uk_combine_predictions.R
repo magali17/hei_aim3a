@@ -11,6 +11,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 }
 
 pacman::p_load(tidyverse, sf)    
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
 set.seed(1)
 
@@ -19,12 +20,12 @@ set.seed(1)
 # LOAD DATA & PREDICTIONS
 ##################################################################################################
 # estimates
-annual <- readRDS(file.path("Output", "annual_training_set2.rda"))
+annual <- readRDS(file.path(dt_path, "annual_training_set2.rda"))
 #annual_test_set <- readRDS(file.path("Output", "annual_test_set2.rda"))
 
 #predictions
 #test_set_predictions <- readRDS(file.path("Output", "UK Predictions", "test_set_predictions.rda"))
-cv_predictions <- readRDS(file.path("Output", "UK Predictions", "cv_predictions.rda"))
+cv_predictions <- readRDS(file.path(dt_path, "UK Predictions", "cv_predictions.rda"))
 
 ##################################################################################################
 # COMBINE PREDICTIONS
@@ -71,7 +72,7 @@ predictions <- cv_predictions %>%
 # SAVE DATA
 ##################################################################################################
 print("saving predictions")
-saveRDS(predictions, file.path("Output", "UK Predictions", "all_predictions.rda"))
+saveRDS(predictions, file.path(dt_path, "UK Predictions", "all_predictions.rda"))
 
 
 message("done with 2.3") 

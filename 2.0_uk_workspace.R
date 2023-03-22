@@ -22,7 +22,11 @@ pacman::p_load(tidyverse,
 set.seed(1)
 
 source("file_paths.R")
-var_names <- readRDS(file.path("Output", "keep_vars.rda"))
+
+
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+
+var_names <- readRDS(file.path(dt_path, "keep_vars.rda"))
 
 # ## for future.apply::future_replicate()
 # plan(multisession, workers = 6)
@@ -49,7 +53,7 @@ modeling_covars <- readRDS(file.path(hei_aim1a_path, "mm_cov_test_set.rda")) %>%
   rbind(training_set)
 
 # mm annual estimates
-annual <- readRDS(file.path("Output", "annual_training_set.rda")) %>%
+annual <- readRDS(file.path(dt_path, "annual_training_set.rda")) %>%
   #add covariates
   left_join(modeling_covars) %>%
   #convert to sf
@@ -93,7 +97,7 @@ cov_names <- st_drop_geometry(annual) %>% ungroup() %>%
   select(log_m_to_a1:last_col()) %>% names() # 188 covariates
 
 pls_comp_n <- 2
-saveRDS(pls_comp_n, file.path("Output", "pls_comp_n.rda"))
+saveRDS(pls_comp_n, file.path(dt_path, "pls_comp_n.rda"))
 
 #k-folds for CV
 k <- 5  
@@ -136,7 +140,7 @@ random_fold_df <- lapply(group_split(annual, spatial_temporal, design, version, 
 annual <- suppressMessages(left_join(annual, random_fold_df)) %>%
   select(random_fold, everything())
 
-saveRDS(annual, file.path("Output", "annual_training_set2.rda"))
+saveRDS(annual, file.path(dt_path, "annual_training_set2.rda"))
 
 
 ############################################################################################################
@@ -229,7 +233,7 @@ uk_pls <- function(modeling_data, # data for fitting pls-uk models
   
 }
 
-saveRDS(uk_pls, file.path("Output", "UK Predictions", "uk_pls_model.rda"))
+saveRDS(uk_pls, file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 
 ##################################################################################################
 # CV function
@@ -268,6 +272,6 @@ common_vars <- c("location", "route", "visits", "campaign", "design", "version",
 # SAVE WORKSPACE
 ##################################################################################################
 
-save.image(file.path("Output", "uk_workspace.rdata"))
+save.image(file.path(dt_path, "uk_workspace.rdata"))
 
 message("done with 2.0_uk_workspace.R")
