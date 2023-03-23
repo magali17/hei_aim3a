@@ -58,8 +58,13 @@ output_data_path <- file.path(dt_path, "epi")
 
 # --> TO DO: add version to images
 
-image_path <- file.path("..", "Manuscript", "Images")
+image_path <- file.path("..", "Manuscript", "Images",
+                        "v1_20230131"
+                        )
 
+if(!dir.exists(file.path(image_path, "other", "presentation"))) {dir.create(file.path(image_path, "other", "presentation"), recursive = T)}
+if(!dir.exists(file.path(image_path, "other", "poster"))) {dir.create(file.path(image_path, "other", "poster"), recursive = T)}
+if(!dir.exists(file.path(image_path, "SI"))) {dir.create(file.path(image_path, "SI"), recursive = T)}
 
 # ggplot settings
 theme_set(theme_bw())
@@ -560,8 +565,8 @@ lapply(all_pollutants_labels, function(x){
 
 ```
 
+### for ppt
 same as above for presentation
-
 
 ```{r}
 model_coefs %>%
