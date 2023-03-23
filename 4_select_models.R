@@ -30,6 +30,7 @@ if(!dir.exists(file.path(dt_path, "Selected Campaigns"))){dir.create(file.path(d
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
+cw <- read.csv(file.path(dt_path, "model_cw.csv"))
 
 selected_campaigns0 <- read_rds(file.path(dt_path, "model_eval.rda")) %>%
   filter(reference == "gs_estimate")
@@ -40,16 +41,18 @@ saveRDS(selected_campaigns0, file.path(dt_path, "Selected Campaigns", "selected_
 #save reference model_ids
 selected_campaigns0 %>%
   filter(version=="all training data") %>%
-  mutate(model_id = paste0("mb_", campaign_id)) %>%
-  select(model_id, design, version, variable) %>%  
+  #mutate(model_id = paste0("mb_", campaign_id)) %>%
+  select(#model_id, 
+    model,
+    design, version, variable) %>%  
   saveRDS(file.path(dt_path, "Selected Campaigns", "all_data_campaign_refs.rda"))
 
 
 # only keep annual averages for selected campaigns
 selected_campaigns  <- selected_campaigns0 %>%
-  select(campaign, design, version, variable, performance, campaign_id) %>%
+  select(campaign, design, version, variable, performance, model) %>%
   left_join(annual) %>%
-  select(campaign_id, variable, location, value:last_col())
+  select(model, variable, location, value:last_col())
   
 # save all data
 saveRDS(selected_campaigns, file.path(dt_path, "Selected Campaigns", "site_data_for_all_selected_campaigns.rda"))

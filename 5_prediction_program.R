@@ -210,17 +210,17 @@ if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {print("Covar
 ###########################################################################################
 print("Generating predictions...")
 
-#x = group_split(modeling_data, campaign_id, variable)[[1]]
-#temp <- filter(modeling_data, campaign_id <=66) 
+#x = group_split(modeling_data, model, variable)[[1]]
+#temp <- filter(modeling_data, model <=66) 
 
 new_predictions0 <- mclapply(
   group_split(modeling_data, 
               #temp,
-              campaign_id, variable),
+              model, variable),
                              mc.cores = 1,# 4,
                              function(x) {
                                temp <- dt %>%
-                                 mutate(campaign_id = first(x$campaign_id),
+                                 mutate(model = first(x$model),
                                         variable = first(x$variable)) %>%
                                  uk_pls(new_data = ., modeling_data = x)
                                }) %>%
@@ -229,7 +229,7 @@ new_predictions0 <- mclapply(
 # save the location and prediction information
 new_predictions <- new_predictions0 %>%
   select(location_id,
-         latitude, longitude, in_monitoring_area, campaign_id, variable, prediction) %>%
+         latitude, longitude, in_monitoring_area, model, variable, prediction) %>%
   mutate(
     prediction = exp(prediction),
     variable = factor(variable, levels = var_names)

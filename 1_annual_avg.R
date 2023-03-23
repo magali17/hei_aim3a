@@ -26,6 +26,7 @@ set.seed(1)
 plan(multisession, workers = 6)
 
 latest_version <- "v3_20230321" 
+
 dt_path <- file.path("Output", latest_version)
 saveRDS(latest_version, file.path("Output", "latest_dt_version.rda"))
 if(!dir.exists(file.path(dt_path))) {dir.create(dt_path, recursive = T)}
@@ -56,12 +57,11 @@ small_ufp <- ns_psd0 %>%
 ns_psd0 <- bind_rows(ns_psd0, small_ufp)
 
 ##################################################################################################
-# ns_bins <- ns_psd0 %>%
-#   #filter(!grepl("total", variable)) %>%
-#   distinct(variable) %>% pull() %>%
-#   sort(decreasing = T)
 
-keep_vars1 <- c("no2")
+keep_vars1 <- c("no2",
+                # for comparison vs onroad data
+                "pnc_noscreen"
+                )
 
 bins <- paste0("ns_", 
                c("10_100", "11.5", "15.4", "20.5", "27.4", "36.5", "48.7", "64.9", "86.6", "115.5", "154.0"#"205.4", "273.8", "365.2"
@@ -98,9 +98,7 @@ ns_psd <- ns_psd0 %>%
   mutate(time = time[variable=="ns_total_conc"]) %>%
   ungroup()
 
-stops_no2 <- readRDS(file.path( 
-  "data",
-  "stop_data_win_medians.rda")) %>%
+stops_no2 <- readRDS(file.path( "data", "stop_data_win_medians.rda")) %>%
   #drop duplicate UFP instruments
   filter(variable %in% keep_vars1) %>%
   select(names(ns_psd)) %>%
@@ -167,10 +165,13 @@ saveRDS(keep_vars, file.path(dt_path, "keep_vars.rda"))
 
 stops <- filter(stops, variable %in% keep_vars)
 
-# 8671/9047 = 96% stops remain (using 309 sites now)
-#OLD? 7,806/8163 = 96% stops remain
+#v3 8969/9047 = ___ not dropping if NAs in NO2 (or ptrak)         
+#v2 8671/9047 = 96% stops remain (using 309 sites now)
+#v1 7,806/8163 = 96% stops remain
 stops_w <- pivot_wider(data = stops, names_from = "variable",values_from =  "value") %>%
-  drop_na()
+  # don't allow other pollutants (e.g., no2 or ptrak) to affect #s
+  # means that there will be some missingness in these others
+  drop_na(starts_with("ns_"))
 
 saveRDS(stops_w, file.path(dt_path, "stops_used.rda"))
 
@@ -242,8 +243,7 @@ for (i in seq_along(season_n)) {
 
   temp <- future_replicate(n = sim_n,  
                            simplify = F,
-                                    expr = one_sample_avg(my_list = group_split(stops_w, #variable, 
-                                                                                location), 
+                                    expr = one_sample_avg(my_list = group_split(stops_w, location), 
                                                           my_sampling_fn = function(x)  {
                                                             seasons_to_sample <- sample(c("spring", "summer", "fall", "winter"), size = season_n[i], replace = F)
                                                             
@@ -321,7 +321,9 @@ temporal_sims <- rbind(
 message("fewer total stops")
 
 site_n2 <- c(length(unique(stops_w$location)))
-visit_n2 <- c(12, 6#, 3
+visit_n2 <- c(12, 6, 
+              #on-road median for some of the unbalanced sampling distributions
+              4
               )
 
 site_visit_df <- data.frame()

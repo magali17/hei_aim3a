@@ -123,11 +123,11 @@ exclusion_table <- count_remaining_sample(health, description. = "Baseline data"
 
 ######################################################################
 
-# year 2000+
 health <- health %>%
-  mutate(year = year(visitdt)) %>%
-  filter(year >= first_exposure_year)
-exclusion_table <- count_remaining_sample(health, description. = paste0(first_exposure_year, "+"))
+  mutate(year = year(visitdt)) #%>%
+  # # year 2000+
+  # filter(year >= first_exposure_year)
+#exclusion_table <- count_remaining_sample(health, description. = paste0(first_exposure_year, "+"))
 
 # valid casi score. everybody has a CASI score at baseline 
 health <- filter(health, casi_valid==1)

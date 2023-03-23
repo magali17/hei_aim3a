@@ -54,6 +54,10 @@ set.seed(1)
 
 source("functions.R")
 output_data_path <- file.path(dt_path, "epi")
+
+
+# --> TO DO: add version to images
+
 image_path <- file.path("..", "Manuscript", "Images")
 
 
@@ -63,46 +67,7 @@ theme_update(legend.position = "bottom")
 
 ```
 
-```{r, eval=F}
-
-# --> ERROR???!
-#TEST - dt from plasmid
-plasmid_selected_campaigns <- readRDS("Output/UK Predictions/cohort/KP/selected_campaigns_v2.rda") %>%
-  mutate(model2 = as.numeric(as.character(gsub("mb_", "", model_id))))%>%
-  arrange(model2)
-
-summary(plasmid_selected_campaigns$model2)
-
-
-# WHAT WE SENT TO KP
-#predictions_20230215 <- readRDS("Output/UK Predictions/cohort/KP/predictions_2023-02-15.rda") %>%
-predictions_20230216 <- read.csv("Output/UK Predictions/cohort/KP/predictions_2023-02-16.csv") %>%
-  mutate(model2 = as.numeric(as.character(gsub("mb_", "", model)))) #%>% arrange(model2)
-
-## WHAT WE SENT TO KP
-length(unique(predictions_20230215$model2))
-summary(unique(predictions_20230215$model2))
-# summary(unique(predictions_20230216$model2))
-
-# looks OK...hm
-#unique(plasmid_selected_campaigns$model2)[!unique(plasmid_selected_campaigns$model2) %in% unique(predictions0$model2)]
-
-# WHAT WE GOT BACK
-issue17 <- readRDS(file.path("data", "issue_17", "issue_017v2_01262023.rda"))%>%
-  mutate(model2 = as.numeric(as.character(gsub("mb_", "", model))))%>%
-  arrange(model2)
-## WHAT WE GOT BACK
-length(unique(issue17$model2))
-summary(unique(issue17$model2))
-
-# correct. # subjects (vs locations)
-# length(unique(issue17$study_id))
-
-
-```
-
-
-
+ 
 
 ```{r}
 ##################################################################################################
@@ -133,17 +98,7 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")
   # --> TEMP
   mutate(model_id2 = as.numeric(as.character(gsub("mb_", "", model_id))))
 
-
-# # TEST
-# --> these are totally off??
-# summary(campaign_descriptions$model_id2)
-# summary(unique(cs$model_id2))
-
-# missing_ids <- unique(cs$model_id)[!unique(cs$model_id) %in% campaign_descriptions$model_id]
-# missing_campaigns <- campaign_descriptions %>% filter(model_id %in% missing_ids)
-
-
-
+ 
 
 cs <- cs %>%
   right_join(select(campaign_descriptions, model_id, variable, design, version, campaign), by="model_id")  
@@ -392,7 +347,6 @@ ggsave(file.path(image_path, "SI", "prediction_correlations.png"), width = 6, he
 
 # CASI
 
-# --> calculate above/below median by year?  group_by(variable, year2)
 
 ```{r}
 # person-level dataset
@@ -423,7 +377,6 @@ pop %>%
 
 # Table 1
 
-# --> ? add race, SES? 
 
 ```{r}
 # Table1 tutorials: 
@@ -493,9 +446,6 @@ t1read(filter(pop), t1_labels) %>%
 
 ## Estimates 
 
-
-# --> extended model rusults to beta plots. Main + race + SES? 
-# --> ? somehow incorporate IQR into these plots??
 
 tables include the proportion significant
 
@@ -612,7 +562,6 @@ lapply(all_pollutants_labels, function(x){
 
 same as above for presentation
 
-# ---> variable==x ??
 
 ```{r}
 model_coefs %>%
@@ -975,7 +924,6 @@ flow_exclusions(
   )
 
 ```
-
 
 
 

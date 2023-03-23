@@ -27,6 +27,9 @@ use_cores <- 4
 ######################################################################
 # LOAD DATA
 ######################################################################
+
+# --> TEMP: update this to include ptrak later
+
 main_pollutants <-c( 
   "ns_total_conc", "ns_10_100",
   "ns_11.5", "ns_64.9",
@@ -42,40 +45,43 @@ ap_prediction <- "avg_0_5_yr"
 pnc_units <- 1000
 no2_units <- 5
 
-# --> TEMP - UPDATE replace "Output" with dt_path
 
-campaign_descriptions <- readRDS(
-  # file.path("Output", "Selected Campaigns", 
-  #                                          #"selected_campaigns.rda"
-  #                                          
-  #                                          # --> TEMP - NEEDS TO BE UPDATED WHEN ISSUE 17 HAS ALL 309 (VS 278) SITES
-  #                                         "old", "20230126 full has 278 sites",  "selected_campaigns2.rda")
-  file.path(dt_path, "Selected Campaigns", 
-            
-            # --> TEMP 
-            #"20230126 full has 278 sites",
-            
-            "selected_campaigns2.rda")
-                                           ) %>%
+# --> TEMP to use CV predictions. delete for new dtset
+campaign_descriptions <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns2.rda")) %>%
+# campaign_descriptions <- readRDS(file.path(dt_path, "model_eval.rda")) %>% 
+#   filter(reference=="gs_estimate", out_of_sample=="CV") %>%
+  
+  
+  # --> TEMP: remove in new dt
   mutate(model_id = paste0("mb_", campaign_id)) %>%
   select(-campaign_id) %>%
+  
   
   filter(variable %in% main_pollutants &
          # drop repetitive design
          !(design == "balanced seasons" & version=="4"))
 
 saveRDS(campaign_descriptions, file.path(dt_path, "Selected Campaigns", "selected_campaigns_v2.rda"))
-# --> TEMP. REMOVE "#" WHEN GET NEW ISSUE
-#saveRDS(campaign_descriptions, file.path("Output", "Selected Campaigns", "old", "20230126 full has 278 sites", "selected_campaigns_v2.rda"))
-
-
 
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
+
+  # --> TEMP: remove in new dt
   rename(model_id = model) %>%
   filter(model_id %in% campaign_descriptions$model_id) %>%
+  
+  # --> TEMP 
+  #filter(model %in% campaign_descriptions$model) %>%
+  filter(model_id %in% campaign_descriptions$model_id) %>%
+  
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
 
-  left_join(select(campaign_descriptions, model_id, variable), by = "model_id") %>%
+  left_join(select(campaign_descriptions, 
+                   
+                   # --> TEMP
+                   model_id, 
+                   #model,
+                   
+                   variable)) %>%
   # modeling units
   mutate(avg_0_5_yr = ifelse(grepl("ns_", variable), avg_0_5_yr/pnc_units,
                               ifelse(grepl("no2", variable), avg_0_5_yr/no2_units, NA)))
@@ -88,13 +94,23 @@ lm_fn <- function(df, ap_prediction.=ap_prediction, model_covars. = model_covars
                data = df #, weights =
   )
   #save model_id
+  
+  # --> TEMP
+  #result$model <- first(df$model)
   result$model_id <- first(df$model_id)
+  
   return(result)
 }
 
 
 message("running models...")
-models <- mclapply(group_split(cs, model_id), 
+models <- mclapply(group_split(cs, 
+                               
+                               # --> TEMP
+                               model_id
+                               #model
+                               
+                               ), 
                    mc.cores=use_cores, 
                    function(x) {lm_fn(df=x)})
 
@@ -104,7 +120,11 @@ message("saving model coeficients...")
 # save coefficient estimates
 model_coefs0 <- mclapply(models, mc.cores=use_cores, function(x) {
   temp <- data.frame(
+    
+    # --> TEMP
+    #model = x$model,
     model_id = x$model_id,
+    
     est = as.vector(coef(x)[ap_prediction]),
     lower = confint(x)[ap_prediction, 1],
     upper = confint(x)[ap_prediction, 2],
@@ -114,15 +134,9 @@ model_coefs0 <- mclapply(models, mc.cores=use_cores, function(x) {
   mutate(significant = ifelse((lower <0 & upper <0) | 
                                 (lower >0 & upper >0), TRUE, FALSE))
 
-model_coefs <- left_join(model_coefs0, campaign_descriptions, by = "model_id")
+model_coefs <- left_join(model_coefs0, campaign_descriptions)
 
 saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
-
-######################################################################
-# EXTENDED MODEL: Race, SES
-######################################################################
-# --> add results to beta estimate plots
-
 
 
 message("done with script")
