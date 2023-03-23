@@ -1,3 +1,5 @@
+# --> NEED TO UPDATE dt_path when get new dataset
+
 # Author: Magali Blanco
 # Date: 1/19/2023
 # Purpose: to clean and prepare data for a cross-sectional UFP-CASI-IRT analysis
@@ -17,14 +19,16 @@ pacman::p_load(tidyverse, lubridate, kableExtra)
 
 set.seed(1)
 
-output_data_path <- file.path("Output", "epi")
-if(!file.exists(output_data_path)) {dir.create(output_data_path)}
+# --> TEMP: NEW DATASET HASN'T COME THROUGH
+
+#dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+dt_path <- file.path("Output", "v1_20230131")
+
+output_data_path <- file.path(dt_path, "epi")
+if(!file.exists(output_data_path)) {dir.create(output_data_path, recursive = T)}
 
 if(!file.exists(file.path("data", "issue_12"))) {dir.create(file.path("data", "issue_12"))}
 if(!file.exists(file.path("data", "issue_17"))) {dir.create(file.path("data", "issue_17"))}
-
-# --> keep?
-print_diagnostics <- FALSE
 
 ######################################################################
 # FUNCTIONS
@@ -67,7 +71,10 @@ count_remaining_sample <- function(dt, description., notes.=NA) {
 #health_dt_path <- file.path("..", "..", "..", "", "ACT AP", "Manuscripts", "Longitudinal", "Data", "issue_12", "issue_012_degapped_0113.rda")
 
 # outcome & covariate data
-health_dt_path <-file.path("data", "issue_12", "issue_012_degapped_0113.rda")
+health_dt_path <-file.path("data", "issue_12", 
+                           "issue_012_for_release_20230316", "issue_012_for_release.sas7bdat"
+                           #"issue_012_degapped_0113.rda"
+                           )
 
 if(file.exists(health_dt_path)) {health0 <- readRDS(health_dt_path)} else {
   health0 <- haven::read_sas(gsub(".rda", ".sas7bdat", health_dt_path) , NULL)
@@ -87,6 +94,20 @@ if(file.exists(exposure_dt_path)) {
   saveRDS(exposure0, exposure_dt_path)
 }
 
+
+
+######################################################################
+# #TEST - ERROR IN MODEL NAMES???!!
+# exposure0 <- exposure0 %>%
+#   mutate(model2 = as.numeric(as.character(gsub("mb_", "", model))))%>%
+#   arrange(model2)
+# 
+# summary(exposure0$model2)
+
+
+######################################################################
+
+
 ######################################################################
 # COMMON VARIABLES
 ######################################################################
@@ -100,19 +121,13 @@ save(first_exposure_year, file = file.path(output_data_path, "first_exposure_yea
 health <- filter(health0, VISIT==0)
 exclusion_table <- count_remaining_sample(health, description. = "Baseline data")
 
-
-######################################################################
-# TEST
 ######################################################################
 
-
-######################################################################
-
-# year 2000+
 health <- health %>%
-  mutate(year = year(visitdt)) %>%
-  filter(year >= first_exposure_year)
-exclusion_table <- count_remaining_sample(health, description. = paste0(first_exposure_year, "+"))
+  mutate(year = year(visitdt)) #%>%
+  # # year 2000+
+  # filter(year >= first_exposure_year)
+#exclusion_table <- count_remaining_sample(health, description. = paste0(first_exposure_year, "+"))
 
 # valid casi score. everybody has a CASI score at baseline 
 health <- filter(health, casi_valid==1)
@@ -132,17 +147,21 @@ exclusion_table <- count_remaining_sample(health, description. = "Valid CASI sco
 # High exposure coverage
 coverage_threshold <- 0.95
 
+
+# --> START HERE: use avg_wc instead of exp_coverage?
+# also see these? avg_ec avg_ic avg_iq
+
+
 # high exposure coverage
+## good_exposure_ids should be calculated using health dt in surivival analyses. 
+## this is more accurate here though since variables are specifically for a 5 yr exposure
 good_exposure_ids <- filter(exposure0, exp_coverage >= coverage_threshold) %>%
   distinct(study_id) %>% pull()
 health <- filter(health, study_id %in% good_exposure_ids)
 exclusion_table <- count_remaining_sample(health, description. = "High exposure coverage")
 
-# --> nses_z_cx will change to NDI
-# --> TEMP: dont include RACE??
-
 model_covars <- c("visit_age_centered75", "year2", "male", "degree", "apoe"#, "race_white" #, "nses_z_cx"
-)
+                  )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 
 health <- health %>%
@@ -193,7 +212,6 @@ health %>%
 health <- filter(health, !is.na(apoe))
 exclusion_table <- count_remaining_sample(health, description. = "Have APOE")
 
-# --> delete? 
 health <- drop_na(health, all_of(model_covars))
 exclusion_table <- count_remaining_sample(health, description. = "all covariates available")
 

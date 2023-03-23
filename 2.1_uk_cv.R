@@ -1,3 +1,4 @@
+
 ##################################################################################################
 # setup
 ##################################################################################################
@@ -15,9 +16,11 @@ pacman::p_load(tidyverse,
                pls, gstat, sf # UK-PLS MODEL
                )    
 
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+
 #load the prediction workspace
-load(file.path("Output", "uk_workspace.rdata"))
-if(!dir.exists(file.path("Output", "UK Predictions"))){dir.create(file.path("Output", "UK Predictions"))}
+load(file.path(dt_path, "uk_workspace.rdata"))
+if(!dir.exists(file.path(dt_path, "UK Predictions"))){dir.create(file.path(dt_path, "UK Predictions"))}
 
 set.seed(1)
 
@@ -44,6 +47,6 @@ cv_predictions <- cv_predictions0 %>%
 ##################################################################################################
 
 message("saving predictions")
-saveRDS(cv_predictions, file.path("Output", "UK Predictions", "cv_predictions.rda"))
+saveRDS(cv_predictions, file.path(dt_path, "UK Predictions", "cv_predictions.rda"))
 
 message("done with 2.1")

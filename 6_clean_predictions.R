@@ -1,3 +1,7 @@
+#---> START HERE
+
+
+
 
 ##################################################################################################
 # SETUP
@@ -12,17 +16,32 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 pacman::p_load(dplyr, readr, lubridate, sf)    
 
-prediction_path <- file.path("Output", "UK Predictions", 
+dt_path <- file.path("Output",
+                     readRDS(file.path("Output", "latest_dt_version.rda"))
+                     # --> TEMP
+                     #"v1_20230131"
+                     )
+
+prediction_path <- file.path(dt_path, "UK Predictions", 
                              "cohort"
                              #"grid"
                              )
 
-if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(prediction_path, "KP"))}
+if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(prediction_path, "KP"), recursive = T)}
 
 ##################################################################################################
 # PREP PREDICTION FILE FOR KP
 ##################################################################################################
+<<<<<<< HEAD
 var_names <- readRDS(file.path("Output", "keep_vars.rda"))
+=======
+# var_names = "test"
+
+# --> MAKE SURE NO2 IS INCLUDED HERE
+
+
+var_names <- readRDS(file.path(prediction_path, "keep_vars.rda"))
+>>>>>>> fd70c5d051661fc546abb323e2361ca6a9de1e57
 
 predictions0 <- lapply(var_names,
                        function(x) {
@@ -39,7 +58,7 @@ predictions <- predictions0 %>%
     # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
     start_date = ymd("1988-01-01 "),
     end_date = ymd("2021-07-09 "),
-    model = paste0("mb_", campaign_id)
+    #model = paste0("mb_", campaign_id)
     ) %>%
   select(location_id, start_date, end_date, model, 
          variable,

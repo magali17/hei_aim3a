@@ -1,5 +1,7 @@
 #!/usr/bin/bash
 
+# bash ./use_rstudio.sh
+
 # Install sf and related R packages
 
 # Install modules (adjust as needed for your module versions)
