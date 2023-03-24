@@ -4,18 +4,25 @@
 label_designs <- function(dt) {
   
   dt <- dt %>% mutate(
-    design = ifelse(design == "full", "all data", design),
+    design = ifelse(design == "full", "All Data", 
+                    ifelse(design == "balanced seasons", "Fewer Seasons",
+                           ifelse(design == "fewer total stops", "Fewer Visits", design))),
     design = str_to_title(design),
     design = factor(design, levels = c("All Data",
+                                       
                                        "Fewer Total Stops",
+                                       "Fewer Visits",
+                                       
                                        "Balanced Seasons",
+                                       "Fewer Seasons",
+                                       
                                        "Fewer Hours"
                                        )),
     
     version = ifelse(version == "all training data", "all data", version),
     version = str_to_title(version),
-    version = ifelse(version == "12_visits 150_sites", "1,800", #Stops
-                     ifelse(version == "12_visits 278_sites", "3,336", #Stops
+    version = ifelse(version == "12_visits 150_sites" | version == "6_visits 278_sites", "1,800",  
+                     ifelse(version == "12_visits 278_sites", "3,336",  
                             version))
     ) 
   

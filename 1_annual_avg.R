@@ -2,8 +2,6 @@
 ##################################################################################################
 # SETUP
 ##################################################################################################
-tictoc::tic()
-
 # Clear workspace of all objects and unload all extra (non-base) packages
 rm(list = ls(all = TRUE))
 if (!is.null(sessionInfo()$otherPkgs)) {
@@ -165,7 +163,7 @@ saveRDS(keep_vars, file.path(dt_path, "keep_vars.rda"))
 
 stops <- filter(stops, variable %in% keep_vars)
 
-#v3 8969/9047 = ___ not dropping if NAs in NO2 (or ptrak)         
+#v3 8969/9047 = 99.1% remaining stops; not dropping if NAs in NO2 (or ptrak)         
 #v2 8671/9047 = 96% stops remain (using 309 sites now)
 #v1 7,806/8163 = 96% stops remain
 stops_w <- pivot_wider(data = stops, names_from = "variable",values_from =  "value") %>%
@@ -239,6 +237,8 @@ season_n <- c(1:4)
 
 season_times <- data.frame()
 
+set.seed(1)
+
 for (i in seq_along(season_n)) {
 
   temp <- future_replicate(n = sim_n,  
@@ -251,9 +251,7 @@ for (i in seq_along(season_n)) {
                                                               group_by(season) %>%
                                                               # a few sites have < 6 samples/season, so use replacement=True here
                                                               slice_sample(n = fewer_hrs_seasons_n/season_n[i], replace=T)
-                                                            }
-                                                          )
-                           ) %>%
+                                                            })) %>%
     #unlist
     bind_rows() %>%
     #add simulation number & label
@@ -277,19 +275,17 @@ names(rh_bh) <- c("business", "rush")
 
 rh_bh_df <- data.frame()
 
+set.seed(1)
+
 for(i in seq_along(rh_bh)) {
   temp <- future_replicate(n = sim_n,
                            simplify = F,
                            expr = one_sample_avg(my_list = group_split(stops_w, location), 
-                           #mc.cores = 4, 
-                           my_sampling_fn = function(x) {
-                             x %>% filter(tow2 == "weekday",
-                                          hour %in% rh_bh[[i]]) %>%
-                               # NOTE: using sampling w/ replacement to ensure x samples/site 
-                               slice_sample(n=fewer_hrs_seasons_n, replace=T)
-                             }
-                           )
-                           ) %>%
+                                                 my_sampling_fn = function(x) {
+                                                   x %>% filter(tow2 == "weekday",
+                                                                hour %in% rh_bh[[i]]) %>%
+                                                     slice_sample(n=fewer_hrs_seasons_n, replace=T)
+                                                   })) %>%
     bind_rows() %>%
     group_by(location) %>%
     mutate(
@@ -318,32 +314,32 @@ temporal_sims <- rbind(
 ##################################################################################################
 # FEWER SITES & VISITS (TOTAL STOPS)
 ##################################################################################################
-message("fewer total stops")
+message("fewer visit campaigns")
 
-site_n2 <- c(length(unique(stops_w$location)))
-visit_n2 <- c(12, 6, 
-              #on-road median for some of the unbalanced sampling distributions
-              4
-              )
+site_n2 <- c(length(unique(stops_w$location))) # all 309
+# 4 is on-road median for some of the unbalanced sampling distributions
+visit_n2 <- c(12, 6, 4)
 
 site_visit_df <- data.frame()
 
+set.seed(1)
+
 for(v in visit_n2) {
   temp <- replicate(n = sim_n, simplify = F,
-                         expr = mclapply(site_n2, mc.cores = 5, function(x) {
-                                                 #sample sites
-                                                 sample_sites <- sample(unique(stops_w$location), size = x, replace = F)
-                                                 
-                                                 #sample visits
-                                                 filter(stops_w, location %in% sample_sites) %>%
-                                                   group_by(location) %>%
-                                                   slice_sample(n = v, replace=T) %>% 
-                                                   mutate(visits = n()) %>%
-                                                   #calculate annual average
-                                                   summarize_at(all_of(c(keep_vars, "visits")), ~mean(., na.rm=T)) %>%
-                                                   mutate(version = paste0(v, "_visits ", x, "_sites"))
-                                                 })
-                         ) %>%
+                         expr = mclapply(site_n2, #mc.cores = 5, 
+                                         function(x) {
+                                           #sample sites
+                                           sample_sites <- sample(unique(stops_w$location), size = x, replace = F)
+                                           
+                                           #sample visits
+                                           filter(stops_w, location %in% sample_sites) %>%
+                                             group_by(location) %>%
+                                             slice_sample(n = v, replace=T) %>%
+                                             mutate(visits = n()) %>%
+                                             #calculate annual average
+                                             summarize_at(all_of(c(keep_vars, "visits")), ~mean(., na.rm=T)) %>%
+                                             mutate(version = paste0(v, "_visits ", x, "_sites"))
+                                           })) %>%
   bind_rows() %>%
     
   ungroup() %>%
@@ -370,7 +366,4 @@ annual_training_set <- rbind(temporal_sims, site_visit_df)
 saveRDS(annual_training_set, file.path(dt_path, "annual_training_set.rda"))
 
 message("done with 1_act_annual.R")
-
-tictoc::toc()
-
 

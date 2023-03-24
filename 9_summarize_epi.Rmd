@@ -41,7 +41,8 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 pacman::p_load(tidyverse, 
                PRISMAstatement,table1,
-               knitr, kableExtra
+               knitr, kableExtra#,
+               #ggpubr #ggarrange()
                #ggpmisc #add line fit parameters to ggplot()
                )    
 
@@ -80,13 +81,7 @@ theme_update(legend.position = "bottom")
 ##################################################################################################
 #main_pollutants <- readRDS(file.path(output_data_path, "main_pollutants.rda"))
 
-campaign_descriptions <- readRDS(file.path(
-  #"Output", 
-  dt_path, "Selected Campaigns",
-  
-  # --> TEMP
-  #"old", "20230126 full has 278 sites", #"selected_campaigns2.rda"
-  "selected_campaigns_v2.rda")) %>%
+campaign_descriptions <- readRDS(file.path( dt_path, "Selected Campaigns", "selected_campaigns_v2.rda")) %>%
   label_pollutants() %>% label_designs() %>%
   
   # --> TEMP
@@ -209,15 +204,10 @@ campaign_descriptions %>%
          design != "All Data") %>%
   ggplot(aes(x=version, y=MSE_based_R2)) + 
   geom_hline(data=select(filter(t2, design=="All Data"), variable, Q50), aes(yintercept = Q50), linetype=2, alpha=0.5) + 
-  geom_boxplot(
-   #  aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax),
-   # stat = "identity"
-   ) + 
-  #facet_grid(variable~design, scales = "free", switch = "both") + 
+  geom_boxplot()+
   facet_grid(~design, scales = "free", switch = "both") + 
   labs(y = "MSE-Based R2",
-       x = "Design" #x = "Design-Version"
-       )
+       x = "Design")
 
 ggsave(file.path(image_path, "SI", "r2.png"), width = 6, height = 4)
 
@@ -441,8 +431,8 @@ t1_labels <- list(
 print("Baseline cohort characteristics stratified by whether 5-year PNC exposure at baseline was below or above the median.")
 # Main Table 1
 t1read(filter(pop), t1_labels) %>%
-  table1(~ visit_age + male + year2 + casi_irt + apoe + degree + #race_white + 
-           exposure_PNC, #  | high_exposure_PNC, 
+  table1(~ visit_age + male + #year2 + 
+           casi_irt + apoe + degree + exposure_PNC, #  | high_exposure_PNC, 
          data=.)
 
 ```
@@ -476,12 +466,12 @@ coef_table %>%
 #######################################
 prop_sign %>%
   filter(variable %in% main_pollutants_labels,
-         grepl("Total Stops|Seasons", design)
+         grepl("Visits|Seasons", design)
          ) %>%
   group_by(variable) %>%
   alt_boxplot(var = "prop_sign") %>%
   mutate_if(is.numeric, ~round(., 2)) %>%
-  kable(caption = "Distribution of proportion of significant findings for fewer stops & seasons") %>%
+  kable(caption = "Distribution of proportion of significant findings for fewer visits & seasons") %>%
   kable_styling()
 
 #######################################
@@ -541,7 +531,7 @@ lapply(all_pollutants_labels, function(x){
       geom_hline(data=filter(true_betas, variable==x), aes(yintercept = est)) +
       geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
       labs(title=x, col = "Statistically Significant",
-           x="Campaign No.",
+           x="Campaign",
            y = "Beta Estimate"
            )
       
@@ -569,53 +559,61 @@ lapply(all_pollutants_labels, function(x){
 same as above for presentation
 
 ```{r}
-model_coefs %>%
-    filter(grepl("Total", variable),
-           #design != "All Data",
-           grepl("Fewer Total|Seasons", design)
-           ) %>%
+d <- c("All|Visits", "Seasons", "Hours")
+
+p <- lapply( d, function(x) {
+  p <- model_coefs %>%
+      filter(grepl("Total", variable),
+             grepl(x, design)) %>%
+    
+      ggplot(aes(x=campaign, col=significant)) +  
+      facet_wrap(~design+version, scales="free_x") + 
+      geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+      geom_rect(inherit.aes = F, data=filter(true_betas, grepl("Total", variable)), 
+                aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.25) +
+      geom_hline(data=filter(true_betas, grepl("Total", variable)), 
+                 aes(yintercept = est)) +
+      geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
+      labs(col = "Statistically Significant",
+           x="Campaign",
+           y = "Beta Estimate")
   
-    ggplot(aes(x=campaign, col=significant)) +  #col=version
-    facet_wrap(~design+version) + 
-    geom_hline(yintercept = 0, linetype=2, #col="red", 
-               alpha=0.2) +
-    geom_rect(inherit.aes = F, data=filter(true_betas, #variable==x
-                                           grepl("Total", variable)
-                                           ), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.25) +
-    geom_hline(data=filter(true_betas, #variable==x
-                           grepl("Total", variable)
-                           ), aes(yintercept = est)) +
-    geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
-    labs(col = "Statistically Significant",
-         x="Campaign No.",
-         y = "Beta Estimate")
+  print(p)
 
-ggsave(file.path(image_path, "other", "presentation", "beta_total_a.png"), width = 8, height = 6)
+  #w <- ifelse(x=="Fewer Seasons", 8, 6)
+
+  ggsave(file.path(image_path, "other", "presentation", paste0("beta ", x, ".png")), width = 6, height = 4)
+
+})
+
+# ggarrange(plotlist = p, #align = "v", 
+#           common.legend = T)
 
 
-model_coefs %>%
-    filter(grepl("Total", variable),
-           !grepl("All Data|Fewer Total|Seasons", design)
-           ) %>%
-  
-    ggplot(aes(x=campaign, col=significant)) +  #col=version
-    facet_wrap(~design+version) + 
-    geom_hline(yintercept = 0, linetype=2, #col="red", 
-               alpha=0.2) +
-    geom_rect(inherit.aes = F, data=filter(true_betas, #variable==x
-                                           grepl("Total", variable)
-                                           ), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.25) +
-    geom_hline(data=filter(true_betas, #variable==x
-                           grepl("Total", variable)
-                           ), aes(yintercept = est)) +
-    geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
-    labs(#title=x, 
-      col = "Statistically Significant",
-         x="Campaign No.",
-         y = "Beta Estimate"
-         )
 
-ggsave(file.path(image_path, "other", "presentation", "beta_total_b.png"), width = 6, height =4)
+# model_coefs %>%
+#     filter(grepl("Total", variable),
+#            !grepl("All Data|Fewer Total|Seasons", design)
+#            ) %>%
+#   
+#     ggplot(aes(x=campaign, col=significant)) +  #col=version
+#     facet_wrap(~design+version) + 
+#     geom_hline(yintercept = 0, linetype=2, #col="red", 
+#                alpha=0.2) +
+#     geom_rect(inherit.aes = F, data=filter(true_betas, #variable==x
+#                                            grepl("Total", variable)
+#                                            ), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.25) +
+#     geom_hline(data=filter(true_betas, #variable==x
+#                            grepl("Total", variable)
+#                            ), aes(yintercept = est)) +
+#     geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
+#     labs(#title=x, 
+#       col = "Statistically Significant",
+#          x="Campaign",
+#          y = "Beta Estimate"
+#          )
+# 
+# ggsave(file.path(image_path, "other", "presentation", "beta_total_b.png"), width = 6, height =4)
 
 ```
 
@@ -628,10 +626,10 @@ solid horizontal line is the estimate from the all-data campaign
 
 ```{r}
 model_coefs %>%
-  filter(grepl("Total Stops|Seasons", design)) %>%
+  filter(grepl("Visits|Seasons", design)) %>%
   group_by(variable) %>%
   alt_boxplot(var = "est") %>%
-  kable(caption = "distribution of beta estimates for fewer stops & seasons", digits = 3) %>%
+  kable(caption = "distribution of beta estimates for fewer visits & seasons", digits = 3) %>%
   kable_styling()
 
 # true beta estimate
@@ -728,11 +726,11 @@ bias %>%
 
 #######################################
 bias0 %>%
-  filter(grepl("Total Stops|Seasons", design)) %>%
+  filter(grepl("Visits|Seasons", design)) %>%
   alt_boxplot(var = "error") %>%
                         # rounding impacts % error estimate (14 vs 17%)
   mutate_if(is.numeric, ~round(., 3)) %>% 
-  kable(caption = "Distribution of beta errors for fewer stops & seasons") %>%
+  kable(caption = "Distribution of beta errors for fewer visits & seasons") %>%
   kable_styling()
 
 bias0 %>%
@@ -743,20 +741,20 @@ bias0 %>%
   kable_styling()
 #######################################
 
-#bias %>%
-bias0 %>%
-  ggplot(aes(x=version, 
-             y=error
-             )) +
-  facet_grid(variable~design, scales = "free", switch="both") +
-  geom_hline(yintercept = 0, linetype=2, alpha=0.5) + 
-  geom_boxplot()+
-  labs(y = "Beta Bias",
-       x = "Design" #x = "Design-Version"
-       )
-  
-
-ggsave(file.path(image_path, "bias.png"), width = 6, height = 6)
+# #bias %>%
+# bias0 %>%
+#   ggplot(aes(x=version, 
+#              y=error
+#              )) +
+#   facet_grid(variable~design, scales = "free", switch="both") +
+#   geom_hline(yintercept = 0, linetype=2, alpha=0.5) + 
+#   geom_boxplot()+
+#   labs(y = "Beta Bias",
+#        x = "Design" #x = "Design-Version"
+#        )
+#   
+# 
+# ggsave(file.path(image_path, "bias.png"), width = 6, height = 6)
 
 
 ```
@@ -779,10 +777,10 @@ bias_pct %>%
 
 #######################################
 bias0 %>%
-  filter(grepl("Total Stops|Seasons", design)) %>%
+  filter(grepl("Visits|Seasons", design)) %>%
   alt_boxplot(var = "error_pct") %>%
   mutate_if(is.numeric, ~round(.)) %>%
-  kable(caption = "Distribution of beta errors (%) for fewer stops & seasons") %>%
+  kable(caption = "Distribution of beta errors (%) for fewer visits & seasons") %>%
   kable_styling()
 
 bias0 %>%
@@ -794,23 +792,23 @@ bias0 %>%
 #######################################
 
 
-#bias_pct %>%
-bias0 %>%
-  ggplot(aes(x=version, y=error_pct)) +
-  facet_grid(variable~design, scales = "free", switch="both") +
-  geom_hline(yintercept = 0, linetype=2, alpha=0.5) + 
-  geom_boxplot(
-    #aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax), stat = "identity"
-    ) +
-  # scale_y_continuous(sec.axis = sec_axis(~./unique(bias0$ref[1]), 
-  #                                        name="Beta Error"))+
- 
-  labs(y = "Beta Error (%)",
-       x = "Design" #x = "Design-Version"
-       )
-  
-
-ggsave(file.path(image_path, "bias_pct.png"), width = 6, height = 6)
+# #bias_pct %>%
+# bias0 %>%
+#   ggplot(aes(x=version, y=error_pct)) +
+#   facet_grid(variable~design, scales = "free", switch="both") +
+#   geom_hline(yintercept = 0, linetype=2, alpha=0.5) + 
+#   geom_boxplot(
+#     #aes(ymin = Qmin, lower = Q25, middle = Q50, upper = Q75, ymax = Qmax), stat = "identity"
+#     ) +
+#   # scale_y_continuous(sec.axis = sec_axis(~./unique(bias0$ref[1]), 
+#   #                                        name="Beta Error"))+
+#  
+#   labs(y = "Beta Error (%)",
+#        x = "Design" #x = "Design-Version"
+#        )
+#   
+# 
+# ggsave(file.path(image_path, "bias_pct.png"), width = 6, height = 6)
 
 ```
 
