@@ -141,6 +141,7 @@ cw <- model_perf0 %>%
       version=="business" ~"bh",
       grepl("12_visits", version) ~ "v12",
       grepl("6_visits", version) ~ "v06",
+      grepl("4_visits", version) ~ "v04",
 
       grepl("full", design) ~ "all" #, TRUE~NA
       ),
@@ -188,13 +189,14 @@ message("done with 3_model_eval.R")
 # 
 
 # library(ggplot2)
-# model_eval <-readRDS(file.path("Output", "v1_20230131" "model_eval.rda"))
+# model_eval <-readRDS(file.path(#"Output", "v1_20230131", 
+#   dt_path,
+#                                "model_eval.rda"))
 # model_eval %>%
 #   filter(grepl("total", variable),
 #          reference == "gs_estimate"
 #          ) %>%
 #   ggplot(aes(x=version, y=MSE_based_R2, col=out_of_sample)) +
-#   facet_wrap(~design, #scales="free"
-#              ) +
+#   facet_wrap(~design, scales="free_x") +
 #   geom_boxplot()
-
+#ggsave(file.path("..", "Manuscript", ""))
