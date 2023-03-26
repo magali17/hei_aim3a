@@ -27,6 +27,11 @@ source("functions.R")
 if(!dir.exists(file.path(dt_path, "UK Predictions"))){dir.create(file.path(dt_path, "UK Predictions"))}
 if(!dir.exists(file.path(dt_path, "Selected Campaigns"))){dir.create(file.path(dt_path, "Selected Campaigns"))}
 
+# # place to save predictions later
+# if(!dir.exists(file.path(dt_path, "UK Predictions", "cohort"))){dir.create(file.path(dt_path, "UK Predictions", "cohort"), recursive = T)}
+# if(!dir.exists(file.path(dt_path, "UK Predictions", "grid"))){dir.create(file.path(dt_path, "UK Predictions", "grid"), recursive = T)}
+
+
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
