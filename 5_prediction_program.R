@@ -1,7 +1,4 @@
 
-dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-
-
 # user_arguments <- c(file.path("Output", "Selected Campaigns", "site_data_for_ns_10_100.rda"), 
 #                     file.path("data", "dr0311_grid_covars.rda"), 
 #                     "Output/UK Predictions/grid_test/test", 
@@ -53,6 +50,8 @@ pacman::p_load(tidyverse, pls, tools, parallel,
                gstat, sf
                #ggpubr, #ggspatial, 
                )
+
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
 set.seed(1)
 ###########################################################################################
