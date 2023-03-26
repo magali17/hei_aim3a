@@ -94,25 +94,9 @@ if(file.exists(exposure_dt_path)) {
   saveRDS(exposure0, exposure_dt_path)
 }
 
-
-
-######################################################################
-# #TEST - ERROR IN MODEL NAMES???!!
-# exposure0 <- exposure0 %>%
-#   mutate(model2 = as.numeric(as.character(gsub("mb_", "", model))))%>%
-#   arrange(model2)
-# 
-# summary(exposure0$model2)
-
-
-######################################################################
-
-
 ######################################################################
 # COMMON VARIABLES
 ######################################################################
-first_exposure_year <- 2000 #since exposure window is 5 yr (going back to 1995)
-save(first_exposure_year, file = file.path(output_data_path, "first_exposure_year.rda"))
 
 ######################################################################
 # PREP DATASET
@@ -196,19 +180,9 @@ health %>%
   arrange(-prop_missing) %>%
   filter(count>0)
 
-######################################################################
-# ?? IPW FOR APOE MISSINGNESS
-######################################################################
-
-
-
-
-
-
-
-
 
 # apoe available
+## note: last visitdt becomes 2018-05-02 (vs 2020-03-05) when we filter by APOE availability
 health <- filter(health, !is.na(apoe))
 exclusion_table <- count_remaining_sample(health, description. = "Have APOE")
 

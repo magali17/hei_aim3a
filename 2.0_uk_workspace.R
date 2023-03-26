@@ -118,14 +118,16 @@ k <- 5
 # CREATE RANDOM VALIDATION FOLDS FOR EACH VARIABLE-DESIGN-VERSION
 ##################################################################################################
 
-random_fold <- function(df, k.=k) {
+random_fold <- function(df, k.=k, object_is_st="yes") {
   #make sure temporal sims receive same fold designation
   set.seed(2)
   
-  result <- df %>% st_drop_geometry() %>%
+  if(object_is_st=="yes") {df <- st_drop_geometry(df)  }
+  
+  result <- df %>% 
     distinct(location, spatial_temporal, design, version, campaign) %>%
     mutate(random_fold = sample(1:k.,size = nrow(.), replace = T ))
-  
+ 
   return(result)
 }
 

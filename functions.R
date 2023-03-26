@@ -202,7 +202,8 @@ cv_pls_p <- function(dt,
                      y_val,
                      x_predictors,
                      #CV folds
-                     k = 10,
+                     k,
+                     #k = 10,
                      # PLS component no.
                      pls_comp = n_comp,
                      label = "" 
@@ -217,11 +218,6 @@ cv_pls_p <- function(dt,
   
   # place to save cv predictions
   dt2 <- data.frame()
-
-  #for(p in seq_along(unique_pollutants)) {
-    #p=3
-    #dt_temp_pollutant <-  dt #%>% filter(Parameter.Name == unique_pollutants[p])
-    
     #want the same test set sites across diff designs for any given campaign (note: test sets do change across campaigns, but in the same way across designs. could move this seed into the next for() loop to use same training/test sets every single time)
     set.seed(1)  
     

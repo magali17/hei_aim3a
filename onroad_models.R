@@ -1,3 +1,5 @@
+# script takes annual averages Annie generated and generates CV predictions, evaluates each model, and crates a model crosswalk
+
 ##################################################################################################
 # setup
 ##################################################################################################
@@ -24,48 +26,152 @@ if(!dir.exists(file.path(dt_path, "UK Predictions"))){dir.create(file.path(dt_pa
 set.seed(1)
 
 ##################################################################################################
+# DATA
+##################################################################################################
+cov <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
+  mutate(location = substr(native_id, nchar(native_id)-3, nchar(native_id)),
+         location = as.numeric(location)
+         ) %>%
+  select(location, everything())
+
+onroad_ns <- readRDS(file.path("data", "onroad", "annie", "PNC_nonspatial_annavgs.rds")) %>%
+  mutate(spatial_code = "sn")
+onroad_s <- readRDS(file.path("data", "onroad", "annie", "PNC_spatial_annavgs.rds")) %>%
+  mutate(spatial_code = "sy")
+onroad <- rbind(onroad_ns, onroad_s) %>%
+  rename(location=id,
+         value = annual_mean)
+##### TEST 
+#distinct(onroad_ns, design, version, visits, adjusted)
+# distinct(onroad_s, design, visits, version, adjusted )
+
+rm(onroad_ns, onroad_s)
+
+# stationary data; for out-of-sample validation
+stationary <- filter(annual,
+                     design=="full",
+                     variable=="pnc_noscreen")
+
+##################################################################################################
+#  MODEL CROSSWALK 
+##################################################################################################
+cw <- onroad %>% 
+  distinct(spatial_code, design, version, visits, campaign, adjusted) %>%  
+  arrange(spatial_code, design, version, visits, campaign, adjusted) %>%  
+  mutate(
+    design_code = case_when( 
+      design=="balanced" ~ "baly",
+      design=="unbalanced" ~ "baln",
+      design=="clustered" ~ "clus",
+      design=="sensible spatial" ~ "seny",
+      design=="unsensible spatial" ~ "senn",
+      design=="road type" ~ "road"
+      ),
+    
+    version_code = case_when(
+      grepl("all", version) ~ "al",
+      grepl("business", version) ~ "bh"),
+    
+    visit_code = readr::parse_number(visits),
+    visit_code = str_pad(visit_code, 2, pad = "0"), 
+    visit_code = paste0("v", visit_code),
+    
+    adjusted_code = ifelse(adjusted=="adjusted", "adjy", "adjn"),
+    
+    model = paste("r_pncnoscreen",  #"r_
+                  spatial_code,
+                  design_code,
+                  version_code,
+                  visit_code,
+                  adjusted_code,
+                  str_pad(campaign, 2, pad = "0"), 
+                  sep = "_"),
+    model_no = row_number())
+
+# View(cw %>% filter(campaign==1))
+
+write.csv(cw, file.path(dt_path, "onroad_model_cw.csv"), row.names = F)
+
+onroad <- left_join(onroad, cw) %>%
+  select(-contains("_code")) %>%
+  left_join(cov)
+
+saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
+##################################################################################################
 # STANDARD CROSS-VALIDATION
 ##################################################################################################
-onroad <- 
+# don't do CV b/c care about performance at more representative stationary locations (below)
+
+# #add CV folds 
+# message("generating random folds")
+# 
+# random_fold_df <- lapply(group_split(onroad, model), function(x) {
+#   distinct(x, location, model) %>%
+#     mutate(random_fold = sample(1:k,size = nrow(.), replace = T ))
+#   }) %>%
+#   bind_rows()
+# 
+# onroad <- suppressMessages(left_join(onroad, random_fold_df)) %>%
+#   select(random_fold, everything())
+# 
+# saveRDS(annual, file.path(dt_path, "onroad_training_set2.rda"))
+# 
+# ## CV
+# print(paste0("Running random ", k, " FCV"))
+# 
+# cv_predictions0 <- mclapply(group_split(onroad, model), 
+#                             mc.cores = use_cores, 
+#                             FUN = do_cv, fold_name = "random_fold") %>%
+#   bind_rows() 
 
 
-## each df in the list is a simulation; running 10-FCV within each simulation to get CV predictions
-print(paste0("Running random ", k, " FCV"))
+##################################################################################################
+# OUT-OF-SAMPLE VALIDATION AT 309 STOP LOCATIONS
+##################################################################################################
 
-cv_predictions0 <- mclapply(group_split(onroad, spatial_temporal, design, version, campaign, variable), 
-                            mc.cores = use_cores, 
-                            FUN = do_cv, fold_name = "random_fold") %>%
-  bind_rows() 
+# --> ERROR - MISSING COVARIATES
+## cov_names[!cov_names %in% names(onroad)]
+
+stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use_cores, 
+                                   function(x) {
+  
+  uk_pls(modeling_data = x, new_data = stationary) %>%
+    #fn has binding issues later if don't drop geom 
+     st_drop_geometry() %>%
+     #add info to new dataset about the prediction model
+     mutate(
+       model = first(x$model)
+       # spatial_temporal = first(x$spatial_temporal), 
+       # design = first(x$design), 
+       # version  = first(x$version), 
+       # campaign = first(x$campaign)
+     )}) %>%
+  bind_rows()
 
 
-cv_predictions <- cv_predictions0 %>% 
-  select(all_of(common_vars)) %>%
-  mutate(out_of_sample = "CV") %>%
+
+##################################################################################################
+# COMBINE PREDICTIONS; FORMAT DF 
+##################################################################################################
+predictions <- stationary_predictions %>% 
+  #select(all_of(common_vars)) %>%
+  select(location, prediction, model) %>%
+  mutate(out_of_sample = "Stationary Sites") %>%
   drop_na(prediction)
 
-# message("saving predictions")
-# saveRDS(cv_predictions, file.path(dt_path, "UK Predictions", "cv_onroad_predictions.rda"))
+annual_gs_estimates <- stationary %>% st_drop_geometry() %>%
+  select(location, #variable, 
+         gs_estimate = value) 
+   
+# # estimates from specific campaign simultaions (n=278 sites)
+# campaign_estimates <- onroad %>% #st_drop_geometry() %>%
+#   distinct(location, value, model) %>% 
+#   rename(campaign_estimate = value)
 
-##################################################################################################
-# predictions vs estimates
-##################################################################################################
-
-
-annual_gs_estimates <- onroad %>% st_drop_geometry() %>%
-  filter(grepl("full", design)) %>%
-  distinct(location, variable, value) %>%
-  rename(gs_estimate = value)
-
-# estimates from specific campaign simultaions (n=278 sites)
-## note that these only change w/ temporal sims where fewer visits/site are used to estimate onroad averages
-campaign_estimates <- onroad %>% st_drop_geometry() %>%
-  distinct(location, design, version, campaign, variable, value) %>% 
-  rename(campaign_estimate = value)
-
-predictions <- cv_predictions %>%
+predictions <- predictions %>%
   #left join b/c locations w/ predictions may be fewer than the 309 sites if dno't do 10FCV
-  left_join(onroad_gs_estimates) %>%
-  left_join(campaign_estimates) %>%
+  left_join(annual_gs_estimates) %>%
+  #left_join(campaign_estimates) %>%
   #put back on native scale before evaluating
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
 
@@ -75,82 +181,29 @@ saveRDS(predictions, file.path(dt_path, "UK Predictions", "onroad_predictions.rd
 ##################################################################################################
 # CV STATS FUNCTION
 ##################################################################################################
-validation_stats <- file.path(dt_path, "validation_stats_fn.rda")
+validation_stats <- readRDS(file.path(dt_path, "validation_stats_fn.rda"))
 
 message("calculating performance statistics")
 
-
-model_perf0 <- mclapply(group_split(predictions, campaign, design, version, variable, out_of_sample, reference), 
+model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 
                         mc.cores = use_cores,
                         validation_stats, prediction = "prediction", reference = "estimate") %>%
   bind_rows()
 
-
-
 ##################################################################################################
-#  MODEL CROSSWALK 
-##################################################################################################
+# model_perf <- model_perf0 %>% 
+# 
+#   left_join(select(cw, -contains(c("code", "model_no"))), by = c("campaign", "design", "version", "variable"))
+# 
+# select(model_perf , 
+#        
+#        # --> don't use for onroad??
+#        #-no_sites
+#        ) %>%
+#   saveRDS(., file.path(dt_path, "onroad_model_eval.rda"))
 
-# --> UPDATE
-
-cw <- model_perf0 %>% 
-  select(variable, design, version, campaign) %>% 
-  distinct() %>%
-  arrange(variable, design, version, campaign) %>%
-  mutate(
-    var_code = gsub("\\.\\d", "", variable),
-    var_code = gsub("_","", var_code),
-    var_code = ifelse(var_code=="nstotalconc", "nstot", 
-                      #ifelse(var_code=="ns10100", "ns100", 
-                      var_code #)
-    ),
-    version_code = case_when(
-      
-      
-      
-      version=="rush" ~"rh",
-      version=="business" ~"bh",
-      grepl("12_visits", version) ~ "v12",
-      grepl("6_visits", version) ~ "v06",
-      grepl("4_visits", version) ~ "v04",
-      
-      grepl("full", design) ~ "all" #, TRUE~NA
-    ),
-    
-    model = paste(var_code, 
-                  version_code, 
-                  str_pad(campaign, 2, pad = "0"), 
-                  sep = "_"),
-    model_no = row_number())
-
-write.csv(cw, file.path(dt_path, "onroad_model_cw.csv"), row.names = F)
-
-##################################################################################################
-model_perf <- model_perf0 %>% 
-  # group_by(design, version, variable, out_of_sample, reference) %>%
-  # arrange(MSE_based_R2) %>%
-  # mutate(performance = row_number()) %>%
-  # 
-  # arrange(design, version, variable,
-  #         out_of_sample, 
-  #         #campaign, 
-  #         performance) %>%
-  # 
-  # #group_by( design, version, variable, campaign) %>%
-  # 
-  # ungroup() %>%
-  #mutate(campaign_id = row_number() ) %>%
-  #ungroup() 
-  left_join(select(cw, -contains(c("code", "model_no"))), by = c("campaign", "design", "version", "variable"))
-
-select(model_perf , 
-       
-       # --> don't use for onroad??
-       #-no_sites
-       ) %>%
+model_perf0 %>%
   saveRDS(., file.path(dt_path, "onroad_model_eval.rda"))
-
-
 
 
 

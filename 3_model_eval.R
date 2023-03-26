@@ -103,7 +103,7 @@ model_perf0 <- mclapply(group_split(predictions, campaign, design, version, vari
 
 cw <- model_perf0 %>% 
   select(variable, design, version, campaign) %>% 
-  distinct() %>%
+  distinct() %>% #View()
   arrange(variable, design, version, campaign) %>%
   mutate(
     var_code = gsub("\\.\\d", "", variable),
@@ -146,7 +146,8 @@ cw <- model_perf0 %>%
       grepl("full", design) ~ "all" #, TRUE~NA
       ),
     
-    model = paste(var_code, 
+    model = paste("s", #stationary
+                  var_code, 
                   version_code, 
                   str_pad(campaign, 2, pad = "0"), 
                   sep = "_"),
