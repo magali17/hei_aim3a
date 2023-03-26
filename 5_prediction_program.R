@@ -2,8 +2,6 @@
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
 
-
-
 # user_arguments <- c(file.path("Output", "Selected Campaigns", "site_data_for_ns_10_100.rda"), 
 #                     file.path("data", "dr0311_grid_covars.rda"), 
 #                     "Output/UK Predictions/grid_test/test", 
@@ -101,6 +99,8 @@ if(!cov_ext %in% c("csv", "rda")) {stop("Error. Covariate file must be a CSV or 
 # UPLOAD MODELING DATA
 ###########################################################################################
 modeling_data <- read_rds(modeling_data_path)
+
+# --> CHECK THAT THIS WORKS W/ MOBILE DATA AS EXPECTED
 
 # # the covariate names that will be used in the model
 cov_names <- select(modeling_data, log_m_to_a1:last_col()) %>%
