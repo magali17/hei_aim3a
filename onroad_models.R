@@ -17,6 +17,7 @@ pacman::p_load(tidyverse,
                pls, gstat, sf # UK-PLS MODEL
 )    
 
+source("functions.R")
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
 #load the prediction workspace
@@ -28,24 +29,43 @@ set.seed(1)
 ##################################################################################################
 # DATA
 ##################################################################################################
-cov <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
-  mutate(location = substr(native_id, nchar(native_id)-3, nchar(native_id)),
-         location = as.numeric(location)
-         ) %>%
-  select(location, everything())
+## file doesn't actually include latest covariates used (e.g. pop10, bus)
+## these are 5884 locations
+road_locations_used <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
+  pull(native_id)
 
+# --> ERROR: file is missing pop10 variables
+## apply(is.na(cov), 2, sum) %>% as.data.frame() %>% filter(.>0) 
+
+cov <- read.csv(file.path("data", "onroad", "annie", "dr0364d.txt")) %>%
+  filter(native_id %in% road_locations_used) %>%
+  mutate(native_id = as.character(native_id),
+         location = substr(native_id, nchar(native_id)-3, nchar(native_id)),
+         location = as.numeric(location)) %>%
+  #select(location, everything()) %>%
+  # ? memory issues later if you don't do this now
+  #select_at(vars(cov_names))
+  # for modeling
+  generate_new_vars() %>%
+  select(location, latitude, longitude, all_of(cov_names))
+  
+## these only have 5874 locations
 onroad_ns <- readRDS(file.path("data", "onroad", "annie", "PNC_nonspatial_annavgs.rds")) %>%
   mutate(spatial_code = "sn")
 onroad_s <- readRDS(file.path("data", "onroad", "annie", "PNC_spatial_annavgs.rds")) %>%
   mutate(spatial_code = "sy")
-onroad <- rbind(onroad_ns, onroad_s) %>%
+onroad0 <- rbind(onroad_ns, onroad_s) %>%
   rename(location=id,
-         value = annual_mean)
-##### TEST 
+         value = annual_mean) %>%
+  # log transform pollutant concentrations before modeling
+  mutate(value = ifelse(value== 0, 1, value),
+         value = log(value)) 
+   
+### TEST 
 #distinct(onroad_ns, design, version, visits, adjusted)
 # distinct(onroad_s, design, visits, version, adjusted )
 
-rm(onroad_ns, onroad_s)
+#rm(onroad_ns, onroad_s)
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,
@@ -55,7 +75,7 @@ stationary <- filter(annual,
 ##################################################################################################
 #  MODEL CROSSWALK 
 ##################################################################################################
-cw <- onroad %>% 
+cw <- onroad0 %>% 
   distinct(spatial_code, design, version, visits, campaign, adjusted) %>%  
   arrange(spatial_code, design, version, visits, campaign, adjusted) %>%  
   mutate(
@@ -92,9 +112,16 @@ cw <- onroad %>%
 
 write.csv(cw, file.path(dt_path, "onroad_model_cw.csv"), row.names = F)
 
-onroad <- left_join(onroad, cw) %>%
-  select(-contains("_code")) %>%
-  left_join(cov)
+onroad1 <- left_join(onroad0, cw) %>%
+  select(location, value, model) %>% 
+  left_join(cov) 
+
+onroad <- onroad1 %>% 
+  # prep for modeling
+  st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
+  st_transform(m_crs) 
+
+
 
 saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 ##################################################################################################
@@ -124,14 +151,15 @@ saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.r
 #                             FUN = do_cv, fold_name = "random_fold") %>%
 #   bind_rows() 
 
+# --> NEED TO exp(value) if use these predictions
 
 ##################################################################################################
 # OUT-OF-SAMPLE VALIDATION AT 309 STOP LOCATIONS
 ##################################################################################################
 
-# --> ERROR - MISSING COVARIATES
-## cov_names[!cov_names %in% names(onroad)]
+# --> ERROR: NEED POP10 VARIABLES TO WORK
 
+# x = group_split(onroad, model)[[1]]
 stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use_cores, 
                                    function(x) {
   
@@ -145,8 +173,9 @@ stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use
        # design = first(x$design), 
        # version  = first(x$version), 
        # campaign = first(x$campaign)
-     )}) %>%
-  bind_rows()
+     ) 
+                                     }) %>%
+  bind_rows()  
 
 
 
@@ -160,8 +189,7 @@ predictions <- stationary_predictions %>%
   drop_na(prediction)
 
 annual_gs_estimates <- stationary %>% st_drop_geometry() %>%
-  select(location, #variable, 
-         gs_estimate = value) 
+  select(location, gs_estimate = value) 
    
 # # estimates from specific campaign simultaions (n=278 sites)
 # campaign_estimates <- onroad %>% #st_drop_geometry() %>%
@@ -170,7 +198,7 @@ annual_gs_estimates <- stationary %>% st_drop_geometry() %>%
 
 predictions <- predictions %>%
   #left join b/c locations w/ predictions may be fewer than the 309 sites if dno't do 10FCV
-  left_join(annual_gs_estimates) %>%
+  left_join(annual_gs_estimates) #%>%
   #left_join(campaign_estimates) %>%
   #put back on native scale before evaluating
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
@@ -187,7 +215,7 @@ message("calculating performance statistics")
 
 model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 
                         mc.cores = use_cores,
-                        validation_stats, prediction = "prediction", reference = "estimate") %>%
+                        validation_stats, prediction = "prediction", reference = "gs_estimate") %>%
   bind_rows()
 
 ##################################################################################################

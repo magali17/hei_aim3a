@@ -335,7 +335,21 @@ ggsave(file.path("..", "Manuscript", "Images", "other", "monitoring_map.jpg"), w
 
 # Exposure
 
-## R2
+## Data
+
+### --> compare BH vs RH data variability (by design, # days, 1 season, # days...) 
+### --> but see same patter in CA NOx data?
+
+```{r}
+
+
+```
+
+
+
+## Model R2
+
+### --> also show campaign-reference R2s
 
 30 campaigns per design-version-pollutant 
 
@@ -370,7 +384,7 @@ ggsave(file.path(image_path, #"SI",
 ```
 
 
-## Predicted Exposure
+## Participant Exposure Assessments
 
 N_predictions = 65400 participant predictions = 30 campaigns * 2128 participants/campaign
 

@@ -144,7 +144,9 @@ good_exposure_ids <- filter(exposure0, exp_coverage >= coverage_threshold) %>%
 health <- filter(health, study_id %in% good_exposure_ids)
 exclusion_table <- count_remaining_sample(health, description. = "High exposure coverage")
 
-model_covars <- c("visit_age_centered75", "year2", "male", "degree", "apoe"#, "race_white" #, "nses_z_cx"
+model_covars <- c("visit_age_centered75", "year2", "male", "degree"#, 
+                  #"apoe"#, dropping this requirement b/c drops ~ 16% of people (post 2018) w/o APOE genotyping
+                  #"race_white" #, "nses_z_cx"
                   )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 
@@ -181,10 +183,10 @@ health %>%
   filter(count>0)
 
 
-# apoe available
-## note: last visitdt becomes 2018-05-02 (vs 2020-03-05) when we filter by APOE availability
-health <- filter(health, !is.na(apoe))
-exclusion_table <- count_remaining_sample(health, description. = "Have APOE")
+# # apoe available
+# ## note: last visitdt becomes 2018-05-02 (vs 2020-03-05) when we filter by APOE availability
+# health <- filter(health, !is.na(apoe))
+# exclusion_table <- count_remaining_sample(health, description. = "Have APOE")
 
 health <- drop_na(health, all_of(model_covars))
 exclusion_table <- count_remaining_sample(health, description. = "all covariates available")

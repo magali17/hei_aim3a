@@ -148,6 +148,44 @@ winsorize_fn <- function(dt, value, trim_quantile =0.05) {
 
 
 
+###########################################################################################
+# GENERATE NEW COVARIATES FOR NEW DATASETS
+###########################################################################################
+# created some new proximity variables  
+# log transform land proximity variables (e.g., distance to roadways)
+
+combine_a23_ll <- function(df) {
+  #find buffers for a2-3 length variables
+  buffers <- str_subset(names(df), "ll_a[2:3]") %>% str_extract("s[0:9].*")
+  
+  #for each buffer, calculate sum of a2+a3 length
+  for (i in seq_along(buffers)) {
+    old_vars <- paste0(c("ll_a2_", "ll_a3_"), buffers[i])
+    new_var <- paste0("ll_a23_", buffers[i])
+    
+    df[new_var] <- apply(df[old_vars], 1, sum)
+  }
+  return(df)
+}
+
+generate_new_vars <- function(df) {
+  # for the NO2 covariate, use the average levels from several available years
+  no2_behr_vars <- c("no2_behr_2005","no2_behr_2006", "no2_behr_2007")
+  
+  df <- df %>%
+    rowwise() %>%
+    mutate(m_to_a123 = min(m_to_a1, m_to_a2, m_to_a3),
+           m_to_a23 = min(m_to_a2, m_to_a3),
+           no2_behr = mean(!!as.symbol(no2_behr_vars))
+    ) %>%
+    ungroup() %>%
+    #make min distance 1 m before log transforming
+    mutate_at(vars(starts_with("m_to_")), ~ifelse(.==0, 1, .) %>% log(.)) %>%
+    rename_at(vars(starts_with("m_to_")), ~gsub("m_to_", "log_m_to_", .)) %>%
+    # calculate sum of a2 and a3 roads in each buffer
+    combine_a23_ll()
+}
+
 #######################################################################################################################
 # functions to prep for PLS  
 #######################################################################################################################

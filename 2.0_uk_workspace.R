@@ -150,12 +150,17 @@ saveRDS(annual, file.path(dt_path, "annual_training_set2.rda"))
 ############################################################################################################
 # fn returns UK-PLS predictions. inputs are two spatial objects (simple features). fn automatically transforms these to a lambert projection
 
-# modeling_data = modeling_data0
-# new_data = new_data0
+# modeling_data = x
+# new_data = stationary
 # cov_names. = cov_names  #covariates to be used in modeling
 # pls_comp_n. = pls_comp_n
-# fn_result = "models"
-# var_choice = "Exp"
+# fn_result = "predictions"
+# var_choice = ""
+
+#TEST - SINCE POP10 IS MISSING FROM ANNIE'S ONROAD DATA
+# cov_names. = cov_names[str_detect(cov_names, "pop10_", negate = T)]
+
+
 #####
 uk_pls <- function(modeling_data, # data for fitting pls-uk models
                    new_data, #prediction locations
