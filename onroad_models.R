@@ -59,7 +59,9 @@ onroad0 <- rbind(onroad_ns, onroad_s) %>%
          value = annual_mean) %>%
   # log transform pollutant concentrations before modeling
   mutate(value = ifelse(value== 0, 1, value),
-         value = log(value)) 
+         value = log(value),
+         variable = "pnc_noscreen"
+         ) 
    
 ### TEST 
 #distinct(onroad_ns, design, version, visits, adjusted)
@@ -113,7 +115,7 @@ cw <- onroad0 %>%
 write.csv(cw, file.path(dt_path, "onroad_model_cw.csv"), row.names = F)
 
 onroad1 <- left_join(onroad0, cw) %>%
-  select(location, value, model) %>% 
+  select(location, value, model, variable) %>% 
   left_join(cov) 
 
 onroad <- onroad1 %>% 
