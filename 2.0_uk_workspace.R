@@ -95,6 +95,7 @@ annual <- readRDS(file.path(dt_path, "annual_training_set.rda")) %>%
 # for modeling 
 cov_names <- st_drop_geometry(annual) %>% ungroup() %>%
   select(log_m_to_a1:last_col()) %>% names() # 188 covariates
+saveRDS(cov_names, file.path(dt_path, "cov_names.rda"))
 
 pls_comp_n <- 2
 saveRDS(pls_comp_n, file.path(dt_path, "pls_comp_n.rda"))

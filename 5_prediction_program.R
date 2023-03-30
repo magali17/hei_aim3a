@@ -219,7 +219,7 @@ new_predictions0 <- mclapply(
   group_split(modeling_data, 
               #temp,
               model, variable),
-                             mc.cores = 1,# 4,
+                             mc.cores = 10, #1,# 4,
                              function(x) {
                                temp <- dt %>%
                                  mutate(model = first(x$model),

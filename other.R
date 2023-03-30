@@ -15,10 +15,47 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 pacman::p_load(tidyverse,
                parallel, #mclapply; detectCores()
                future.apply, #future_replicate()
-               lubridate # %within%
+               lubridate, # %within%
+               sf
 )    
 
 source("functions.R")
+
+##################################################################################################
+# CLEAN COHORT FILE
+##################################################################################################
+
+monitoring_area <- readRDS(file.path("data", "GIS", "monitoring_land_zero_water_shp.rda"))  
+lat_long_crs <- 4326
+
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+#cov_names <- readRDS(file.path(dt_path, "cov_names.rda"))
+
+# 30653 rows in original file
+cohort0 <- read.csv(file.path("data", "dr0357_cohort_covar_20220404.csv")) %>%
+  # drop 3 duplicate rows
+  distinct()# %>%
+  # drop 1795 rows w/ missing modeling covariates - get dropped below anyways
+  #drop_na(all_of(starts_with(cov_names)))
+
+# 28858 remaining rows
+
+# only keep locations in monitoring region
+cohort0$in_monitoring_area <- suppressMessages(
+  cohort0 %>%
+    st_as_sf(coords = c('longitude', 'latitude'), crs= lat_long_crs) %>%
+    st_intersects(., monitoring_area, sparse = F) %>%
+    apply(., 1, any)
+)
+
+# 25810 rows remain - locations in monitoring region w/ full modeling covariates
+cohort0 <- filter(cohort0, in_monitoring_area)
+saveRDS(cohort0, file.path("data", "dr0357_cohort_covar_20220404_in_mm_area.rda"))
+
+#apply(is.na(cohort0), 2, sum) %>% as.data.frame() %>% filter(.>0)
+
+#length(unique(cohort$location_id))
+
 
 ##################################################################################################
 # COMPARE NS TOTAL CONC
