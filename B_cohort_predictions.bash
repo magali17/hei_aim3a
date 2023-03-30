@@ -1,5 +1,7 @@
 # script generates cohort predictions & saves them in the correct format for KPRI
 
+## bash B_cohort_predictions.bash
+
 # doesn't work b/c file is too large?
 # Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data_for_all_selected_campaigns.rda data/dr0357_cohort_covar_20220404_in_mm_area.rda Output/v3_20230321/"UK Predictions"/cohort/psd_and_no2 rda
 
