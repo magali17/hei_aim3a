@@ -65,11 +65,24 @@ predictions %>%
   write_csv(., file.path(prediction_path, "KP", paste0("predictions_", Sys.Date(),".csv")))
 
 
+###########
+# QC: prediction distributions
+qc <- TRUE
+
+if(qc==TRUE) {
+  predictions %>%
+    group_by(variable) %>%
+    summarize(n = n(),
+              min = min(prediction),
+              mean = mean(prediction),
+              max = max(prediction))
+  }
+
 ##################################################################################################
 # save the true, all data predictions for UFP separately (e.g., for survival/other analyses)
 ##################################################################################################
-all_data_campaign_refs <- readRDS(file.path("Output", "Selected Campaigns", "all_data_campaign_refs.rda")) %>%
-  select(model=model_id, variable) %>%
+all_data_campaign_refs <- readRDS(file.path(dt_path, "Selected Campaigns", "all_data_campaign_refs.rda")) %>%
+  select(model, variable) %>%
   filter(!variable %in% c("no2", "ns_total_conc"))
 
 all_data_psd_predictions <- predictions %>%
@@ -86,38 +99,40 @@ all_data_psd_predictions %>%
 ##################################################################################################
 # QC: check that the RDA and CSV files identical
 ##################################################################################################
-predictions_csv2 <- read.csv("Output/UK Predictions/cohort/KP/predictions_2023-02-16.csv")
-predictions_rda2 <- readRDS("Output/UK Predictions/cohort/KP/predictions_2023-02-16.rda") %>% 
-  as.data.frame()
-
-# check that the files are exactly the same
-same_files <- all(predictions_csv2$prediction==predictions_rda2$prediction) &
-  all(predictions_csv2$model==predictions_rda2$model) &
-  all(predictions_csv2$model==predictions_rda2$model)
+if(qc==TRUE) {
+  predictions_csv2 <- read.csv(file.path(dt_path, "UK Predictions", "cohort", "KP", paste0("predictions_", Sys.Date(),".csv")))
+  predictions_rda2 <- readRDS(file.path(dt_path, "UK Predictions", "cohort", "KP", paste0("predictions_", Sys.Date(),".rda"))) %>% 
+    as.data.frame()
   
-if (same_files) {
-  message("Check PASSED: the CSV and RDA file predictions are the same")
+  # check that the files are exactly the same
+  same_files <- all(predictions_csv2$prediction==predictions_rda2$prediction) &
+    all(predictions_csv2$model==predictions_rda2$model) &
+    all(predictions_csv2$model==predictions_rda2$model)
+  
+  if (same_files) {
+    message("Check PASSED: the CSV and RDA file predictions are the same")
   } else{
-      message("Check FAILED: the CSV and RDA file predictions are NOT the same")}
-
-
-# summary of rows, models, locations
-csv_summary <- predictions_csv2 %>%
-  summarize(
-    file = "csv",
-    rows = n(),
-    models = length(unique(model)),
-    locations = length(unique(location_id)))
-
-rda_summary <- predictions_rda2 %>% 
-  as.data.frame() %>%
-  summarize(
-    file = "rda",
-    rows = n(),
-    models = length(unique(model)),
-    locations = length(unique(location_id)))
-
-rbind(csv_summary, rda_summary)
+    message("Check FAILED: the CSV and RDA file predictions are NOT the same")}
+  
+  
+  # summary of rows, models, locations
+  csv_summary <- predictions_csv2 %>%
+    summarize(
+      file = "csv",
+      rows = n(),
+      models = length(unique(model)),
+      locations = length(unique(location_id)))
+  
+  rda_summary <- predictions_rda2 %>% 
+    as.data.frame() %>%
+    summarize(
+      file = "rda",
+      rows = n(),
+      models = length(unique(model)),
+      locations = length(unique(location_id)))
+  
+  rbind(csv_summary, rda_summary)
+}
 
 
 
