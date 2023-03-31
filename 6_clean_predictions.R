@@ -70,12 +70,15 @@ predictions %>%
 qc <- TRUE
 
 if(qc==TRUE) {
+  print("distribution of predictions. N = models x cohort locations")
   predictions %>%
     group_by(variable) %>%
     summarize(n = n(),
               min = min(prediction),
               mean = mean(prediction),
-              max = max(prediction))
+              max = max(prediction),
+              NAs = sum(is.na(prediction))
+              )
   }
 
 ##################################################################################################
