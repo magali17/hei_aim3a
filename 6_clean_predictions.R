@@ -32,7 +32,7 @@ if(!dir.exists(file.path(prediction_path, "KP"))){dir.create(file.path(predictio
 ##################################################################################################
 # PREP PREDICTION FILE FOR KP
 ##################################################################################################
-var_names <- readRDS(file.path(prediction_path, "keep_vars.rda"))
+var_names <- readRDS(file.path(dt_path, "keep_vars.rda"))
 
 predictions0 <- lapply(var_names,
                        function(x) {
@@ -43,8 +43,10 @@ predictions0 <- lapply(var_names,
 
 predictions <- predictions0 %>%
   # only predict at locations in the monitoring area w/o NAs
+  ## redundant - could delete these 2 lines 
   filter(in_monitoring_area,
          !is.na(prediction)) %>%
+  
   mutate(
     # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
     start_date = ymd("1988-01-01 "),
@@ -124,33 +126,33 @@ rbind(csv_summary, rda_summary)
 # QC check - dups
 ##################################################################################################
 
-eval <- FALSE
-
-if(eval==TRUE){
-  
-  #can't view everything on excel. Looks good in R.
-  df <- readRDS(file.path(prediction_path, "KP", paste0("predictions_", Sys.Date(),".csv"))) %>%
-                  arrange(location_id)
-                
-                #df_small <- slice(df, 1:1e3)
-                
-                df0 <- df %>% group_by(location_id, variable) %>% summarize(n=n(), models = length(unique(model))) %>% ungroup()
-                
-                #dups <- c(34496703, 34496704, 34496708)
-                dups <- filter(df0, n == max(n)) %>%
-                  distinct(location_id) %>% pull()
-                
-                df1 <- filter(df, location_id %in% dups)
-                
-                
-                ####
-                cohort0 <- read.csv("../../dr0357/update_20220404/dr0357_cohort_covar_20220404.csv")
-                cohort_dups <- cohort0 %>% group_by(location_id) %>% summarize(n = n()) %>% filter(n>1) %>% pull(location_id)
-                
-                cohort <- filter(cohort0, location_id %in% dups) %>%
-                  arrange(location_id)
-                
-                }
+# eval <- FALSE
+# 
+# if(eval==TRUE){
+#   
+#   #can't view everything on excel. Looks good in R.
+#   df <- readRDS(file.path(prediction_path, "KP", paste0("predictions_", Sys.Date(),".csv"))) %>%
+#                   arrange(location_id)
+#                 
+#                 #df_small <- slice(df, 1:1e3)
+#                 
+#                 df0 <- df %>% group_by(location_id, variable) %>% summarize(n=n(), models = length(unique(model))) %>% ungroup()
+#                 
+#                 #dups <- c(34496703, 34496704, 34496708)
+#                 dups <- filter(df0, n == max(n)) %>%
+#                   distinct(location_id) %>% pull()
+#                 
+#                 df1 <- filter(df, location_id %in% dups)
+#                 
+#                 
+#                 ####
+#                 cohort0 <- read.csv("../../dr0357/update_20220404/dr0357_cohort_covar_20220404.csv")
+#                 cohort_dups <- cohort0 %>% group_by(location_id) %>% summarize(n = n()) %>% filter(n>1) %>% pull(location_id)
+#                 
+#                 cohort <- filter(cohort0, location_id %in% dups) %>%
+#                   arrange(location_id)
+#                 
+#                 }
 
 
 

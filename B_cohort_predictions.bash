@@ -1,12 +1,8 @@
 # script generates cohort predictions & saves them in the correct format for KPRI
-
 ## bash B_cohort_predictions.bash
 
-# doesn't work b/c file is too large?
-# Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data_for_all_selected_campaigns.rda data/dr0357_cohort_covar_20220404_in_mm_area.rda Output/v3_20230321/"UK Predictions"/cohort/psd_and_no2 rda
-
 #############################################################################################
- 
+# NanoScan, including bins
 Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data_for_ns_total_conc.rda data/dr0357_cohort_covar_20220404_in_mm_area.rda Output/v3_20230321/"UK Predictions"/cohort/ns_total_conc rda
 
 Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data_for_ns_10_100.rda data/dr0357_cohort_covar_20220404_in_mm_area.rda Output/v3_20230321/"UK Predictions"/cohort/ns_10_100 rda
@@ -31,10 +27,11 @@ Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data
 
 Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data_for_ns_154.0.rda data/dr0357_cohort_covar_20220404_in_mm_area.rda Output/v3_20230321/"UK Predictions"/cohort/ns_154.0 rda
 
-Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data_for_ns_205.4.rda data/dr0357_cohort_covar_20220404_in_mm_area.rda Output/v3_20230321/"UK Predictions"/cohort/ns_205.4 rda
-
+#############################################################################################
+# NO2
 Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data_for_no2.rda data/dr0357_cohort_covar_20220404_in_mm_area.rda Output/v3_20230321/"UK Predictions"/cohort/no2 rda
-
+#############################################################################################
+# ptrak
 Rscript 5_prediction_program.R Output/v3_20230321/"Selected Campaigns"/site_data_for_pnc_noscreen.rda data/dr0357_cohort_covar_20220404_in_mm_area.rda Output/v3_20230321/"UK Predictions"/cohort/pnc_noscreen rda
 
 #############################################################################################
