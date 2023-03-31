@@ -46,6 +46,9 @@ cov <- read.csv(file.path("data", "onroad", "annie", "dr0364d.txt")) %>%
   # ? memory issues later if you don't do this now
   #select_at(vars(cov_names))
   # for modeling
+  
+  # --> ERROR?
+  
   generate_new_vars() %>%
   select(location, latitude, longitude, all_of(cov_names))
   
