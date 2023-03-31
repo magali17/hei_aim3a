@@ -62,8 +62,8 @@ user_arguments <- commandArgs(trailingOnly = TRUE)
 # user_arguments <- c(file.path("Output", "Selected Campaigns", "site_data_for_all_selected_campaigns.rda"), "../../dr0357/update_20220404/dr0357_cohort_covar_20220404.csv", "Output/UK Predictions/cohort/psd_and_no2", "rda")
 
 if (length(user_arguments) !=4) {
-  print("Usage error. Enter: 1. the location of the covariate dataset for which you would like predictions, 2. where the prediction outputs should be saved, and 3. the desired prediction file fomat (csv or rda). Usage:")
-  print("rscript 5_prediction_program.R <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>")
+  message("Usage error. Enter: 1. the location of the covariate dataset for which you would like predictions, 2. where the prediction outputs should be saved, and 3. the desired prediction file fomat (csv or rda). Usage:")
+  message("rscript 5_prediction_program.R <modeling_data_path> <covariate_file_path> <prediction_directory> <prediction_file_format>")
   stop()
 }
 
@@ -200,17 +200,17 @@ if(any(has_missing_values$true_or_false) == TRUE) {
   
   error_msg <- paste("The following covariates have 1+ rows with missing values:", paste(covariates_with_missingness, collapse = ", "), ". These rows will have missing predictions.")
   
-  print(error_msg)
+  message(error_msg)
   #stop(error_msg)
 }
 
 # 3. print a 'pass' message if all of the covariates are present and there are no locations with missing values
-if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {print("Covariate checks passed.")} 
+if(has_all_covariates ==TRUE & any(has_missing_values$.) == FALSE) {message("Covariate checks passed.")} 
 
 ###########################################################################################
 # PREDICT AT NEW DATASET
 ###########################################################################################
-print("Generating predictions...")
+message("Generating predictions...")
 
 #x = group_split(modeling_data, model, variable)[[1]]
 #temp <- filter(modeling_data, model <=66) 
@@ -247,8 +247,8 @@ prediction_file_name <- file.path(prediction_directory, paste0("predictions.", p
 if(prediction_file_format == "csv") {write.csv(new_predictions, prediction_file_name, row.names = F)}
 if(prediction_file_format == "rda") {saveRDS(new_predictions, prediction_file_name)}
 
-print(paste0("Predictions saved: ", prediction_file_name))
+message(paste0("Predictions saved: ", prediction_file_name))
 
-print("Program done.")
+message("Program done.")
 
 ###########################################################################################
