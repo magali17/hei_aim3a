@@ -29,30 +29,19 @@ set.seed(1)
 ##################################################################################################
 # DATA
 ##################################################################################################
-## file doesn't actually include latest covariates used (e.g. pop10, bus)
-## these are 5884 locations
+## 5884 locations used. does not include all necessary covariates used (e.g. pop10, bus)
 road_locations_used <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
   pull(native_id)
 
-# --> ERROR: file is missing pop10 variables
-## apply(is.na(cov), 2, sum) %>% as.data.frame() %>% filter(.>0) 
-
-cov <- read.csv(file.path("data", "onroad", "annie", "dr0364d.txt")) %>%
+cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
   filter(native_id %in% road_locations_used) %>%
   mutate(native_id = as.character(native_id),
          location = substr(native_id, nchar(native_id)-3, nchar(native_id)),
          location = as.numeric(location)) %>%
-  #select(location, everything()) %>%
-  # ? memory issues later if you don't do this now
-  #select_at(vars(cov_names))
-  # for modeling
-  
-  # --> ERROR?
-  
   generate_new_vars() %>%
   select(location, latitude, longitude, all_of(cov_names))
   
-## these only have 5874 locations
+## 5874 locations
 onroad_ns <- readRDS(file.path("data", "onroad", "annie", "PNC_nonspatial_annavgs.rds")) %>%
   mutate(spatial_code = "sn")
 onroad_s <- readRDS(file.path("data", "onroad", "annie", "PNC_spatial_annavgs.rds")) %>%
@@ -103,7 +92,7 @@ cw <- onroad0 %>%
     
     adjusted_code = ifelse(adjusted=="adjusted", "adjy", "adjn"),
     
-    model = paste("r_pncnoscreen",  #"r_
+    model = paste("r", 
                   spatial_code,
                   design_code,
                   version_code,
@@ -125,8 +114,6 @@ onroad <- onroad1 %>%
   # prep for modeling
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
   st_transform(m_crs) 
-
-
 
 saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 ##################################################################################################
@@ -172,13 +159,7 @@ stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use
     #fn has binding issues later if don't drop geom 
      st_drop_geometry() %>%
      #add info to new dataset about the prediction model
-     mutate(
-       model = first(x$model)
-       # spatial_temporal = first(x$spatial_temporal), 
-       # design = first(x$design), 
-       # version  = first(x$version), 
-       # campaign = first(x$campaign)
-     ) 
+     mutate(model = first(x$model))
                                      }) %>%
   bind_rows()  
 

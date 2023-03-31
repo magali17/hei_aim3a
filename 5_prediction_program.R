@@ -99,12 +99,11 @@ if(!cov_ext %in% c("csv", "rda")) {stop("Error. Covariate file must be a CSV or 
 ###########################################################################################
 modeling_data <- read_rds(modeling_data_path)
 
-# --> CHECK THAT THIS WORKS W/ MOBILE DATA AS EXPECTED
-
 # # the covariate names that will be used in the model
-cov_names <- select(modeling_data, log_m_to_a1:last_col()) %>%
-  select(-geometry) %>%
-  names()
+# cov_names <- select(modeling_data, log_m_to_a1:last_col()) %>%
+#   select(-geometry) %>%
+#   names()
+cov_names <- readRDS(file.path(dt_path, "cov_names.rda"))
 
 # load a spatial file of the original monitoring area to assess spatial extrapolation later
 monitoring_area <- readRDS(file.path("data", "GIS", "monitoring_land_zero_water_shp.rda"))  
