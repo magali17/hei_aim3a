@@ -29,39 +29,42 @@ set.seed(1)
 ##################################################################################################
 # DATA
 ##################################################################################################
-message("loading data")
+# message("loading data")
+# 
+# ## 5884 locations used. does not include all necessary covariates used (e.g. pop10, bus)
+# road_locations_used <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
+#   pull(native_id)
+# 
+# cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
+#   filter(native_id %in% road_locations_used) %>%
+#   mutate(native_id = as.character(native_id),
+#          location = substr(native_id, nchar(native_id)-3, nchar(native_id)),
+#          location = as.numeric(location)) %>%
+#   generate_new_vars() %>%
+#   select(location, latitude, longitude, all_of(cov_names))
+#   
+# ## 5874 locations
+# onroad_ns <- readRDS(file.path("data", "onroad", "annie", "PNC_nonspatial_annavgs.rds")) %>%
+#   mutate(spatial_code = "sn")
+# onroad_s <- readRDS(file.path("data", "onroad", "annie", "PNC_spatial_annavgs.rds")) %>%
+#   mutate(spatial_code = "sy")
+# onroad0 <- rbind(onroad_ns, onroad_s) %>%
+#   rename(location=id,
+#          value = annual_mean) %>%
+#   # log transform pollutant concentrations before modeling
+#   mutate(value = ifelse(value== 0, 1, value),
+#          value = log(value),
+#          variable = "pnc_noscreen"
+#          ) 
+#    
+# ### TEST 
+# #distinct(onroad_ns, design, version, visits, adjusted)
+# # distinct(onroad_s, design, visits, version, adjusted )
+# 
+# #rm(onroad_ns, onroad_s)
 
-## 5884 locations used. does not include all necessary covariates used (e.g. pop10, bus)
-road_locations_used <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
-  pull(native_id)
 
-cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
-  filter(native_id %in% road_locations_used) %>%
-  mutate(native_id = as.character(native_id),
-         location = substr(native_id, nchar(native_id)-3, nchar(native_id)),
-         location = as.numeric(location)) %>%
-  generate_new_vars() %>%
-  select(location, latitude, longitude, all_of(cov_names))
-  
-## 5874 locations
-onroad_ns <- readRDS(file.path("data", "onroad", "annie", "PNC_nonspatial_annavgs.rds")) %>%
-  mutate(spatial_code = "sn")
-onroad_s <- readRDS(file.path("data", "onroad", "annie", "PNC_spatial_annavgs.rds")) %>%
-  mutate(spatial_code = "sy")
-onroad0 <- rbind(onroad_ns, onroad_s) %>%
-  rename(location=id,
-         value = annual_mean) %>%
-  # log transform pollutant concentrations before modeling
-  mutate(value = ifelse(value== 0, 1, value),
-         value = log(value),
-         variable = "pnc_noscreen"
-         ) 
-   
-### TEST 
-#distinct(onroad_ns, design, version, visits, adjusted)
-# distinct(onroad_s, design, visits, version, adjusted )
-
-#rm(onroad_ns, onroad_s)
+onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,
@@ -71,53 +74,53 @@ stationary <- filter(annual,
 ##################################################################################################
 #  MODEL CROSSWALK 
 ##################################################################################################
-cw <- onroad0 %>% 
-  distinct(spatial_code, design, version, visits, campaign, adjusted) %>%  
-  arrange(spatial_code, design, version, visits, campaign, adjusted) %>%  
-  mutate(
-    design_code = case_when( 
-      design=="balanced" ~ "baly",
-      design=="unbalanced" ~ "baln",
-      design=="clustered" ~ "clus",
-      design=="sensible spatial" ~ "seny",
-      design=="unsensible spatial" ~ "senn",
-      design=="road type" ~ "road"
-      ),
-    
-    version_code = case_when(
-      grepl("all", version) ~ "al",
-      grepl("business", version) ~ "bh"),
-    
-    visit_code = readr::parse_number(visits),
-    visit_code = str_pad(visit_code, 2, pad = "0"), 
-    visit_code = paste0("v", visit_code),
-    
-    adjusted_code = ifelse(adjusted=="adjusted", "adjy", "adjn"),
-    
-    model = paste("r", 
-                  spatial_code,
-                  design_code,
-                  version_code,
-                  visit_code,
-                  adjusted_code,
-                  str_pad(campaign, 2, pad = "0"), 
-                  sep = "_"),
-    model_no = row_number())
-
-# View(cw %>% filter(campaign==1))
-
-write.csv(cw, file.path(dt_path, "onroad_model_cw.csv"), row.names = F)
-
-onroad1 <- left_join(onroad0, cw) %>%
-  select(location, value, model, variable) %>% 
-  left_join(cov) 
-
-onroad <- onroad1 %>% 
-  # prep for modeling
-  st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
-  st_transform(m_crs) 
-
-saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
+# cw <- onroad0 %>% 
+#   distinct(spatial_code, design, version, visits, campaign, adjusted) %>%  
+#   arrange(spatial_code, design, version, visits, campaign, adjusted) %>%  
+#   mutate(
+#     design_code = case_when( 
+#       design=="balanced" ~ "baly",
+#       design=="unbalanced" ~ "baln",
+#       design=="clustered" ~ "clus",
+#       design=="sensible spatial" ~ "seny",
+#       design=="unsensible spatial" ~ "senn",
+#       design=="road type" ~ "road"
+#       ),
+#     
+#     version_code = case_when(
+#       grepl("all", version) ~ "al",
+#       grepl("business", version) ~ "bh"),
+#     
+#     visit_code = readr::parse_number(visits),
+#     visit_code = str_pad(visit_code, 2, pad = "0"), 
+#     visit_code = paste0("v", visit_code),
+#     
+#     adjusted_code = ifelse(adjusted=="adjusted", "adjy", "adjn"),
+#     
+#     model = paste("r", 
+#                   spatial_code,
+#                   design_code,
+#                   version_code,
+#                   visit_code,
+#                   adjusted_code,
+#                   str_pad(campaign, 2, pad = "0"), 
+#                   sep = "_"),
+#     model_no = row_number())
+# 
+# # View(cw %>% filter(campaign==1))
+# 
+# write.csv(cw, file.path(dt_path, "onroad_model_cw.csv"), row.names = F)
+# 
+# onroad1 <- left_join(onroad0, cw) %>%
+#   select(location, value, model, variable) %>% 
+#   left_join(cov) 
+# 
+# onroad <- onroad1 %>% 
+#   # prep for modeling
+#   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
+#   st_transform(m_crs) 
+# 
+# saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 ##################################################################################################
 # STANDARD CROSS-VALIDATION
 ##################################################################################################
@@ -152,7 +155,6 @@ saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.r
 ##################################################################################################
 message("Generating predictions at stop locations")
 
-# x = group_split(onroad, model)[[1]]
 stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use_cores, 
                                    function(x) {
   
@@ -164,12 +166,14 @@ stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use
                                      }) %>%
   bind_rows()  
 
-
+message("saving TEMP predictions")
+saveRDS(stationary_predictions, file.path(dt_path, "UK Predictions", "TEMP_onroad_predictions.rda"))
 ##################################################################################################
 # COMBINE PREDICTIONS; FORMAT DF 
 ##################################################################################################
+message("combining predictions with estimates")
+
 predictions <- stationary_predictions %>% 
-  #select(all_of(common_vars)) %>%
   select(location, prediction, model) %>%
   mutate(out_of_sample = "Stationary Sites") %>%
   drop_na(prediction)
@@ -184,7 +188,7 @@ annual_gs_estimates <- stationary %>% st_drop_geometry() %>%
 
 predictions <- predictions %>%
   #left join b/c locations w/ predictions may be fewer than the 309 sites if dno't do 10FCV
-  left_join(annual_gs_estimates) #%>%
+  left_join(annual_gs_estimates) %>%
   #left_join(campaign_estimates) %>%
   #put back on native scale before evaluating
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
@@ -197,7 +201,32 @@ saveRDS(predictions, file.path(dt_path, "UK Predictions", "onroad_predictions.rd
 ##################################################################################################
 message("calculating performance statistics")
 
-validation_stats <- readRDS(file.path(dt_path, "validation_stats_fn.rda"))
+validation_stats <- function(dt, prediction, reference){
+  
+  # MSE of predictions
+  MSE_pred <- mean((dt[[reference]] - dt[[prediction]])^2)
+  # MSE of observations (for R2 denominator)
+  MSE_obs <- mean((dt[[reference]] - mean(dt[[reference]]))^2)
+  
+  RMSE = sqrt(MSE_pred)
+  MSE_based_R2 = max(1 - MSE_pred/MSE_obs, 0)
+  # alternative gives same mse-based R2
+  # caret::R2(pred = dt$prediction,obs =dt$estimate, form = "traditional")
+  
+  result <- distinct(dt, model, out_of_sample# , reference
+                     ) %>%
+    mutate(
+      no_sites = nrow(dt),
+      RMSE = RMSE,
+      MSE_based_R2 = MSE_based_R2
+      )
+  
+  return(result)
+}
+
+
+validation_stats(dt=group_split(predictions, model, out_of_sample)[[1]], prediction = "prediction", reference = "gs_estimate")
+
 
 model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 
                         mc.cores = use_cores,
