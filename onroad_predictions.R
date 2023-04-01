@@ -26,6 +26,8 @@ set.seed(1)
 ################################################################################
 # DATA
 ################################################################################
+message("loading data")
+
 # new covariate file
 modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area.rda"))
@@ -49,7 +51,7 @@ uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 ###########################################################################################
 # PREDICT AT NEW DATASET
 ###########################################################################################
-print("Generating predictions...")
+message("Generating predictions")
 
 new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
   mc.cores = 1,# 4,
@@ -72,7 +74,6 @@ new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
 ###########################################################################################
 # CLEAN DATA FOR KP
 ###########################################################################################
-
 new_predictions <- new_predictions0 %>%
   mutate(
     # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
@@ -80,6 +81,8 @@ new_predictions <- new_predictions0 %>%
     end_date = ymd("2021-07-09 ")
     ) %>%
   select(location_id, start_date, end_date, model, variable, prediction) 
+
+message("saving predictions")
 
 saveRDS(predictions, file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".rda")))
 
@@ -96,6 +99,8 @@ qc <- TRUE
 
 # summary of predictions
 if(qc==TRUE) {
+  message("QC Summary")
+  
   print("distribution of predictions. N = models x cohort locations")
   predictions %>%
     group_by(variable) %>%

@@ -29,6 +29,8 @@ set.seed(1)
 ##################################################################################################
 # DATA
 ##################################################################################################
+message("loading data")
+
 ## 5884 locations used. does not include all necessary covariates used (e.g. pop10, bus)
 road_locations_used <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
   pull(native_id)
@@ -148,8 +150,7 @@ saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.r
 ##################################################################################################
 # OUT-OF-SAMPLE VALIDATION AT 309 STOP LOCATIONS
 ##################################################################################################
-
-# --> ERROR: NEED POP10 VARIABLES TO WORK
+message("Generating predictions at stop locations")
 
 # x = group_split(onroad, model)[[1]]
 stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use_cores, 
@@ -162,7 +163,6 @@ stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use
      mutate(model = first(x$model))
                                      }) %>%
   bind_rows()  
-
 
 
 ##################################################################################################
@@ -189,15 +189,15 @@ predictions <- predictions %>%
   #put back on native scale before evaluating
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
 
-print("saving predictions")
+message("saving predictions")
 saveRDS(predictions, file.path(dt_path, "UK Predictions", "onroad_predictions.rda"))
 
 ##################################################################################################
 # CV STATS FUNCTION
 ##################################################################################################
-validation_stats <- readRDS(file.path(dt_path, "validation_stats_fn.rda"))
-
 message("calculating performance statistics")
+
+validation_stats <- readRDS(file.path(dt_path, "validation_stats_fn.rda"))
 
 model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 
                         mc.cores = use_cores,
@@ -215,6 +215,8 @@ model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
 #        #-no_sites
 #        ) %>%
 #   saveRDS(., file.path(dt_path, "onroad_model_eval.rda"))
+
+message("saving model evaluation statistics")
 
 model_perf0 %>%
   saveRDS(., file.path(dt_path, "onroad_model_eval.rda"))
