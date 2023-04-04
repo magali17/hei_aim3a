@@ -30,7 +30,7 @@ set.seed(1)
 ##################################################################################################
 # DATA
 ##################################################################################################
-message("loading data")
+message("loading datasets")
 
 ## 5884 locations used. does not include all necessary covariates used (e.g. pop10, bus)
 road_locations_used <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
@@ -72,6 +72,8 @@ onroad0 <- rbind(onroad_ns, onroad_s) %>%
 ##################################################################################################
 #  MODEL CROSSWALK 
 ##################################################################################################
+message ("creating model crosswalks")
+
 cw <- onroad0 %>% 
   distinct(spatial_code, design, version, visits, campaign, adjusted) %>%  
   arrange(spatial_code, design, version, visits, campaign, adjusted) %>%  
@@ -119,6 +121,7 @@ onroad <- onroad1 %>%
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
   st_transform(m_crs) 
 
+message("saving onroad modeling data")
 saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 
 message("done with r1")

@@ -51,7 +51,7 @@ uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 ###########################################################################################
 # PREDICT AT NEW DATASET
 ###########################################################################################
-message("Generating predictions")
+message("Generating predictions at new locations")
 
 new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
   mc.cores = 1,# 4,
