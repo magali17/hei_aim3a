@@ -1,4 +1,5 @@
-# script takes annual averages Annie generated and generates CV predictions, evaluates each model, and crates a model crosswalk
+# script generates onroad out-of-sample model predictions at stop locations
+# evaluates each model 
 
 ##################################################################################################
 # setup
@@ -252,4 +253,5 @@ model_perf0 %>%
 
 
 
+message("done with r2")
 

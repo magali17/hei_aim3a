@@ -1,3 +1,5 @@
+# script creates the onroad modeling dataset needed later & a model crosswalk
+
 ##################################################################################################
 # setup
 ##################################################################################################
@@ -119,3 +121,4 @@ onroad <- onroad1 %>%
 
 saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 
+message("done with r1")
