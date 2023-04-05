@@ -30,7 +30,7 @@ message("loading data")
 
 # new covariate file
 modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
-dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area.rda"))
+dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda"))
 #cov_ext <- tools::file_ext(covariate_file_path)
 
 #where predictions should be saved

@@ -24,12 +24,10 @@ source("functions.R")
 ##################################################################################################
 # CLEAN COHORT FILE
 ##################################################################################################
-
 monitoring_area <- readRDS(file.path("data", "GIS", "monitoring_land_zero_water_shp.rda"))  
 lat_long_crs <- 4326
-
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-#cov_names <- readRDS(file.path(dt_path, "cov_names.rda"))
+cov_names <- readRDS(file.path(dt_path, "cov_names.rda"))
 
 # 30653 rows in original file
 cohort0 <- read.csv(file.path("data", "dr0357_cohort_covar_20220404.csv")) %>%
@@ -52,9 +50,16 @@ cohort0$in_monitoring_area <- suppressMessages(
 cohort0 <- filter(cohort0, in_monitoring_area)
 saveRDS(cohort0, file.path("data", "dr0357_cohort_covar_20220404_in_mm_area.rda"))
 
-#apply(is.na(cohort0), 2, sum) %>% as.data.frame() %>% filter(.>0)
+# prepped dataset for models
+cohort0 %>%
+  generate_new_vars() %>%
+  st_as_sf(coords = c('longitude', 'latitude'), crs= lat_long_crs, remove=F) %>% 
+  select(location_id, native_id, latitude, longitude, all_of(cov_names)) %>%
+  saveRDS(., file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda"))
+ 
 
-#length(unique(cohort$location_id))
+
+
 
 
 ##################################################################################################
