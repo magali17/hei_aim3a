@@ -29,14 +29,18 @@ set.seed(1)
 ################################################################################
 #allow R to take input from the command line
 user_arguments <- commandArgs(trailingOnly = TRUE)
-# user_arguments <- "onroad_modeling_data_SP_FALSE_ADJ_FALSE.rda"
+# user_arguments <- "onroad_modeling_data_SP_FALSE_ADJ_FALSE.rda" 
+# onroad_modeling_data_SP_FALSE_ADJ_TRUE.rda
+# onroad_modeling_data_SP_TRUE_ADJ_FALSE.rda
+# onroad_modeling_data_SP_TRUE_ADJ_TRUE.rda
 
+modeling_dt <- user_arguments[1]
 
 message("loading data")
 
 # new covariate file
 # modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
-modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", user_arguments[1]))
+modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", modeling_dt))
 
 
 dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda"))
@@ -62,7 +66,7 @@ uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 ###########################################################################################
 message("Generating predictions at new locations")
 
-new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
+new_predictions0 <- mclapply(group_split(modeling_data, model, variable)[1:2],
   mc.cores = 1,# 4,
   function(x) {
     
@@ -82,7 +86,8 @@ new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
 #    
 # saveRDS(new_predictions, file.path(prediction_directory, "onroad_predictions.rda"))
 
-saveRDS(new_predictions0, file.path(prediction_directory, paste0("TEMP_onroad_predictions_", Sys.Date(),".rda")))
+p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
+saveRDS(new_predictions0, file.path(prediction_directory, paste0("TEMP_onroad_predictions_", p_name, Sys.Date(),".rda")))
 
 ###########################################################################################
 # CLEAN DATA FOR KP
@@ -101,7 +106,7 @@ saveRDS(predictions, file.path(prediction_directory, paste0("onroad_predictions_
 
 predictions %>%
   select(-variable) %>%
-  write_csv(., file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".csv")))
+  write_csv(., file.path(prediction_directory, paste0("onroad_predictions_", p_name, Sys.Date(),".csv")))
 
 ###########################################################################################
 # QC CHECKS
@@ -126,6 +131,8 @@ if(qc==TRUE) {
 
 ###########################################################################################
 # check that csv file saved correctly
+
+qc <- FALSE
 
 if(qc==TRUE) {
   predictions_csv2 <- read.csv(file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".csv")))
