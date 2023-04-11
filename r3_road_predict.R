@@ -15,7 +15,8 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 # load the required libraries for: plotting, modeling, spatial features, script timing
 if (!require("pacman")) {install.packages("pacman")}
 pacman::p_load(tidyverse, pls, tools, parallel,
-               gstat, sf
+               gstat, sf,
+               lubridate
                #ggpubr, #ggspatial, 
 )
 
@@ -56,6 +57,9 @@ message("Generating predictions at new locations")
 new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
   mc.cores = 1,# 4,
   function(x) {
+    
+    #print(first(x$model_no))
+    
     temp <- dt %>%
       mutate(model = first(x$model),
              variable = first(x$variable)) %>%
@@ -70,6 +74,7 @@ new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
 #    
 # saveRDS(new_predictions, file.path(prediction_directory, "onroad_predictions.rda"))
 
+saveRDS(new_predictions0, file.path(prediction_directory, paste0("TEMP_onroad_predictions_", Sys.Date(),".rda")))
 
 ###########################################################################################
 # CLEAN DATA FOR KP
@@ -77,8 +82,8 @@ new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
 new_predictions <- new_predictions0 %>%
   mutate(
     # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
-    start_date = ymd("1988-01-01 "),
-    end_date = ymd("2021-07-09 ")
+    start_date = ymd("1988-01-01"),
+    end_date = ymd("2021-07-09")
     ) %>%
   select(location_id, start_date, end_date, model, variable, prediction) 
 
