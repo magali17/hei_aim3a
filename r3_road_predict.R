@@ -70,7 +70,7 @@ new_predictions0 <- mclapply(group_split(modeling_data, model, variable)[1:2],
   mc.cores = 1,# 4,
   function(x) {
     
-    print(paste(first(x$model_no2), first(x$model)))
+    print("model: " ,paste(first(x$model_no2), first(x$model)))
     
     temp <- dt %>%
       mutate(model = first(x$model),
@@ -87,6 +87,7 @@ new_predictions0 <- mclapply(group_split(modeling_data, model, variable)[1:2],
 # saveRDS(new_predictions, file.path(prediction_directory, "onroad_predictions.rda"))
 
 p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
+message("saving TEMPORARY predictions")
 saveRDS(new_predictions0, file.path(prediction_directory, paste0("TEMP_onroad_predictions_", p_name, Sys.Date(),".rda")))
 
 ###########################################################################################
@@ -102,9 +103,9 @@ new_predictions <- new_predictions0 %>%
 
 message("saving predictions")
 
-saveRDS(predictions, file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".rda")))
+saveRDS(new_predictions, file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".rda")))
 
-predictions %>%
+new_predictions %>%
   select(-variable) %>%
   write_csv(., file.path(prediction_directory, paste0("onroad_predictions_", p_name, Sys.Date(),".csv")))
 
