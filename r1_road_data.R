@@ -132,19 +132,35 @@ saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.r
 # --> SEPARATE MODELS; SORT BY DESCENDING ORDER
 # onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 
-onroad %>%
+test <- onroad %>%
+  #slice(1:10e4) %>%
   mutate(spatial = ifelse(grepl("r_sy_", model), TRUE, FALSE),
-         adjusted = ifelse(grepl("adjy_", model), TRUE, FALSE),
-         ) %>%
-  group_by(spatial, adjusted) %>%
-  
-  #mutate(model_no2 = group_id()) %>%
-  
-  summarize(
-    models = length(unique(model))
-  )
+         adjusted = ifelse(grepl("adjy_", model), TRUE, FALSE)) 
+
+# sp = TRUE
+# adj = TRUE
+
+for(sp in c(TRUE, FALSE)) {
+  for(adj in c(TRUE, FALSE)) {
+    
+    test %>%
+      filter(spatial==sp,
+             adjusted==adj) %>%
+      group_by(model) %>%
+      mutate(model_no2 = cur_group_id()) %>%
+      
+      ungroup() %>%
+      arrange(desc(model_no2)) %>%
+      
+      saveRDS(file.path(dt_path, "Selected Campaigns", paste0("onroad_modeling_data_SP_",sp, "_ADJ_", adj, ".rda") ))
+    }
+  }
 
 
+   
+
+
+# 
 
 
 

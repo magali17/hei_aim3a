@@ -27,10 +27,18 @@ set.seed(1)
 ################################################################################
 # DATA
 ################################################################################
+#allow R to take input from the command line
+user_arguments <- commandArgs(trailingOnly = TRUE)
+# user_arguments <- "onroad_modeling_data_SP_FALSE_ADJ_FALSE.rda"
+
+
 message("loading data")
 
 # new covariate file
-modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
+# modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
+modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", user_arguments[1]))
+
+
 dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda"))
 #cov_ext <- tools::file_ext(covariate_file_path)
 
@@ -58,7 +66,7 @@ new_predictions0 <- mclapply(group_split(modeling_data, model, variable),
   mc.cores = 1,# 4,
   function(x) {
     
-    #print(first(x$model_no))
+    print(paste(first(x$model_no2), first(x$model)))
     
     temp <- dt %>%
       mutate(model = first(x$model),
