@@ -43,7 +43,7 @@ message("loading data")
 modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", modeling_dt))
 
 
-dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda"))
+dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda")) 
 #cov_ext <- tools::file_ext(covariate_file_path)
 
 #where predictions should be saved
@@ -66,13 +66,16 @@ uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 ###########################################################################################
 message("Generating predictions at new locations")
 
-new_predictions0 <- mclapply(group_split(modeling_data, model, variable)[1:2],
-  mc.cores = 1,# 4,
+# --> TEST
+predictions0 <- lapply(group_split(modeling_data, model), #[1:2], #mc.cores = 1,# 4,
   function(x) {
     
-    print("model: " ,paste(first(x$model_no2), first(x$model)))
+    message(paste("model: " , first(x$model_no2), first(x$model)))
     
     temp <- dt %>%
+      ## --> TEST
+      #slice(1:10) %>%
+      
       mutate(model = first(x$model),
              variable = first(x$variable)) %>%
       uk_pls(new_data = ., modeling_data = x)
@@ -80,20 +83,23 @@ new_predictions0 <- mclapply(group_split(modeling_data, model, variable)[1:2],
   bind_rows()  
 
 # save the location and prediction information
-# new_predictions <- new_predictions0 %>%
+# predictions <- predictions0 %>%
 #   select(location_id, latitude, longitude, model, variable, prediction) %>%
 #   mutate(prediction = exp(prediction))
 #    
-# saveRDS(new_predictions, file.path(prediction_directory, "onroad_predictions.rda"))
+# saveRDS(predictions, file.path(prediction_directory, "onroad_predictions.rda"))
 
 p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
 message("saving TEMPORARY predictions")
-saveRDS(new_predictions0, file.path(prediction_directory, paste0("TEMP_onroad_predictions_", p_name, Sys.Date(),".rda")))
+saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_onroad_predictions_", p_name, "_", Sys.Date(),".rda")))
 
 ###########################################################################################
 # CLEAN DATA FOR KP
 ###########################################################################################
-new_predictions <- new_predictions0 %>%
+predictions <- predictions0 %>%
+  
+  st_drop_geometry() %>%
+  
   mutate(
     # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
     start_date = ymd("1988-01-01"),
@@ -103,11 +109,11 @@ new_predictions <- new_predictions0 %>%
 
 message("saving predictions")
 
-saveRDS(new_predictions, file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".rda")))
+saveRDS(predictions, file.path(prediction_directory, paste0("onroad_predictions_", p_name, "_",Sys.Date(),".rda")))
 
-new_predictions %>%
+predictions %>%
   select(-variable) %>%
-  write_csv(., file.path(prediction_directory, paste0("onroad_predictions_", p_name, Sys.Date(),".csv")))
+  write_csv(., file.path(prediction_directory, paste0("onroad_predictions_", p_name, "_", Sys.Date(),".csv")))
 
 ###########################################################################################
 # QC CHECKS
@@ -121,53 +127,55 @@ if(qc==TRUE) {
   message("QC Summary")
   
   print("distribution of predictions. N = models x cohort locations")
-  predictions %>%
+  result <- predictions %>%
     group_by(variable) %>%
     summarize(n = n(),
+              models = length(unique(model)),
               min = min(prediction),
               mean = mean(prediction),
               max = max(prediction),
-              NAs = sum(is.na(prediction))
-    )}
+              NAs = sum(is.na(prediction)))
+  print(result)
+  }
 
 ###########################################################################################
 # check that csv file saved correctly
 
-qc <- FALSE
-
-if(qc==TRUE) {
-  predictions_csv2 <- read.csv(file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".csv")))
-  predictions_rda2 <- readRDS(file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".rda"))) %>% 
-    as.data.frame()
-  
-  # check that the files are exactly the same
-  same_files <- all(predictions_csv2$prediction==predictions_rda2$prediction) &
-    all(predictions_csv2$model==predictions_rda2$model) &
-    all(predictions_csv2$model==predictions_rda2$model)
-  
-  if (same_files) {
-    message("Checks PASSED: the CSV and RDA file predictions are the same")
-  } else{
-    message("Checks FAILED: the CSV and RDA file predictions are NOT the same")}
-  
-  
-  # summary of rows, models, locations
-  csv_summary <- predictions_csv2 %>%
-    summarize(
-      file = "csv",
-      rows = n(),
-      models = length(unique(model)),
-      locations = length(unique(location_id)))
-  
-  rda_summary <- predictions_rda2 %>% 
-    as.data.frame() %>%
-    summarize(
-      file = "rda",
-      rows = n(),
-      models = length(unique(model)),
-      locations = length(unique(location_id)))
-  
-  rbind(csv_summary, rda_summary)
-}
-
-message("done with r3")
+# qc <- FALSE
+# 
+# if(qc==TRUE) {
+#   predictions_csv2 <- read.csv(file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".csv")))
+#   predictions_rda2 <- readRDS(file.path(prediction_directory, paste0("onroad_predictions_", Sys.Date(),".rda"))) %>% 
+#     as.data.frame()
+#   
+#   # check that the files are exactly the same
+#   same_files <- all(predictions_csv2$prediction==predictions_rda2$prediction) &
+#     all(predictions_csv2$model==predictions_rda2$model) &
+#     all(predictions_csv2$model==predictions_rda2$model)
+#   
+#   if (same_files) {
+#     message("Checks PASSED: the CSV and RDA file predictions are the same")
+#   } else{
+#     message("Checks FAILED: the CSV and RDA file predictions are NOT the same")}
+#   
+#   
+#   # summary of rows, models, locations
+#   csv_summary <- predictions_csv2 %>%
+#     summarize(
+#       file = "csv",
+#       rows = n(),
+#       models = length(unique(model)),
+#       locations = length(unique(location_id)))
+#   
+#   rda_summary <- predictions_rda2 %>% 
+#     as.data.frame() %>%
+#     summarize(
+#       file = "rda",
+#       rows = n(),
+#       models = length(unique(model)),
+#       locations = length(unique(location_id)))
+#   
+#   rbind(csv_summary, rda_summary)
+# }
+# 
+# message("done with r3")
