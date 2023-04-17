@@ -18,6 +18,7 @@ files <- c("onroad_predictions__SP_FALSE_ADJ_FALSE_2023-04-15",
 # p_name <- files[1]
 # read in predictions
 lapply(files, function(p_name) { 
+  message(p_name)
   readRDS(file.path(prediction_directory, paste0(p_name, ".rda"))) %>%
     mutate(prediction = exp(prediction)) %>%
     saveRDS(., file.path(new_directory, paste0(p_name, ".rda")))
@@ -25,9 +26,12 @@ lapply(files, function(p_name) {
   read.csv(file.path(prediction_directory, paste0(p_name, ".csv"))) %>%
     mutate(prediction = exp(prediction)) %>%
     write.csv(., file.path(new_directory, paste0(p_name, ".csv")))
+  
+  message("saved")
   })
 
  
+message("done")
 
 
 
