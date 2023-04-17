@@ -101,6 +101,8 @@ predictions <- predictions0 %>%
   st_drop_geometry() %>%
   
   mutate(
+    #put back on the native scale
+    prediction = exp(prediction),
     # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
     start_date = ymd("1988-01-01"),
     end_date = ymd("2021-07-09")
