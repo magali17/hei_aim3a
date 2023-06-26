@@ -838,7 +838,7 @@ model_coefs %>%
   geom_boxplot(fill=uw_gold1, col=uw_purple)+
 
   scale_y_continuous(sec.axis = sec_axis(
-    trans=~(.-tot_pnc)/-tot_pnc, name="% Error", labels = scales::percent,
+    trans=~(.-tot_pnc)/-tot_pnc, name="% Difference", labels = scales::percent,
     #trans=~(.-tot_pnc)/-tot_pnc, name="Proportion" 
     #trans=~(.-tot_pnc), name="Beta Bias"
     )) +

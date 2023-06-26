@@ -62,6 +62,8 @@ nox <- inner_join(nox0, sites0)
 
 sites <- filter(sites0, native_id %in% nox$native_id)
 
+write.csv(sites, file.path("Output", "other", "ca_nox_sites.csv" ), row.names = F)
+
 # few_sites <- filter(sites,
 #                     Latitude <34.3 & Longitude< -118)
 
@@ -69,7 +71,8 @@ sites <- filter(sites0, native_id %in% nox$native_id)
 # LOCATIONS
 ######################################################################################
 #nox %>%
-few_sites %>% 
+#few_sites %>% 
+sites %>%
   filter(#Location.Setting %in% c("SUBURBAN", "URBAN AND CENTER CITY"),
          #City.Name == "Los Angeles"
          #Latitude <34.3 & Longitude< -118
@@ -91,12 +94,7 @@ few_sites %>%
 # BH misses earlier time when the largest differences between a "background" and "urban" site might occur? 
 
 nox %>%
-  filter(#Latitude <34.3 & Longitude< -118
-    City.Name %in% c("Los Angeles" #, "West Los Angeles", 
-                     # "Compton",
-                     # "Pico Rivera"
-                     )
-         ) %>%
+  filter(City.Name %in% c("Los Angeles")) %>%
   ggplot(aes(x=hour, y= Sample.Measurement, col=Local.Site.Name,group=Local.Site.Name,
              linetype=Location.Setting)) +
   geom_smooth(#se=F, 
@@ -105,7 +103,43 @@ nox %>%
   facet_grid(season~weekday, switch = "both") +
   labs(x = "Hour",
        y = "Conc (ppb)",
-       col=""
+       col="",
+       title = "Sites in LA"
   )
 
-ggsave(file.path(image_path, "hourly_sample.png"), width = 8, height = 6)
+ggsave(file.path(image_path, "hourly_sample_LA.png"), width = 8, height = 6)
+
+
+
+nox %>%
+  filter(County.Name %in% c("Los Angeles"),
+    City.Name %in% c(#"Glendora", 
+      "Azusa", #these are ~4 mi from eachother
+      "Pomona", #glendora & pomona are ~7 mi apart
+      "Pasadena"#,
+      
+      #"Santa Clarita"
+    ),
+    
+    # Local.Site.Name %in% c("Los Angeles-North Main Street",
+    #                        "Compton",
+    #                        #"Pico Rivera #2",
+    #                        "Reseda"
+    #                        )
+    
+    
+  ) %>%
+  ggplot(aes(x=hour, y= Sample.Measurement, col=Local.Site.Name,group=Local.Site.Name,
+             linetype=Location.Setting)) +
+  geom_smooth(#se=F, 
+    size=0.5) +
+  #guides(colour = FALSE) +
+  facet_grid(season~weekday, switch = "both") +
+  labs(x = "Hour",
+       y = "Conc (ppb)",
+       col="",
+       title = "Selected sites in LA County"
+  )
+
+ggsave(file.path(image_path, "hourly_sample2.png"), width = 8, height = 6)
+

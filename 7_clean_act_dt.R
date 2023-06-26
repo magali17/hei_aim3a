@@ -129,6 +129,8 @@ exclusion_table <- count_remaining_sample(health, description. = "Valid CASI sco
 #  summary()
 
 # High exposure coverage
+
+# --> does this drop pre 1996? 
 coverage_threshold <- 0.95
 
 

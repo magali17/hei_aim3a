@@ -1,8 +1,5 @@
 
-# user_arguments <- c(file.path("Output", "Selected Campaigns", "site_data_for_ns_10_100.rda"), 
-#                     file.path("data", "dr0311_grid_covars.rda"), 
-#                     "Output/UK Predictions/grid_test/test", 
-#                     "rda")
+
 
 ################################################################################
 # ABOUT THIS SCRIPT
@@ -59,7 +56,10 @@ set.seed(1)
 ###########################################################################################
 #allow R to take input from the command line
 user_arguments <- commandArgs(trailingOnly = TRUE)
-# user_arguments <- c(file.path("Output", "Selected Campaigns", "site_data_for_all_selected_campaigns.rda"), "../../dr0357/update_20220404/dr0357_cohort_covar_20220404.csv", "Output/UK Predictions/cohort/psd_and_no2", "rda")
+# user_arguments <- c(file.path("Output/v3_20230321/Selected Campaigns/site_data_for_all_ref_campaigns.rda"),
+#                     file.path("data", "dr0311_grid_covars.rda"),
+#                     "Output/v3_20230321/UK Predictions/grid/reference",
+#                     "rda")
 
 if (length(user_arguments) !=4) {
   print("Usage error. Enter: 1. the location of the covariate dataset for which you would like predictions, 2. where the prediction outputs should be saved, and 3. the desired prediction file fomat (csv or rda). Usage:")
