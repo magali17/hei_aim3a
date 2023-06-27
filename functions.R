@@ -9,22 +9,19 @@ label_designs <- function(dt) {
                            ifelse(design == "fewer total stops", "Fewer Visits", design))),
     design = str_to_title(design),
     design = factor(design, levels = c("All Data",
-                                       
                                        "Fewer Total Stops",
                                        "Fewer Visits",
-                                       
                                        "Balanced Seasons",
                                        "Fewer Seasons",
-                                       
-                                       "Fewer Hours"
-                                       )),
+                                       "Fewer Hours")),
     
     version = ifelse(version == "all training data", "all data", version),
     version = str_to_title(version),
-    version = ifelse(version == "12_visits 150_sites" | version == "6_visits 278_sites", "1,800",  
-                     ifelse(version == "12_visits 278_sites", "3,336",  
-                            version))
-    ) 
+    version = ifelse(version=="12_visits 309_sites", "12", #"3,700",
+                     ifelse(version=="6_visits 309_sites", "6", #"1,850",
+                            ifelse(version=="4_visits 309_sites", "4", #"1,200",
+                                   version))),
+    version = factor(version, levels = c("All Data", 1:3, "4", "6", "12", "Business", "Rush"))) 
   
   return(dt)
 }
@@ -41,6 +38,9 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
     dt <- dt %>% mutate(
       variable = case_when(
         variable=="ns_total_conc" ~ "PNC, Total (pt/cm3)",
+        
+        variable=="pnc_noscreen" ~ "PNC, 20-1,000 nm (pt/cm3)",
+        
         variable=="ns_10_100" ~ "PNC, <100 nm (pt/cm3)",  
         variable=="ns_11.5" ~ "PNC, 12 nm (pt/cm3)",  
         variable=="ns_15.4" ~ "PNC, 15 nm (pt/cm3)",  
@@ -54,11 +54,16 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
         variable=="ns_154.0" ~ "PNC, 154 nm (pt/cm3)",
         variable=="ns_205.4" ~ "PNC, 205 nm (pt/cm3)",
         
-        variable=="no2" ~ "NO2 (ppb)"),
+        variable=="no2" ~ "NO2 (ppb)"
+        
+        ),
       
       variable = factor(variable, 
                         levels = c("NO2 (ppb)",
                                    "PNC, Total (pt/cm3)",
+                                   
+                                   "PNC, 20-1,000 nm (pt/cm3)",
+                                   
                                    "PNC, <100 nm (pt/cm3)",  
                                    "PNC, 12 nm (pt/cm3)",  
                                    "PNC, 15 nm (pt/cm3)",  
@@ -74,28 +79,15 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
       )}
   
   if(label == "ufp_range") {
-    # source("file_paths.R")
-    # if(file.exists(file.path("Output", "ns_bin_defs.rda"))) {
-    #   bin_defs <- readRDS(file.path("Output", "ns_bin_defs.rda"))
-    #   } else{
-    #     bin_defs <-read.csv(file.path(hei_path, "documentation", "instruments", "NanoScan Bin Endpoints.csv"))
-    #     saveRDS(bin_defs, file.path("Output", "ns_bin_defs.rda"))
-    #     }
-    # 
-    # #round bin ranges for presentation
-    # round_val <-0
-    # bin_defs <- bin_defs %>%
-    #   mutate(lower_bound = round(lower_bound, round_val),
-    #          upper_bound = round(upper_bound, round_val),
-    #          variable = paste0("ns_", midpoint)
-    #          )
-    
     dt <- dt %>% 
       mutate(
       variable = case_when(
         variable=="ns_total_conc" ~ "PNC, 10-420 nm (pt/cm3)",
         variable=="ns_10_100" ~ "PNC, 10-100 nm (pt/cm3)",  
         variable=="ns_11.5" ~ "PNC, 10-13 nm (pt/cm3)",
+        
+        variable=="pnc_noscreen" ~ "PNC, 20-1,000 nm (pt/cm3)",
+        
         variable=="ns_15.4" ~ "PNC, 13-18 nm (pt/cm3)",
         variable=="ns_20.5" ~ "PNC, 18-24 nm (pt/cm3)",
         variable=="ns_27.4" ~ "PNC, 24-32 nm (pt/cm3)",
@@ -112,6 +104,9 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
       variable = factor(variable, 
                         levels = c("NO2 (ppb)",
                                   "PNC, 10-420 nm (pt/cm3)",
+                                  
+                                  "PNC, 20-1,000 nm (pt/cm3)",
+                                  
                                   "PNC, 10-100 nm (pt/cm3)",
                                   "PNC, 10-13 nm (pt/cm3)",
                                   "PNC, 13-18 nm (pt/cm3)",

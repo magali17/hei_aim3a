@@ -1,5 +1,3 @@
-# --> NEED TO UPDATE dt_path when get new dataset
-
 # Author: Magali Blanco
 # Date: 1/19/2023
 # Purpose: to clean and prepare data for a cross-sectional UFP-CASI-IRT analysis
@@ -19,10 +17,8 @@ pacman::p_load(tidyverse, lubridate, kableExtra)
 
 set.seed(1)
 
-# --> TEMP: NEW DATASET HASN'T COME THROUGH
-
-#dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-dt_path <- file.path("Output", "v1_20230131")
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+#dt_path <- file.path("Output", "v1_20230131")
 
 output_data_path <- file.path(dt_path, "epi")
 if(!file.exists(output_data_path)) {dir.create(output_data_path, recursive = T)}
@@ -67,32 +63,33 @@ count_remaining_sample <- function(dt, description., notes.=NA) {
 ######################################################################
 # LOAD DATA
 ######################################################################
-#health_dt_path <- file.path("..", "..", "issue_12", "issue_012_degapped_0113.rda")
-#health_dt_path <- file.path("..", "..", "..", "", "ACT AP", "Manuscripts", "Longitudinal", "Data", "issue_12", "issue_012_degapped_0113.rda")
-
 # outcome & covariate data
-health_dt_path <-file.path("data", "issue_12", 
-                           "issue_012_for_release_20230316", "issue_012_for_release.sas7bdat"
-                           #"issue_012_degapped_0113.rda"
+health_dt_path <-file.path("data", "issue_12", "issue_012_for_release_20230316", "issue_012_for_release.rda"
+                           #"issue_012_for_release.Rdata"
                            )
 
-if(file.exists(health_dt_path)) {health0 <- readRDS(health_dt_path)} else {
-  health0 <- haven::read_sas(gsub(".rda", ".sas7bdat", health_dt_path) , NULL)
-  saveRDS(health0, health_dt_path)
+if(file.exists(health_dt_path)) {
+  health0 <- readRDS(health_dt_path)
+} else {
+    #for some reason there is now a loading issue & this doesn't work
+    health0 <- haven::read_sas(gsub(".rda", ".sas7bdat", health_dt_path) , NULL)
+    saveRDS(health0, health_dt_path)
 }
 
 exclusion_table <- count_remaining_sample(health0, description. = "Full dataset")
 
 # exposure predictions from different models
-exposure_dt_path <- file.path("data", "issue_17", "issue_017v2_01262023.rda")
-# file.exists(exposure_dt_path)
+exposure_dt_path <- file.path("data", "issue_17", #"issue_017v2_01262023.rda"
+                              "issue_17_04242023", "issue_017_04242023.rda")
 
 if(file.exists(exposure_dt_path)) {
   exposure0 <- readRDS(exposure_dt_path)
 } else {
-  exposure0 <- haven::read_sas(file.path("..", "..", "issue_17", gsub(".rda", ".sas7bdat", basename(exposure_dt_path))), NULL)
+  exposure0 <- haven::read_sas(gsub(".rda", ".sas7bdat", exposure_dt_path), NULL)
   saveRDS(exposure0, exposure_dt_path)
 }
+#only keep models from stop data
+exposure0 <- filter(exposure0, grepl("^s_", model))
 
 ######################################################################
 # COMMON VARIABLES
@@ -108,10 +105,7 @@ exclusion_table <- count_remaining_sample(health, description. = "Baseline data"
 ######################################################################
 
 health <- health %>%
-  mutate(year = year(visitdt)) #%>%
-  # # year 2000+
-  # filter(year >= first_exposure_year)
-#exclusion_table <- count_remaining_sample(health, description. = paste0(first_exposure_year, "+"))
+  mutate(year = year(visitdt)) 
 
 # valid casi score. everybody has a CASI score at baseline 
 health <- filter(health, casi_valid==1)
@@ -130,21 +124,22 @@ exclusion_table <- count_remaining_sample(health, description. = "Valid CASI sco
 
 # High exposure coverage
 
-# --> does this drop pre 1996? 
+# this is avg_wc_ in health (issue 12))
 coverage_threshold <- 0.95
 
-
-# --> START HERE: use avg_wc instead of exp_coverage?
-# also see these? avg_ec avg_ic avg_iq
-
+# # check that definition of avg_wc_ isn't dropping early years by definition. # looks fine?
+# health %>%
+#   group_by(year) %>%
+#   summarize(mean = mean(avg_wc_bc_MM_05_yr, na.rm = T))
 
 # high exposure coverage
-## good_exposure_ids should be calculated using health dt in surivival analyses. 
-## this is more accurate here though since variables are specifically for a 5 yr exposure
 good_exposure_ids <- filter(exposure0, exp_coverage >= coverage_threshold) %>%
   distinct(study_id) %>% pull()
 health <- filter(health, study_id %in% good_exposure_ids)
+
+
 exclusion_table <- count_remaining_sample(health, description. = "High exposure coverage")
+
 
 model_covars <- c("visit_age_centered75", "year2", "male", "degree"#, 
                   #"apoe"#, dropping this requirement b/c drops ~ 16% of people (post 2018) w/o APOE genotyping
