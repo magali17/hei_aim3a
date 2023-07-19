@@ -1,0 +1,87 @@
+---
+title: "Epi Results using Road Exposure Models"
+author: "Magali Blanco"
+date: ' `r Sys.time()` '
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '3'
+    number_sections: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: false
+editor_options: 
+  chunk_output_type: console
+---
+
+# Setup 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, 
+                      cache=F, cache.comments = F, 
+                      message = F, warning = F, 
+                      tidy.opts=list(width.cutoff=60), tidy=TRUE#, fig.height = 10, fig.width = 10
+                      )  
+
+# Clear workspace of all objects and unload all extra (non-base) packages
+rm(list = ls(all = TRUE))
+if (!is.null(sessionInfo()$otherPkgs)) {
+  res <- suppressWarnings(
+    lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
+           detach, character.only=TRUE, unload=TRUE, force=TRUE))}
+
+pacman::p_load(tidyverse, 
+               PRISMAstatement,table1,
+               knitr, kableExtra,
+               ggpubr, #ggarrange()
+               ggmap, sf, #mapping
+               ggspatial, #mapping, adding scales, N arrows...
+               spData, # us_states data - mapping WA state
+               cowplot #layering ggplots. ggdraw(), draw_plot()
+               )    
+
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+
+set.seed(1)
+
+source("functions.R")
+output_data_path <- file.path(dt_path, "epi")
+
+image_path <- file.path("..", "Manuscript", "Images", "v3_20230321")
+
+# if(!dir.exists(file.path(image_path, "other", "presentation"))) {dir.create(file.path(image_path, "other", "presentation"), recursive = T)}
+# if(!dir.exists(file.path(image_path, "other", "poster"))) {dir.create(file.path(image_path, "other", "poster"), recursive = T)}
+# if(!dir.exists(file.path(image_path, "SI"))) {dir.create(file.path(image_path, "SI"), recursive = T)}
+
+# ggplot settings
+theme_set(theme_bw())
+theme_update(legend.position = "bottom")
+
+
+```
+
+```{r}
+##################################################################################################
+# LOAD DATA
+##################################################################################################
+
+# # --> fix char/factor merging issue???
+# cw_ml <- read.csv(file.path(dt_path, "model_ml_cw2.csv")) %>%
+#   label_pollutants() #%>% label_designs()  
+# 
+# cs_ml <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda")) %>%
+#   rename(exposure = avg_0_5_yr) %>% #left_join(cw_ml)  
+#   select(-starts_with("avg_"))
+#   
+# model_coefs0_ml <- readRDS(file.path(output_data_path, "model_coefs_ml.rda"))
+# 
+# model_coefs_ml <- model_coefs0_ml #%>% 
+#   
+#   # --> doesnt do anything 
+#   #label_pollutants() %>% label_designs()
+
+```
+
+
+

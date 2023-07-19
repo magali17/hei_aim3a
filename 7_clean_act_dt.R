@@ -79,8 +79,7 @@ if(file.exists(health_dt_path)) {
 exclusion_table <- count_remaining_sample(health0, description. = "Full dataset")
 
 # exposure predictions from different models
-exposure_dt_path <- file.path("data", "issue_17", #"issue_017v2_01262023.rda"
-                              "issue_17_04242023", "issue_017_04242023.rda")
+exposure_dt_path <- file.path("data", "issue_17", "issue_17_04242023", "issue_017_04242023.rda")
 
 if(file.exists(exposure_dt_path)) {
   exposure0 <- readRDS(exposure_dt_path)
@@ -88,7 +87,39 @@ if(file.exists(exposure_dt_path)) {
   exposure0 <- haven::read_sas(gsub(".rda", ".sas7bdat", exposure_dt_path), NULL)
   saveRDS(exposure0, exposure_dt_path)
 }
-#only keep models from stop data
+
+########################################################
+# SIDE NOTE - look at Si's alternative machine learning models. These are like "all-data" campaign but the models are developed differently
+# see "ACT and HEI Data Documentation for UW" doc for all model crosswalks
+# #other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
+# #other_model_names
+# si's ML UFP models
+# ml_models <- c("upls", "uspatpl", "uspatcv", "urf", "utprs", "urt", "utr")
+# ml_exposure0 <- filter(exposure0, model %in% ml_models)
+  
+# # do we learn anything different from the different models?
+# ml_exposure0 %>%
+#   pivot_wider(names_from = model, values_from = avg_0_5_yr) %>%
+#   pivot_longer(cols = urf:utr) %>%
+#   
+#   ggplot(aes(x=upls, y=value, col=name)) +
+#   geom_point(alpha=0.05) + 
+#   geom_smooth() +
+#   geom_abline(slope = 1, intercept = 0, linetype=2) 
+# 
+# # predictions are highly correlated
+# ml_exposure0 %>%
+#   pivot_wider(names_from = model, values_from = avg_0_5_yr) %>%
+#   pivot_longer(cols = urf:utr) %>%
+#   group_by(name) %>%
+#   summarize(cor = cor(upls, value))
+  
+########################################################
+# other models we'll eventually use: non-stationary (road), Si's ML models
+exposure0_r <- filter(exposure0, grepl("^r_", model))
+exposure0_ml <- filter(exposure0, grepl(paste(ml_models, collapse = "|"), model))
+
+#main models use the stop data
 exposure0 <- filter(exposure0, grepl("^s_", model))
 
 ######################################################################
@@ -125,6 +156,7 @@ exclusion_table <- count_remaining_sample(health, description. = "Valid CASI sco
 # High exposure coverage
 
 # this is avg_wc_ in health (issue 12))
+# only ~4% of predictions have threshold < 0.95, so OK to leave this as is?
 coverage_threshold <- 0.95
 
 # # check that definition of avg_wc_ isn't dropping early years by definition. # looks fine?
@@ -132,7 +164,7 @@ coverage_threshold <- 0.95
 #   group_by(year) %>%
 #   summarize(mean = mean(avg_wc_bc_MM_05_yr, na.rm = T))
 
-# high exposure coverage
+# high exposure coverage (based on statinary measures, which should/are be the same as road & ML for stationary models)
 good_exposure_ids <- filter(exposure0, exp_coverage >= coverage_threshold) %>%
   distinct(study_id) %>% pull()
 health <- filter(health, study_id %in% good_exposure_ids)
@@ -191,7 +223,12 @@ exclusion_table <- count_remaining_sample(health, description. = "all covariates
 ######################################################################
 # COMBINE HEALTH AND EXPOSURE DATA
 ######################################################################
+# main, stationary models
 cs <- left_join(health, exposure0, by="study_id")
+# road models
+cs_r <- left_join(health, exposure0_r, by="study_id")
+# ML models w/ stationary data
+cs_ml <- left_join(health, exposure0_ml, by="study_id")
 
 ######################################################################
 # QC VARIABLES
@@ -208,3 +245,5 @@ cs <- left_join(health, exposure0, by="study_id")
 ######################################################################
 write.csv(exclusion_table, file.path(output_data_path, "exclusion_table.csv"), row.names = F)
 saveRDS(cs, file.path(output_data_path, "dt_for_cross_sectional_analysis.rda"))
+saveRDS(cs_r, file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda"))
+saveRDS(cs_ml, file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda"))

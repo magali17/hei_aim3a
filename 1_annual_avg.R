@@ -106,13 +106,6 @@ stops_no2 <- readRDS(file.path( "data", "stop_data_win_medians.rda")) %>%
 stops_all <- rbind(stops_no2, ns_psd) %>%
   mutate(tow2 = ifelse(day %in% c("Sat", "Sun"), "weekend", "weekday"))
 
-# # only use non-test sites for simulations
-# non_test_sites <- readRDS(file.path("Output", "mm_cov_train_set_hei.rda")) %>%
-#   distinct(location) %>% pull()
-# 
-# # 278 locations from 309
-# stops <- filter(stops_all, location %in% non_test_sites)
-
 # using all sites
 stops <- stops_all
 ##################################################################################################
@@ -174,6 +167,20 @@ stops_w <- pivot_wider(data = stops, names_from = "variable",values_from =  "val
 
 saveRDS(stops_w, file.path(dt_path, "stops_used.rda"))
 
+# stats for MS
+print("total stops in full data")
+nrow(stops_w) # 8969 total stops in fulll data
+stops_w %>%
+  group_by(location) %>%
+  summarize(visits = n()) %>%
+  summarize(
+    min = min(visits),
+    q25 = quantile(visits, 0.25),
+    mean = mean(visits),
+    q50 = quantile(visits, 0.50),
+    max=max(visits)
+  )
+
 ##################################################################################################
 # TRUE ANNUAL AVERAGE
 ##################################################################################################
@@ -188,24 +195,6 @@ true_annual <- stops_w %>%
     version = "all training data"
   ) %>%
   ungroup()
-  
-   
-# # save est set annual averages for validation later
-# ## this also uses the winsorized stop data & the same date ranges
-# annual_test_set <- stops_all %>%
-#   filter(!location %in% non_test_sites,
-#          #same date range as training data; only keep times where all pollutants have values
-#          #time %in% keep_times
-#          ) %>%
-#   group_by(variable, location) %>%
-#   summarize(value = mean(value,  na.rm=T),
-#             visits = n(),
-#             campaign = 1,
-#             design = "test set",
-#             version = "test set"
-#   )
-# 
-# saveRDS(annual_test_set, file.path("Output", "annual_test_set.rda"))
 
 ##################################################################################################
 # SAMPLING DESIGNS
@@ -222,8 +211,7 @@ one_sample_avg <- function(my_list, my_sampling_fn) {
     group_by(location) %>%
     mutate(visits = n()) %>%
     #calculate annual average
-    summarize_at(all_of(c(keep_vars, "visits")), ~mean(., na.rm=T))
-  )
+    summarize_at(all_of(c(keep_vars, "visits")), ~mean(., na.rm=T)))
     
     return(result)
 } 

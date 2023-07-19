@@ -36,91 +36,95 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
   
   if(label == "ufp_midpoint") {
     dt <- dt %>% mutate(
+      instrument = ifelse(grepl("pnc_", variable), "P-TRAK",
+                          ifelse(grepl("ns_", variable), "NanoScan", NA)),
+      instrument = factor(instrument, levels = c("NanoScan", "P-TRAK")),
+    
       variable = case_when(
-        variable=="ns_total_conc" ~ "PNC, Total (pt/cm3)",
+        variable=="ns_total_conc" ~ "Total",
+        variable=="ns_10_100" ~ "10-100 nm",  
         
-        variable=="pnc_noscreen" ~ "PNC, 20-1,000 nm (pt/cm3)",
+        variable=="pnc_noscreen" ~ "20-1,000 nm",
         
-        variable=="ns_10_100" ~ "PNC, <100 nm (pt/cm3)",  
-        variable=="ns_11.5" ~ "PNC, 12 nm (pt/cm3)",  
-        variable=="ns_15.4" ~ "PNC, 15 nm (pt/cm3)",  
-        variable=="ns_20.5" ~ "PNC, 21 nm (pt/cm3)",
-        variable=="ns_27.4" ~ "PNC, 27 nm (pt/cm3)",
-        variable=="ns_36.5" ~ "PNC, 37 nm (pt/cm3)",
-        variable=="ns_48.7" ~ "PNC, 49 nm (pt/cm3)",
-        variable=="ns_64.9" ~ "PNC, 65 nm (pt/cm3)",
-        variable=="ns_86.6" ~ "PNC, 87 nm (pt/cm3)",
-        variable=="ns_115.5" ~ "PNC, 116 nm (pt/cm3)",
-        variable=="ns_154.0" ~ "PNC, 154 nm (pt/cm3)",
-        variable=="ns_205.4" ~ "PNC, 205 nm (pt/cm3)",
+        variable=="ns_11.5" ~ "12 nm",  
+        variable=="ns_15.4" ~ "15 nm",  
+        variable=="ns_20.5" ~ "21 nm",
+        variable=="ns_27.4" ~ "27 nm",
+        variable=="ns_36.5" ~ "37 nm",
+        variable=="ns_48.7" ~ "49 nm",
+        variable=="ns_64.9" ~ "65 nm",
+        variable=="ns_86.6" ~ "87 nm",
+        variable=="ns_115.5" ~ "116 nm",
+        variable=="ns_154.0" ~ "154 nm",
+        variable=="ns_205.4" ~ "205 nm",
         
-        variable=="no2" ~ "NO2 (ppb)"
-        
-        ),
-      
+        variable=="no2" ~ "NO2 (ppb)"),
       variable = factor(variable, 
                         levels = c("NO2 (ppb)",
-                                   "PNC, Total (pt/cm3)",
+                                   "Total",
                                    
-                                   "PNC, 20-1,000 nm (pt/cm3)",
+                                   "10-100 nm",  
+                                   "20-1,000 nm",
                                    
-                                   "PNC, <100 nm (pt/cm3)",  
-                                   "PNC, 12 nm (pt/cm3)",  
-                                   "PNC, 15 nm (pt/cm3)",  
-                                   "PNC, 21 nm (pt/cm3)",
-                                   "PNC, 27 nm (pt/cm3)",
-                                   "PNC, 37 nm (pt/cm3)",
-                                   "PNC, 49 nm (pt/cm3)",
-                                   "PNC, 65 nm (pt/cm3)",
-                                   "PNC, 87 nm (pt/cm3)",
-                                   "PNC, 116 nm (pt/cm3)",
-                                   "PNC, 154 nm (pt/cm3)",
-                                   "PNC, 205 nm (pt/cm3)"))
-      )}
+                                   "12 nm",  
+                                   "15 nm",  
+                                   "21 nm",
+                                   "27 nm",
+                                   "37 nm",
+                                   "49 nm",
+                                   "65 nm",
+                                   "87 nm",
+                                   "116 nm",
+                                   "154 nm",
+                                   "205 nm"))
+    )}
   
   if(label == "ufp_range") {
     dt <- dt %>% 
       mutate(
+        instrument = ifelse(grepl("pnc_", variable), "P-TRAK",
+                            ifelse(grepl("ns_", variable), "NanoScan", NA)),
+        instrument = factor(instrument, levels = c("NanoScan", "P-TRAK")),
+        
       variable = case_when(
-        variable=="ns_total_conc" ~ "PNC, 10-420 nm (pt/cm3)",
-        variable=="ns_10_100" ~ "PNC, 10-100 nm (pt/cm3)",  
-        variable=="ns_11.5" ~ "PNC, 10-13 nm (pt/cm3)",
+        variable=="ns_total_conc" ~ "10-420 nm",
+        variable=="ns_10_100" ~ "10-100 nm",  
+        variable=="ns_11.5" ~ "10-13 nm",
         
-        variable=="pnc_noscreen" ~ "PNC, 20-1,000 nm (pt/cm3)",
+        variable=="pnc_noscreen" ~ "20-1,000 nm",
         
-        variable=="ns_15.4" ~ "PNC, 13-18 nm (pt/cm3)",
-        variable=="ns_20.5" ~ "PNC, 18-24 nm (pt/cm3)",
-        variable=="ns_27.4" ~ "PNC, 24-32 nm (pt/cm3)",
-        variable=="ns_36.5" ~ "PNC, 32-42 nm (pt/cm3)",
-        variable=="ns_48.7" ~ "PNC, 42-56 nm (pt/cm3)",
-        variable=="ns_64.9" ~ "PNC, 56-75 nm (pt/cm3)",
-        variable=="ns_86.6" ~ "PNC, 75-100 nm (pt/cm3)",
-        variable=="ns_115.5" ~ "PNC, 100-133 nm (pt/cm3)",
-        variable=="ns_154.0" ~ "PNC, 133-178 nm (pt/cm3)",
-        variable=="ns_205.4" ~ "PNC, 178-237 nm (pt/cm3)",
+        variable=="ns_15.4" ~ "13-18 nm",
+        variable=="ns_20.5" ~ "18-24 nm",
+        variable=="ns_27.4" ~ "24-32 nm",
+        variable=="ns_36.5" ~ "32-42 nm",
+        variable=="ns_48.7" ~ "42-56 nm",
+        variable=="ns_64.9" ~ "56-75 nm",
+        variable=="ns_86.6" ~ "75-100 nm",
+        variable=="ns_115.5" ~ "100-133 nm",
+        variable=="ns_154.0" ~ "133-178 nm",
+        variable=="ns_205.4" ~ "178-237 nm",
         
         variable=="no2" ~ "NO2 (ppb)"),
       
       variable = factor(variable, 
                         levels = c("NO2 (ppb)",
-                                  "PNC, 10-420 nm (pt/cm3)",
+                                  "10-420 nm",
                                   
-                                  "PNC, 20-1,000 nm (pt/cm3)",
+                                  "10-100 nm",
+                                  "20-1,000 nm",
                                   
-                                  "PNC, 10-100 nm (pt/cm3)",
-                                  "PNC, 10-13 nm (pt/cm3)",
-                                  "PNC, 13-18 nm (pt/cm3)",
-                                  "PNC, 18-24 nm (pt/cm3)",
-                                  "PNC, 24-32 nm (pt/cm3)",
-                                  "PNC, 32-42 nm (pt/cm3)",
-                                  "PNC, 42-56 nm (pt/cm3)",
-                                  "PNC, 56-75 nm (pt/cm3)",
-                                  "PNC, 75-100 nm (pt/cm3)",
-                                  "PNC, 100-133 nm (pt/cm3)",
-                                  "PNC, 133-178 nm (pt/cm3)",
-                                  "PNC, 178-237 nm (pt/cm3)"))
-      )
-    }
+                                  "10-13 nm",
+                                  "13-18 nm",
+                                  "18-24 nm",
+                                  "24-32 nm",
+                                  "32-42 nm",
+                                  "42-56 nm",
+                                  "56-75 nm",
+                                  "75-100 nm",
+                                  "100-133 nm",
+                                  "133-178 nm",
+                                  "178-237 nm"))
+      )}
 
   return(dt)
 }
