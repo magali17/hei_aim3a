@@ -122,6 +122,10 @@ unique_seasons <- unique(stops_all$season) %>% as.character()
 # number of samples for fewer hours, seasons, reduced balance
 fewer_hrs_seasons_n <- 12
 
+# sims for Sun-Young Kim
+fewer_sites <- c(seq(100, 250, 50))
+
+
 ##################################################################################################
 # ONLY KEEP STOPS W/ LITTLE MISSINGNESS & MOSTLY NON-ZEROS
 ##################################################################################################
@@ -287,6 +291,71 @@ for(i in seq_along(rh_bh)) {
   rh_bh_df <- rbind(rh_bh_df, temp)
   
   }
+##################################################################################################
+# TEST - temporally adjust readings 
+
+# ---> 
+# NO2 data is avaialble at 2 sites, whereas BC dat is only available at 10W.  
+# only hourly (not minute-level) data are available through the PSCAA Air Data website (https://secure.pscleanair.org/airgraphing)
+# 2019 report: https://pscleanair.gov/DocumentCenter/View/4164/Air-Quality-Data-Summary-2019 
+
+# "2019-02-22" "2020-03-17"
+
+# # --> this is in local (PST, PDT), right? 
+# bh_ref <- read.csv(file.path("data","pscaa", "beacon_hill_no2.csv"), skip = 7, stringsAsFactors = F) %>%
+#   rename(time_old = Observation.Time,
+#          no2_ref = Seattle.Beacon.Hill...NO2_CAPS...ppb...1Hr.Avg,
+#          ) %>%
+#   mutate(location_ref = "Beacon Hill",
+#          
+#          # --> 2 spring daylight savings are left as NAs??
+#          
+#          time = mdy_hms(time_old, tz = "America/Los_Angeles"),
+#          )
+# 
+# # --> check that this approach is OK
+# bh_annual_avg <- mean(bh_ref$no2_ref, na.rm = T)
+# 
+# bh_ref <-bh_ref %>%
+#   mutate(adj_factor = bh_annual_avg/no2_ref)
+# 
+# 
+# 
+# 
+# 
+# # x = rh_bh[[1]]
+# rh_bh_adjusted <- data.frame()
+# 
+# for(i in 1:2#:sim_n
+#     ) {
+#   
+#   temp <- lapply(rh_bh, function(x){
+#     
+#     version_name <- ifelse(all(rh_bh$business %in% x), "business", 
+#                            ifelse(all(rh_bh$rush %in% x), "rush", NA))
+#     
+#     stops_w %>%
+#       filter(tow2== "weekday",
+#              hour %in% x) %>%
+#       group_by(location) %>%
+#       slice_sample(n=fewer_hrs_seasons_n, replace = T) %>%
+#       
+#       ungroup() %>%
+#       mutate(
+#         campaign = i,
+#         version = version_name,
+#         design = "fewer hours"
+#         )}) %>%
+#     bind_rows()
+#   
+#   rh_bh_adjusted <- rbind(rh_bh_adjusted, temp)
+#   
+# }
+
+
+
+
+
 
 ##################################################################################################
 # combine TEMPORAL simulation results
@@ -354,5 +423,78 @@ annual_training_set <- rbind(temporal_sims, site_visit_df)
 ##################################################################################################
 saveRDS(annual_training_set, file.path(dt_path, "annual_training_set.rda"))
 
-message("done with 1_act_annual.R")
 
+
+
+
+##################################################################################################
+##################################################################################################
+# FOR SUN-YOUNG KIM
+##################################################################################################
+##################################################################################################
+# message ("DESIGNS FOR SUN")
+# message("fewer sites")
+# 
+# 
+# set.seed(1)
+# 
+# site_n2 <- fewer_sites
+# 
+# fewer_sites_df <- data.frame()
+# 
+# for(i in 1:sim_n) {
+#   temp <- lapply(site_n2, function(x) {
+#           #sample sites
+#           sample_sites <- sample(unique(stops_w$location), size = x, replace = F)
+#           
+#           ##sample visits
+#           filter(stops_w, location %in% sample_sites) %>%
+#             group_by(location) %>%
+#             # slice_sample(n = v, replace=T) %>%
+#             mutate(visits = n()) %>%
+#             #calculate annual average
+#             summarize_at(all_of(c(keep_vars, "visits")), ~mean(., na.rm=T)) %>%
+#             mutate(version = paste0(x, "_sites"))
+#         }) %>%
+#     bind_rows() %>%
+#     ungroup() %>%
+#     mutate(campaign = i,
+#            design = "fewer sites",
+#            spatial_temporal = "spatial")
+#   
+#   fewer_sites_df <- rbind(fewer_sites_df, temp)
+#   
+#   }
+#   
+# ##################################################################################################
+# message("weekdays")
+# set.seed(1)
+# 
+# weekdays_df <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg(my_list = group_split(stops_w, location), 
+#                                                  my_sampling_fn = function(x) {
+#                                                    x %>% filter(tow2 == "weekday") %>%
+#                                                      slice_sample(n=fewer_hrs_seasons_n, replace=T)
+#                                                  })) %>%
+#   bind_rows() %>%
+#   group_by(location) %>%
+#   mutate(
+#     campaign = row_number(),
+#     version = "weekdays",
+#     design = "fewer days") %>%
+#   as.data.frame()
+# 
+# 
+# ##################################################################################################
+# annual_training_set_sun <- rbind(true_annual,
+#                                  fewer_sites_df, 
+#                                  weekdays_df) 
+# 
+# 
+# ##################################################################################################
+# # SAVE DATA
+# ##################################################################################################
+# saveRDS(annual_training_set_sun, file.path(dt_path, "annual_training_set_sun.rda"))
+
+message("done with 1_act_annual.R")

@@ -79,7 +79,7 @@ model_coefs_ml <- model_coefs0_ml #%>%
 
 # Model definitions
 
-### --> is P-TRAK the correct UFP instrument?
+Si used stop readings from the unscreened P-TRAK
 
 ```{r}
 cw_ml %>%
