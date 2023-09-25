@@ -1,0 +1,61 @@
+---
+title: "Selection of sites by type"
+author: "Magali Blanco"
+date: ' `r Sys.time()` '
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '3'
+    number_sections: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: false
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r, echo=F, warning=F}
+##################################################################################################
+# SETUP
+##################################################################################################
+knitr::opts_chunk$set(echo = F, 
+                      cache=F, cache.comments = F, 
+                      message = F, warning = F#, tidy.opts=list(width.cutoff=60), tidy=TRUE 
+                      )  
+
+# Clear workspace of all objects and unload all extra (non-base) packages
+rm(list = ls(all = TRUE))
+if (!is.null(sessionInfo()$otherPkgs)) {
+  res <- suppressWarnings(
+    lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
+           detach, character.only=TRUE, unload=TRUE, force=TRUE))
+}
+
+pacman::p_load(tidyverse)    
+
+#source("functions.R")
+set.seed(1)
+
+latest_version <- "v3_20230321" 
+dt_path <- file.path("Output", latest_version)
+
+# ggplot settings
+theme_set(theme_bw())
+theme_update(legend.position = "bottom")
+
+##################################################################################################
+# LOAD DATA
+##################################################################################################
+# all data 
+stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
+
+
+
+```
+
+ 
+ 
+ 
+ 

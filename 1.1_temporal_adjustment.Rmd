@@ -1,0 +1,747 @@
+---
+title: "Temporal adjustment"
+author: "Magali Blanco"
+date: ' `r Sys.time()` '
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '3'
+    number_sections: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: false
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r, echo=F, warning=F}
+##################################################################################################
+# SETUP
+##################################################################################################
+knitr::opts_chunk$set(echo = F, 
+                      cache=F, cache.comments = F, 
+                      message = F, warning = F#, tidy.opts=list(width.cutoff=60), tidy=TRUE 
+                      )  
+
+# Clear workspace of all objects and unload all extra (non-base) packages
+rm(list = ls(all = TRUE))
+if (!is.null(sessionInfo()$otherPkgs)) {
+  res <- suppressWarnings(
+    lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
+           detach, character.only=TRUE, unload=TRUE, force=TRUE))
+}
+
+pacman::p_load(tidyverse, 
+               ggpmisc, #stat_poly_eq()
+               parallel, #mclapply; detectCores()
+               future.apply, #future_replicate()
+               lubridate, # %within%
+               splines, #bs() in lm()
+               kableExtra,
+               mgcv, # gam() #s(, bs="cc") # for cyclic spline
+               zoo #na.approx(); rolling mean
+)    
+
+source("functions.R")
+set.seed(1)
+
+## for future.apply::future_replicate()  
+# availableCores() #8 
+#plan(multisession, workers = 6)
+
+latest_version <- "v3_20230321" 
+dt_path <- file.path("Output", latest_version)
+
+local_tz <- "America/Los_Angeles"
+bdate <-ymd("2019-02-22")
+edate <-ymd("2020-03-17") 
+
+image_path <- file.path("..", "Manuscript", "Images", latest_version, "other", "temporal_adjustment")
+if(!dir.exists(image_path)) {dir.create(image_path)}
+
+# ggplot settings
+theme_set(theme_bw())
+theme_update(legend.position = "bottom")
+
+##################################################################################################
+# LOAD DATA
+##################################################################################################
+# NO2 data is avaialble at 2 sites, whereas BC data is only available at 10W.  
+# only hourly (not minute-level) data are available through the PSCAA Air Data website (https://secure.pscleanair.org/airgraphing)
+# 2019 report: https://pscleanair.gov/DocumentCenter/View/4164/Air-Quality-Data-Summary-2019 
+# study dates: "2019-02-22" "2020-03-17"
+
+nox <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox.rda")) %>%
+  mutate(
+    # NOTE: daylight savings (3/10/2019 & 3/10/2020 @ 2 AM) get dropped. why are these readings included in this dataset? are they duplicates? 
+    time = paste(date_local, time_local),
+    time = ymd_hm(time, tz=local_tz)) %>%
+  filter(date_local >= bdate & date_local <= edate,
+    grepl("NO2", parameter),
+     site_name %in% c("Beacon Hill")
+    ) %>%
+  drop_na(#sample_measurement, 
+    time
+          ) %>%
+  select(site_name, time, date=date_local, time_local, no2=sample_measurement, units_of_measure) %>%
+  
+  add_season(.date_var = "date") %>% 
+  mutate(month = month(date, label=TRUE),
+         month = factor(month, ordered = F),
+         dow = wday(date, label=T, week_start = "Monday"),
+         dow = factor(dow, ordered = F),
+         hour = hour(time),
+         hour = factor(hour)
+         ) %>%
+  arrange(time)
+
+# Overnight data 
+overnight <- readRDS(file.path("data", "Overnight Collocations", "overnight_data_2023-09-11.rda")) %>%
+  #most of the data is at BH
+  filter(
+    # 10W data is only for March 2020; WILCOX data is for after the study period
+    site == "AQSBH",
+    variable == "ns_total_conc",
+    # most (86.5%) of the data comes from PMSCAN_3 (vs PMSCAN_2)
+    # drop PMSCAN_2. It is used less & produces higher readings when collocated in June that would probably need to be calibrated 
+    instrument_id=="PMSCAN_3"
+    ) %>%
+  rename(time=timeint) %>%
+  mutate(date = date(time),
+         month = month(time, label=TRUE),
+         month = factor(month, ordered = F),
+         dow = wday(time, label=T, week_start = "Monday"),
+         dow = factor(dow, ordered = F),
+         weekday = ifelse(dow %in% c("Sat", "Sun"), "weekend", "weekday"),
+         hour = hour(time),
+         hour = factor(hour),
+         #time2=time
+         ) %>%
+  #add_season(.date_var = "time") %>%
+  # select(-c(runname, #instrument_id, 
+  #           flags_r, status))
+  
+  # hourly averages
+  group_by(site, date, hour, month, dow, weekday, variable) %>%
+  summarize(value = mean(value, na.rm = T)) %>%
+  ungroup()
+
+
+unbalanced_samples0 <- rbind(readRDS(file.path(dt_path, "campaign visit samples", "fewer_hours.rda"))#,
+                             #readRDS(file.path(dt_path, "campaign visit samples", "fewer_seasons.rda"))
+                             ) %>%
+  select(design, version, campaign, location, time, dow=day, hour, season, weekday=tow2, no2, pnc_noscreen, ns_total_conc) %>%
+  mutate(hour = factor(hour, levels = levels(overnight$hour)),
+         dow = factor(dow, levels = levels(overnight$dow), ordered = F),
+  )
+
+
+# all data (e.g., for correlations)
+stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
+
+# all-data estimates
+all_data_annual <- stops_w %>%
+  group_by(location) %>%
+  summarize(ns_total_conc_all_data = mean(ns_total_conc))
+
+```
+
+# check regulatory data
+
+```{r}
+# total number of samples
+nox %>%
+  #drop previously missing values fro counts
+  drop_na(no2) %>%
+  
+  group_by(site_name) %>%
+  summarize(
+    start_date = min(date),
+    end_date = max(date),
+    hours_in_sampling_period = interval(bdate, edate)/days(1)*24,
+    hour_samples = n(),
+    prop_hours = hour_samples/hours_in_sampling_period
+  ) %>%
+  kableExtra::kable(digits = 3) %>%
+  kableExtra::kable_styling()
+
+
+print("proportion of missing values (hours)")
+prop.table(table(is.na(nox$no2))) %>% round(2)
+
+# # amount of data available
+# nox %>%
+# 
+#   #filter(no2_interpolated==FALSE) %>%
+# 
+#   ggplot(aes(x=hour, y=dow)) +
+#   geom_bin_2d() +
+#   labs(title = "Number of readings (i.e., weekly readings) available during the study period")
+
+missing_hours <- nox %>%
+  filter(is.na(no2)) %>%
+  group_by(date) %>%
+  summarize(n = n())
+
+print("missing hours per day in days with missingness. most days with missingness have 1-2 missing hours")
+table(missing_hours$n)
+
+
+# linearly interpollate. note that 3 days have 16, 22, and 24 missing values
+nox <- nox %>%
+  mutate(no2_interpolated = ifelse(is.na(no2), TRUE, FALSE),
+          no2 = na.approx(no2, #maxgap = 12, 
+                                       #na.rm = F
+                                       )) 
+
+```
+
+# summary of overnight UFP data
+
+```{r, fig.width=8}
+## nanoscan
+overnight %>%
+  #filter(month == first(month)) %>%
+  mutate(time = ymd_h(paste(date, hour))) %>% 
+  ggplot(aes(x=time, y=value, )) + 
+  geom_point(alpha=0.4, aes(col=month)) + 
+  geom_smooth() + 
+  labs(title = "Overnight NS data")
+
+# available data
+overnight %>%
+  group_by(month) %>%
+  summarize(dates = length(unique(date)),
+            start = min(date),
+            end = max(date),
+            #seasons = paste(unique(season), collapse = ", "),
+            days = paste(unique(dow), collapse = ", "),
+            )
+
+#boxplots of distributions
+overnight %>%
+  filter(site == "AQSBH") %>%
+  pivot_longer(cols = c(month, dow, hour), names_to = "time_var", values_to = "time_value") %>% 
+  ggplot(aes(x=time_value, y=value)) +
+  facet_wrap(~time_var, scales="free", switch = "x") +
+  geom_boxplot() +
+  labs(title = "NanoScan hourly readings stratified by day, hour, month")
+
+
+# # by hour, day, month
+# overnight %>%
+#   ggplot(aes(y=value, #x=dow, col=month, group=month
+#              x=hour, col=weekday, group=weekday 
+#              )) + 
+#   facet_wrap(~month) +
+#   geom_point(alpha=0.4) + 
+#   geom_smooth() + 
+#   labs(title = "hourly NanoScan readings")
+
+```
+
+# NO2 vs UFP
+
+```{r}
+# using overnight & regulatory data
+winsorize_quantile <- 0.05
+
+# # TEST - does adjusted no2 data look better? - no
+# rolling_no2 <- nox %>%
+#   # arrange(time) %>%  
+#   # mutate(no2_rolling = zoo::rollmean(no2, k=6, fill="extend")) %>% 
+#   group_by(date) %>%
+#   mutate(no2_winsorized = ifelse(no2 < quantile(no2, winsorize_quantile), quantile(no2, winsorize_quantile),
+#                             ifelse(no2 > quantile(no2, 1-winsorize_quantile), quantile(no2, 1-winsorize_quantile), no2))) %>%
+#   select(date, hour, contains("no2_")) 
+
+
+# combine nox & ufp data by time
+calibration_dt <- overnight %>%
+  filter(site == "AQSBH") %>%
+  pivot_wider(names_from = variable,values_from = value) %>%
+  select(date, month, dow, hour, ns_total_conc) %>% 
+  # note that this changes the date to ??UTC? the
+  #add_season(.date_var = "date") %>% 
+  left_join(nox %>% #filter(site_name=="Beacon Hill") %>% 
+              select(date, hour, no2, season)) %>%
+  drop_na() #%>% left_join(rolling_no2)
+
+# time series 
+ufp_conversion <- 1e3
+
+calibration_dt %>%
+  mutate(ns_total_conc = ns_total_conc/ufp_conversion) %>%
+  pivot_longer(cols = c(ns_total_conc, contains("no2")),names_to = "pollutant") %>%
+  mutate(time = ymd_h(paste(date, hour))) %>%
+  
+  ggplot(aes(x=time, y=value, col=pollutant)) + 
+  facet_wrap(~month, scales = "free") + 
+  geom_point(alpha=0.3) + 
+  # make smooth line more wiggly to show hourly patterns (what we are interested in)
+  geom_smooth(span=0.1, se = F) + 
+  labs(title = paste0("time series of hourly NO2 (ppb) and UFP (", ufp_conversion, " pt/cm3) at Beacon Hill"), 
+       subtitle = "Overnight data",
+       y="Observed Concentration"
+       )
+  
+#scatterplot
+calibration_dt %>%
+  ggplot(aes(x=no2, y=ns_total_conc, col=month)) +
+  geom_point(alpha=0.4) +
+  geom_smooth() +
+  labs(title="Hourly regulatory NO2 vs NanoScan readings\nat Beacon Hill in 2019")
+
+# log-normal distribution
+calibration_dt %>%
+  pivot_longer(cols = c(ns_total_conc, no2),names_to = "pollutant") %>%
+  ggplot(aes(x=value, fill=pollutant)) + 
+  facet_wrap(~pollutant, scales="free") + 
+  geom_histogram() + 
+  labs(title = "distribution of time-matched hourly NO2 & UFP readings",
+       subtitle = "readings are log-normal"
+       )
+
+```
+
+ 
+
+
+
+
+## UFP-NO2 prediction model
+
+leverage NO2 to capture the monthly/seasonal patterns not otherwise captured by limited UFP data alone
+
+### model 
+
+# --> knot/degree selection OK? 
+### --> why does residuals(lm1) %>% exp() produce different results? 
+
+```{r}
+
+# lm1 <- calibration_dt %>%
+#   mutate(hour = as.numeric(as.character(hour))) %>%
+#   lm(formula=log(ns_total_conc)~log(no2) + 
+#        # dow*hour #r2=0.48, so slightly worse
+#        
+#        # for K knots, we fit K+1 cubic polynomials
+#        # a cubic spline with K nots fits 4+k df [or 6 if no intercept?]
+#        dow*bs(hour, knots = c(5, 11, 17)),  
+#         
+#      # using a smoother on dow generates a worse fit, R2 ~0.51  
+#      #bs(as.numeric(dow), knots = c(4))*bs(hour, knots = c(5, 11, 17)),  #knot at Thur
+#      data=.) 
+# 
+# summary(lm1)
+# 
+# plot(lm1)
+
+########## TEST ##########
+print("fitting cubic cyclic spline")
+
+set.seed(2)
+# use cyclic spline?? mgcg::s(x, bs = "ad", xt = list(bs = "cc")) 
+lm1 <-  calibration_dt %>%
+  mutate(hour = as.numeric(as.character(hour))) %>%
+  gam(data=., formula=log(ns_total_conc)~log(no2) + #dow + 
+                                                    s(hour,
+                                                      bs="cc", #cyclic cubic regression spline
+                                                      k=5, #k=5 or 6? both perform similarly
+                                                      by = dow #interaction by dow
+                                                      )) 
+
+summary(lm1)
+
+print("the hour functions look non-linear")
+par(mfrow = c(3, 3))
+plot(lm1)
+par(mfrow = c(1, 1))
+
+                                                         
+
+
+# # TEST- model without no2; performs worse. R2  0.15 (vs ~0.55)
+# print("same model without NO2 performs worse")
+# lm1b <- calibration_dt %>%
+#   mutate(hour = as.numeric(as.character(hour)),
+#          #dow = as.numeric(dow),
+#          #tow = ifelse(dow %in% c("Sat", "Sun"), "weekend", "weekday")
+#          ) %>%
+#   lm(formula=log(ns_total_conc)~ dow*bs(hour, df=4), data=.) 
+# 
+# summary(lm1b)
+
+calibration_dt <- calibration_dt %>%
+  mutate(ufp_prediction = predict(lm1) %>% exp(),
+         residual = ns_total_conc - ufp_prediction,
+         # residual = residuals(lm1) %>% exp(),
+         time = ymd_h(paste(date, hour))
+         ) 
+
+```
+
+### residuals - is the temporal pattern gone? 
+
+i.e., does NO2 capture UFP's temporal trend? 
+
+mostly? 
+
+```{r}
+y_breaks <- c(c(0, 3, 10, 20)*1e3,
+                 c(3, 10, 20)*-1e3)
+
+# time series 
+calibration_dt %>%
+  ggplot(aes(x=time, y=residual)) + 
+  facet_wrap(~month, scales = "free_x") + 
+  geom_hline(yintercept = 0, linetype=2, alpha=0.6) + 
+  geom_hline(yintercept = c(-3e3, 3e3), linetype=3, alpha=0.5) + 
+  geom_point(aes(col=dow), alpha=0.4) + 
+  geom_smooth(#span=0.3
+              ) +
+  scale_y_continuous(breaks = y_breaks) +
+  labs(title = paste0("time series of UFP residuals from the model (native scale)"))
+
+# calibration_dt %>%
+#   ggplot(aes(x=month, y=residual, col=dow)) + 
+#   #facet_wrap(~month) +
+#   geom_hline(yintercept = 0, linetype=2, alpha=0.6) +
+#   geom_hline(yintercept = c(-1e3, 1e3), linetype=3, alpha=0.5) +
+#   geom_boxplot() +
+#   scale_y_continuous(breaks = y_breaks) 
+  
+print("distribution of residuals")
+summary(calibration_dt$residual) 
+
+```
+
+
+### out-of-sample model performance
+
+```{r}
+
+```
+
+### generate synthetic data & temporal adjustments
+
+```{r}
+predicted_ufp <- nox %>%
+  mutate(hour = as.numeric(as.character(hour))) %>% 
+  predict(lm1, newdata=.) %>% 
+  exp()
+
+# table(is.na(predicted_ufp))
+
+predicted_lta_ufp <- mean(predicted_ufp)
+
+predicted_ufp_low <- quantile(predicted_ufp, winsorize_quantile, na.rm = T)
+predicted_ufp_high <- quantile(predicted_ufp, 1-winsorize_quantile, na.rm = T)
+
+nox <- nox %>%
+  mutate(predicted_ufp = predicted_ufp,
+         
+         #TEST - reduce extreme adjustments
+         #predicted_ufp_rolling = zoo::rollmean(predicted_ufp, k=3, fill="extend"),
+         predicted_ufp_winsorized = ifelse(predicted_ufp < predicted_ufp_low, predicted_ufp_low,
+                             ifelse(predicted_ufp > predicted_ufp_high, predicted_ufp_high, predicted_ufp)),
+         
+         
+         # adjustment based on the difference method
+         diff_adjustment = predicted_lta_ufp - predicted_ufp,
+         #diff_adjustment_rolling = predicted_lta_ufp - predicted_ufp_rolling,
+         diff_adjustment_winsorize = predicted_lta_ufp - predicted_ufp_winsorized,
+         )
+
+```
+
+
+```{r}
+print("distribution of predicted hourly UFP")
+summary(nox$predicted_ufp)
+
+nox %>%
+  mutate(predicted_ufp = predicted_ufp/ufp_conversion) %>%
+  pivot_longer(cols = c(predicted_ufp, no2),names_to = "pollutant") %>%
+  
+  ggplot(data=, aes(x=time, y=value, col=pollutant)) + 
+  geom_point(alpha=0.05) + 
+  geom_smooth() + 
+  
+  geom_point(data=overnight %>% mutate(time = paste(date, hour),
+                                       time = ymd_h(time),
+                                       pollutant = "ufp_observation",
+                                       value = value/ufp_conversion), 
+             alpha=0.3) +
+  labs(title = paste0("observed hourly NO2 & UFP along with predicted  UFP (", ufp_conversion, " pt/cm3)"))
+
+```
+
+visualize fix no2 to the mean and see temporal patterns
+* using long-term no2 data (dow, hour) with mean no2 observed
+
+```{r}
+test <- nox %>%
+  mutate(hour = as.numeric(as.character(hour)),
+         no2 = mean(no2, na.rm = T)) %>% 
+  predict(#lm1_test, 
+          lm1, 
+          newdata=.) %>% 
+  exp()
+
+nox %>%
+  mutate(predicted_ufp = test) %>%
+  select(month, dow, hour, predicted_ufp) %>% 
+  pivot_longer(cols = c(#month,
+                        dow, hour)) %>%
+  mutate(value = factor(value, levels = c(#levels(nox$month),
+                                          levels(nox$dow), levels(nox$hour)))) %>%
+
+  ggplot(aes(x=value, y=predicted_ufp)) +
+  facet_wrap(~name, scales="free_x") +
+  geom_boxplot() +
+  labs(title = "predicted hourly UFP when NO2 is fixed", 
+       subtitle = "NO2 is fixed to the mean NO2 observed during the study period")
+
+
+nox %>%
+  mutate(predicted_ufp = test) %>%
+  select(month, dow, hour, predicted_ufp) %>% 
+  ggplot(aes(x=hour, y=predicted_ufp)) +
+  facet_wrap(~dow) +
+  geom_point() +
+    labs(title = "predicted hourly UFP when NO2 is fixed", 
+         subtitle = "NO2 is fixed to the mean NO2 observed during the study period")
+  
+```
+
+
+
+
+
+```{r, eval=F}
+# # OLD TEMPORAL ADJUSTMENT APPROACH
+
+########################################
+#APPROACH 1 
+hour_day_adj0 <- expand.grid(weekday = c("weekend", "weekday"),
+                             hour = sort(unique(overnight$hour)))
+
+hourly_mean <- overnight %>%
+  group_by(hour) %>%
+  summarize(#n=n(),
+            hourly_mean = mean(value))
+
+tow_mean <- overnight %>%
+  group_by(weekday) %>%
+  summarize(#n=n(),
+            tow_mean = mean(value)) %>%
+  mutate(tow_wt = ifelse(weekday=="weekday", 5/7, 2/7),
+         lta = sum(tow_mean*tow_wt),
+         weekly_tow_diff = lta-tow_mean)
+
+hour_day_adj <- hour_day_adj0 %>%
+  left_join(hourly_mean) %>%
+  left_join(tow_mean) %>%
+  mutate(tow_hourly_diff = tow_mean - hourly_mean)
+
+# these adjustment factors are pretty normally distributed
+hist(hour_day_adj$tow_hourly_diff)
+hist(hour_day_adj$weekly_tow_diff)
+
+hour_day_adj %>% 
+  mutate(total_adj = weekly_tow_diff + tow_hourly_diff) %>% 
+  summarize(min=min(total_adj), 
+            mean=mean(total_adj),
+            sd = sd(total_adj),
+            max=max(total_adj)) %>%
+  kable(caption = "distribution of overall adjustments", digits = 0) %>%
+  kable_styling()
+   
+
+########################################
+# APPROACH 2
+lta <- unique(tow_mean$lta)
+
+lm2 <- overnight %>%
+  mutate(lta_hour_diff = lta - value) %>%
+  lm(data = ., lta_hour_diff ~ weekday*hour 
+     #bs(as.numeric(hour), degree = 5)
+     )
+
+summary(lm2)
+
+# OK that fit is bad? r2 ~0.06
+hour_day_adj_v2 <- hour_day_adj0 %>%
+  mutate(lm_adjustment = predict(lm2, newdata = hour_day_adj0))
+
+hour_day_adj_v2 %>%
+  mutate(hour = hour %>% as.character() %>% as.numeric()) %>%
+  ggplot(., aes(x=hour, y=lm_adjustment, col=weekday)) + 
+  geom_hline(yintercept = 0, alpha=0.4) +
+  geom_smooth(linetype=2) + 
+  geom_point() + 
+  labs(title = "LM approach adjustments")
+
+```
+
+# temporal adjustment
+
+```{r}
+unbalanced_samples <- unbalanced_samples0 %>%
+  #remove minutes & seconds
+  mutate(time = ymd_h(substr(time, 1, 13), tz = local_tz)) %>% 
+  # # option 1 adjustment
+  # left_join(select(hour_day_adj, weekday, hour, tow_hourly_diff, weekly_tow_diff)) %>% 
+  # # option 2 adjustment 
+  # left_join(hour_day_adj_v2) %>% 
+  left_join(select(nox, time, contains("diff_adjustment"))) %>%
+  mutate(#ns_total_conc_adj = ns_total_conc + tow_hourly_diff + weekly_tow_diff,
+         #ns_total_conc_adj_lm = ns_total_conc + lm_adjustment
+          ns_total_conc_adj_no2lm = ns_total_conc + diff_adjustment,
+          
+          #test - rolling no2
+          #ns_total_conc_adj_no2lm_rolling = ns_total_conc + diff_adjustment_rolling,
+          ns_total_conc_adj_no2lm_winsorize = ns_total_conc + diff_adjustment_winsorize,
+          
+          
+          
+          # REPLACE negative visit concentrations with 1 pt/cm3. this affects ~4% of visit samples
+          
+          # ns_total_conc_adj_no2lm = ifelse(ns_total_conc_adj_no2lm <=0, 1, ns_total_conc_adj_no2lm),
+          # # if NO2 is missing, use unadjusted observation (~2%)
+          # ns_total_conc_adj_no2lm = ifelse(is.na(ns_total_conc_adj_no2lm), ns_total_conc, ns_total_conc_adj_no2lm)
+         )
+  
+# prop.table(table(unbalanced_samples$ns_total_conc_adj_no2lm<=0))
+# prop.table(table(is.na(unbalanced_samples$ns_total_conc_adj_no2lm)))
+
+print("distribution of adjustments to visit-level concentrations")
+summary(unbalanced_samples$diff_adjustment)
+hist(unbalanced_samples$diff_adjustment)
+
+summary(unbalanced_samples$diff_adjustment_winsorize)
+hist(unbalanced_samples$diff_adjustment_winsorize)
+
+
+
+  
+# annual averages
+adjusted_annual_avg <- unbalanced_samples %>% 
+  group_by(design, version, campaign, location) %>%
+  summarize_at(vars(contains(c(#"no2", "pnc_", 
+                               "ns_"))), ~mean(., na.rm = T)) %>%
+  ungroup()
+
+
+print("a handful of adjusted (non-winsorized) visit adjustments become very negative")
+# comparison of stop-level adjustments
+unbalanced_samples %>%
+  pivot_longer(cols = contains("ns_total_conc_adj")) %>%  
+  ggplot(aes(x=ns_total_conc, y=value, col=name)) + 
+  facet_wrap(~design+version) +
+  geom_point(alpha=0.01) + 
+  geom_hline(yintercept = 0, col="gray") +
+  geom_abline(slope = 1, intercept = 0, linetype=2) +
+  geom_abline(slope = c(0.75, 1.25), intercept = 0, linetype=3, alpha=0.5) +
+  geom_smooth() +
+  labs(title = "unadjusted & adjusted visit-level samples",
+       y = "adjusted ns_total_conc"
+       )
+
+```
+
+# comparison of annual averages
+
+adjustments generally decrease annual average site estimates 
+
+```{r}
+#overnight_bh <- mean(overnight$value)
+
+adjusted_annual_avg %>%
+  left_join(all_data_annual) %>%
+  pivot_longer(cols = c(contains(c("ns_")))) %>%
+  ggplot(aes(x=version, y=value, col=name)) +
+    facet_wrap(~design, scales="free") +
+  # overnight BH estimate
+  #geom_hline(yintercept = overnight_bh) +
+      geom_boxplot() +
+  labs(title = "Comparison of UFP annual site averages before/after temporal adjustment")
+    
+
+# --> compare to all_data_annual? # left_join(all_data_annual) 
+adjusted_annual_avg %>%
+  pivot_longer(cols = contains("ns_total_conc_adj")) %>% 
+  ggplot(aes(x=ns_total_conc, y=value, col=name)) +
+  facet_wrap(~version) +
+  geom_point(alpha=0.1) +
+  geom_hline(yintercept = 0, col="gray") +
+  geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) +
+  geom_abline(slope = c(0.75, 1.25), intercept = 0, linetype=3, alpha=0.5) +
+  geom_smooth() + #stat_poly_eq() +
+  labs(title = "Comparison of NanoScan annual site averages before and after temporal adjustment",
+       subtitle = "dashed lines are the 1-1 and +-25%")
+
+
+print("average/overall annual average site estimate correlations for unadjusted and adjusted data campaigns")
+
+r <- lapply(unique(adjusted_annual_avg$version), function(x) {
+  adjusted_annual_avg %>%
+    left_join(all_data_annual) %>% 
+    filter(version==x) %>%
+    select(contains("ns_total_conc")) %>%
+    cor() 
+  }) 
+
+names(r) <- unique(adjusted_annual_avg$version)
+
+r
+  
+
+
+```
+
+```{r}
+# save data
+saveRDS(adjusted_annual_avg, file.path(dt_path, "campaign visit samples", "temporal_adjustment.rda") )
+
+```
+
+
+
+# Appendix
+
+## no2 model fit
+
+how good is an no2 model fit (vs UFP)? 
+
+not good when the model is similar (R2~ 0.09), and only slightly better when month is added 
+
+MP: there is a lot of noise at any given time. NO2 helps us better capture otherwise unstructured concentration patterns
+
+```{r}
+print("similar model used to generate temporal adjustments")
+no2_lm <- nox %>%
+  mutate(hour = as.numeric(as.character(hour))) %>%
+  lm(formula=log(no2)~dow*bs(hour, knots = c(5, 11, 17)),)
+
+summary(no2_lm)
+
+
+print("more specific model adding month")
+# R2 ~ 0.18
+no2_lm2 <- nox %>%
+  mutate(hour = as.numeric(as.character(hour))) %>%
+  lm(formula=log(no2)~dow*bs(hour, knots = c(5, 11, 17)) + month) 
+
+summary(no2_lm2)
+
+
+```
+
+
+
+
+
