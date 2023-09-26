@@ -653,6 +653,24 @@ unbalanced_samples %>%
 
 ```
 
+### --> what temporal adj to keep?
+
+```{r}
+dt1 <- adjusted_annual_avg %>%
+  select(design, version, campaign, location, ns_total_conc)
+
+dt2 <- adjusted_annual_avg %>%
+  select(design, version, campaign, location, ns_total_conc = ns_total_conc_adj_no2lm_winsorize) %>%
+  mutate(version = paste(version, "temp adj"))
+
+# save data
+rbind(dt1, dt2) %>%
+  saveRDS(., file.path(dt_path, "temporal_adjustment.rda"))
+
+```
+
+
+
 # comparison of annual averages
 
 adjustments generally decrease annual average site estimates 
@@ -703,11 +721,6 @@ r
 
 ```
 
-```{r}
-# save data
-saveRDS(adjusted_annual_avg, file.path(dt_path, "campaign visit samples", "temporal_adjustment.rda") )
-
-```
 
 
 

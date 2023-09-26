@@ -49,13 +49,164 @@ theme_update(legend.position = "bottom")
 # LOAD DATA
 ##################################################################################################
 # all data 
+keep_vars <- readRDS(file.path(dt_path, "keep_vars.rda"))
+        
 stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
+# all-data estimates
+all_data_annual <- stops_w %>%
+  group_by(location) %>%
+  summarize_at(all_of(keep_vars), ~mean(., na.rm=T)) %>%
+  mutate(design = "full",
+         version = "all data", #"all training data",
+         campaign=1) %>%
+  ungroup()
 
+# site type categorization (from Amanda)
+pls_categories <- read.csv(file.path("data", "pls_cats.csv")) 
+high_sites <- filter(pls_categories, pls_cats =="high") %>% pull(location)
+med_sites <- filter(pls_categories, pls_cats =="med") %>% pull(location)
+low_sites <- filter(pls_categories, pls_cats =="low") %>% pull(location)
+
+##################################################################################################
+# COMMON VARIRABLES
+##################################################################################################
+# number of simulations
+sim_n <- 30
+
+# table(pls_categories$pls_cats) # 90*2/309 = 58% of sites changing 
+visit_count <- seq(2,22, 2)
+
+default_count <- 12
+
+keep_vars <- readRDS(file.path(dt_path, "keep_vars.rda"))
+
+```
+
+# Sample by site type
+
+* refernce is 12 visits/site x 309 sites = 3708 total stops.  
+* go as far down/up as 4/20 (or 2/22) visits per site
+
+```{r}
+site_type_visits_df <- data.frame()
+
+set.seed(1)
+# v = 1
+for(v in 1:length(visit_count)) {
+  
+  low_var_count <- visit_count[v]
+  high_var_count <- rev(visit_count)[v]
+  
+  # c=1
+  temp <- lapply(1:sim_n, function(c){
+    
+    low_var_sites <- stops_w %>%
+      filter(location %in% low_sites) %>% 
+      group_by(location) %>%
+      slice_sample(n = low_var_count, replace=T) 
+    
+    med_var_sites <- stops_w %>%
+      filter(location %in% med_sites) %>% 
+      group_by(location) %>%
+      slice_sample(n = default_count, replace=T) 
+      
+    
+    high_var_sites <- stops_w %>%
+      filter(location %in% high_sites) %>% 
+      group_by(location) %>%
+      slice_sample(n = high_var_count, replace=T)
+    
+    rbind(med_var_sites, low_var_sites)%>%
+      rbind(high_var_sites) %>%
+      mutate(campaign = c,
+             design = "site type",
+             version = paste("H", high_var_count, #"med", default_count, 
+                             "L", low_var_count)) %>%
+      ungroup()
+      
+    }) %>%
+    bind_rows()
+  
+  site_type_visits_df <- rbind(site_type_visits_df, temp)
+  
+  }
+# save visit samples
+saveRDS(site_type_visits_df, file.path(dt_path, "campaign visit samples", "site_type.rda") )
+
+# #calculate annual averages
+site_type_visits_annual <- site_type_visits_df %>%
+  select(design, version, campaign, location, keep_vars) %>%  
+  pivot_longer(cols = keep_vars, names_to = "variable") %>%
+  group_by(design, version, campaign, location, variable) %>%
+  summarize(visits = n(),
+            mean = mean(value, na.rm = T)) %>%  
+  pivot_wider(names_from = "variable", values_from = "mean") %>%
+  ungroup()
+
+# save data 
+saveRDS(site_type_visits_annual, file.path(dt_path, "annual_site_type.rda") )
+
+```
+
+# Summarize averages 
+
+### --> scatterplot; col by type?
+
+```{r}
+version_levels <- c(unique(all_data_annual$version), 
+                    paste("H", rev(visit_count),
+                          "L", visit_count))
+
+compare <- bind_rows(site_type_visits_annual, all_data_annual) %>%
+  mutate(version = factor(version, levels = version_levels)) 
+
+compare %>%
+  ggplot(aes(x=version, y=ns_total_conc)) + 
+  geom_boxplot()
+
+
+# compare
 
 
 ```
 
+
+# compare annual averages 
+
+### --> see email - what descriptives to show?
+
+```{r}
+compare_w <- site_type_visits_annual %>%
+  left_join(select(all_data_annual, location, all_data_ns_total_conc =ns_total_conc)) %>% 
+  left_join(select(pls_categories, location, pls_cats)) %>%
+  mutate(version = factor(version, levels = version_levels),
+         pls_cats = factor(pls_cats, levels=c("low", "med", "high"))) 
+
+compare_w %>%  
+  ggplot(aes(x=all_data_ns_total_conc, y=ns_total_conc, col=pls_cats)) + 
+  facet_wrap(~version) + 
+  geom_abline(intercept = 0, slope = c(1, 0.7, 1.3), linetype=2, alpha=0.5) +
+  geom_point(alpha=0.2) + 
+  geom_smooth() +
+  labs(title = "comparison of annual average site estimates")
+  
+print("each boxplot has 309 sites x 30 campaigns (9,270) data points")
+compare_w %>%
+  mutate(difference = ns_total_conc - all_data_ns_total_conc) %>%
+  ggplot(aes(x=pls_cats, y=difference, col=pls_cats)) + 
+  facet_wrap(~version) + 
+  geom_hline(yintercept = c(0, -2e3, 2e3), linetype=2, alpha=0.5) +
+  geom_boxplot() + 
+  labs(y= "difference in annual site concentration (pt/cm3): all data vs campaign",
+       title = "distribution of site estimate differences by design version",
+       subtitle = "dashed lines are at 0, +-2k")
+  
+```
+
  
+# campaign performances 
+
+```{r}
  
- 
- 
+```
+

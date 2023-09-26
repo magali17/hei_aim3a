@@ -60,7 +60,7 @@ theme_update(legend.position = "bottom")
 
 ```
 
- 
+# --> NOTE, MAY NEED TO CHANGE "Total" to 10-420 / primary analysis???
 
 ```{r}
 ##################################################################################################
@@ -408,10 +408,6 @@ lapply(sensitivity_pollutant_labels, function(x) {
 
 
 ```
-
-
-
-
 
 
 ## Compare Design Predictions
@@ -778,12 +774,14 @@ p <- lapply(d, function(x) {
 
 
 ```{r}
-d <- c("All", "Visits", "Seasons", "Hours")
+#d <- c("All", "Visits", "Seasons", "Hours")
 
  
 model_coefs %>%
     filter(grepl("Total", variable),
-           #grepl(x, design)
+           (design %in% c("Fewer Hours", "All Data") |
+              (design == "Fewer Visits" & version=="12")
+              )
            ) %>%
   mutate(significant = ifelse(significant==TRUE, "Stat. Sign.", "Not Stat. Sign."),
          significant = factor(significant, levels = c("Stat. Sign.", "Not Stat. Sign."))
@@ -794,9 +792,9 @@ model_coefs %>%
                ) + 
     #facet_grid(design~version, scales="free", switch = "both", ) + 
     geom_hline(yintercept = 0, linetype=2, alpha=0.3) +
-    geom_rect(inherit.aes = F, data=filter(true_betas, grepl("Total", variable)), 
+    geom_rect(inherit.aes = F, data=filter(true_betas, grepl("Primary", analysis)), 
               aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.25) +
-    geom_hline(data=filter(true_betas, grepl("Total", variable)), 
+    geom_hline(data=filter(true_betas, grepl("Primary", analysis)), 
                aes(yintercept = est)) +
     geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.15, 
                     #alpha=0.8
@@ -810,7 +808,8 @@ model_coefs %>%
          x="Campaign (1-30)",
          y = "Health Effect Estimate")
   
-  ggsave(file.path(image_path, "other", "poster", paste0("betas.png")), width = 6, height = 5.5)
+
+ggsave(file.path(image_path, "other", "poster", paste0("betas.png")), width = 6, height = 5.5)
   
 ```
 

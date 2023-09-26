@@ -133,7 +133,6 @@ saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.r
 # onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 
 test <- onroad %>%
-  #slice(1:10e4) %>%
   mutate(spatial = ifelse(grepl("r_sy_", model), TRUE, FALSE),
          adjusted = ifelse(grepl("adjy_", model), TRUE, FALSE)) 
 
