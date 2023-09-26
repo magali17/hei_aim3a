@@ -15,7 +15,7 @@ if (!require("pacman")) {install.packages("pacman")}
 
 # install.packages(c("pls", "gstat", "dplyr"))
 pacman::p_load(pls, gstat, sf, 
-               #lubridate,
+               lubridate,
                #tools,
                parallel,
                dplyr  #tidyverse
@@ -60,8 +60,8 @@ uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 ###########################################################################################
 message("Generating predictions at new locations")
 
-predictions0 <- mclapply(group_split(modeling_data, model), #[1:2], 
-                       mc.cores = 2,
+predictions0 <- lapply(group_split(modeling_data, model), #[1:2]
+                       #mc.cores = 2,
                        function(x) {
                          message(paste("model: " , first(x$model)))
                          
@@ -100,8 +100,8 @@ saveRDS(predictions, file.path(prediction_directory, paste0("other_design_predic
 
 predictions %>%
   select(-variable) %>%
-  write_csv(., file.path(prediction_directory, paste0("other_design_predictions_", #p_name, "_", 
-                                                      Sys.Date(),".csv")))
+  write.csv(., file.path(prediction_directory, paste0("other_design_predictions_", #p_name, "_", 
+                                                      Sys.Date(),".csv")), row.names = F)
 
 ###########################################################################################
 # QC CHECKS
