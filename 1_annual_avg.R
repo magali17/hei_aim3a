@@ -273,6 +273,7 @@ for (i in seq_along(season_n)) {
 
 ########################
 # ALTERNATIVE CODING - SELECT SAME SEASON FOR ANY GIVEN CAMPAIGN & SAVE INTERMEDIATE DATA
+set.seed(1)
 season_times2 <- data.frame()
 
 for (i in seq_along(season_n)) {
@@ -294,6 +295,8 @@ for (i in seq_along(season_n)) {
   
   season_times2 <- rbind(season_times2, temp)
 }
+
+saveRDS(season_times2, file.path(dt_path, "campaign visit samples", "fewer_seasons.rda") )
 
 # #calculate annual averages
 season_times2_annual <- season_times2 %>%
@@ -366,6 +369,8 @@ for (i in seq_along(rh_bh)) {
   rh_bh_df2 <- rbind(rh_bh_df2, temp)
 }
 
+saveRDS(rh_bh_df2, file.path(dt_path, "campaign visit samples", "fewer_hours.rda") )
+
 # #calculate annual averages
 rh_bh_df2_annual <- rh_bh_df2 %>%
   select(design, version, campaign, location, keep_vars) %>%
@@ -374,6 +379,7 @@ rh_bh_df2_annual <- rh_bh_df2 %>%
   summarize(visits = n(),
             mean = mean(value, na.rm = T)) %>%  
   pivot_wider(names_from = "variable", values_from = "mean")
+
 
 ##################################################################################################
 # combine TEMPORAL simulation results
@@ -441,8 +447,6 @@ annual_training_set <- rbind(temporal_sims, site_visit_df)
 ##################################################################################################
 saveRDS(annual_training_set, file.path(dt_path, "annual_training_set.rda"))
 
-saveRDS(rh_bh_df2, file.path(dt_path, "campaign visit samples", "fewer_hours.rda") )
-saveRDS(season_times2, file.path(dt_path, "campaign visit samples", "fewer_seasons.rda") )
 # not sure I'll need these...
 rbind(rh_bh_df2_annual, season_times2_annual) %>%
   saveRDS(., file.path(dt_path, "campaign visit samples", "fewer_hours_seasons_v2_annual_estimates.rda"))

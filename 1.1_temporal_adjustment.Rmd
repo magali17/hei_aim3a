@@ -59,7 +59,9 @@ bdate <-ymd("2019-02-22")
 edate <-ymd("2020-03-17") 
 
 image_path <- file.path("..", "Manuscript", "Images", latest_version, "other", "temporal_adjustment")
-if(!dir.exists(image_path)) {dir.create(image_path)}
+if(!dir.exists(image_path)) {dir.create(image_path, recursive = T)}
+
+if(!dir.exists(file.path(dt_path, "campaign visit samples"))) {dir.create(file.path(dt_path, "campaign visit samples"))}
 
 # ggplot settings
 theme_set(theme_bw())
@@ -82,9 +84,7 @@ nox <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox.rda")) %>%
     grepl("NO2", parameter),
      site_name %in% c("Beacon Hill")
     ) %>%
-  drop_na(#sample_measurement, 
-    time
-          ) %>%
+  drop_na(time) %>%
   select(site_name, time, date=date_local, time_local, no2=sample_measurement, units_of_measure) %>%
   
   add_season(.date_var = "date") %>% 
@@ -717,8 +717,6 @@ names(r) <- unique(adjusted_annual_avg$version)
 
 r
   
-
-
 ```
 
 

@@ -47,7 +47,7 @@ cov_names <- readRDS(file.path(dt_path, "cov_names.rda"))
 
 # true annual avg estimates
 true_annual <- readRDS(file.path(dt_path, "all_data_annual_estimates.rda")) %>%
-  select(location, keep_vars2) %>%
+  select(location, all_of(keep_vars2)) %>%
   pivot_longer(cols = c(all_of(keep_vars2)), names_to = "variable", values_to = "gs_estimate")
         
 ##################################################################################################
@@ -244,7 +244,7 @@ model_perf0 %>%
 ##################################################################################################
 # APPENDIX 
 ##################################################################################################
-if(TRUE) {
+if(FALSE) {
   # version levels
   visit_count <- seq(2,22, 2)
   fewer_hr_lvls <- unique(cw$version)[str_detect(unique(cw$version), "business|rush")]

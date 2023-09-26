@@ -41,6 +41,8 @@ set.seed(1)
 latest_version <- "v3_20230321" 
 dt_path <- file.path("Output", latest_version)
 
+if(!dir.exists(file.path(dt_path, "campaign visit samples"))) {dir.create(file.path(dt_path, "campaign visit samples"))}
+
 # ggplot settings
 theme_set(theme_bw())
 theme_update(legend.position = "bottom")

@@ -81,9 +81,7 @@ saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_other_designs
 # CLEAN DATA FOR KP
 ###########################################################################################
 predictions <- predictions0 %>%
-  
   st_drop_geometry() %>%
-  
   mutate(
     #put back on the native scale
     prediction = exp(prediction),
@@ -93,15 +91,14 @@ predictions <- predictions0 %>%
   ) %>%
   select(location_id, start_date, end_date, model, variable, prediction) 
 
-message("saving predictions")
+message("saving predictions here:")
+message(file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".csv")))
 
-saveRDS(predictions, file.path(prediction_directory, paste0("other_design_predictions_", #p_name, "_",
-                                                            Sys.Date(),".rda")))
-
+# save as RDS & CSV file
+saveRDS(predictions, file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".rda")))
 predictions %>%
   select(-variable) %>%
-  write.csv(., file.path(prediction_directory, paste0("other_design_predictions_", #p_name, "_", 
-                                                      Sys.Date(),".csv")), row.names = F)
+  write.csv(., file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".csv")), row.names = F)
 
 ###########################################################################################
 # QC CHECKS
