@@ -305,8 +305,10 @@ season_times2_annual <- season_times2 %>%
   group_by(design, version, campaign, location, variable) %>%
   summarize(visits = n(),
             mean = mean(value, na.rm = T)) %>%  
-  pivot_wider(names_from = "variable", values_from = "mean")
+  pivot_wider(names_from = "variable", values_from = "mean") %>% 
+  ungroup()
   
+saveRDS(season_times2_annual, file.path(dt_path, "fixed_season_annual.rda"))
 
 ##################################################################################################
 message("BH, RH")

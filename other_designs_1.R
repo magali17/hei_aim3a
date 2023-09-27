@@ -40,15 +40,28 @@ site_type <- readRDS(file.path(dt_path, "annual_site_type.rda")) %>%
   select(design, version, campaign, location, visits, all_of(keep_vars2)) %>%  
   pivot_longer(cols = c(all_of(keep_vars2)), names_to = "variable", values_to = "value")
 
-dt <- bind_rows(temporal, site_type)
+#add updated/new season samples
+keep_vars <- readRDS(file.path(dt_path, "keep_vars.rda"))
+
+season <- readRDS(file.path(dt_path, "fixed_season_annual.rda")) %>%
+  mutate(visits = 12) %>%
+  select(design, version, campaign, location, visits, all_of(keep_vars)) %>%  
+  pivot_longer(cols = c(all_of(keep_vars)), names_to = "variable", values_to = "value")
+
+
+dt <- bind_rows(temporal, site_type) %>%
+  bind_rows(season)
 
 cov <-readRDS(file.path("data", "stop_modeling_covars.rda"))
 cov_names <- readRDS(file.path(dt_path, "cov_names.rda"))
 
 # true annual avg estimates
 true_annual <- readRDS(file.path(dt_path, "all_data_annual_estimates.rda")) %>%
-  select(location, all_of(keep_vars2)) %>%
-  pivot_longer(cols = c(all_of(keep_vars2)), names_to = "variable", values_to = "gs_estimate")
+  select(location, all_of(keep_vars#keep_vars2
+                          )) %>%
+  pivot_longer(cols = c(all_of(keep_vars
+                               #keep_vars2
+                               )), names_to = "variable", values_to = "gs_estimate")
         
 ##################################################################################################
 # VARIABLES
@@ -84,19 +97,31 @@ if(create_new_cw == TRUE) {
         variable=="ns_total_conc" ~ "nstot",
         variable=="ns_10_100" ~ "ns10100",
         variable=="pnc_noscreen" ~ "pncnoscreen",
-        variable=="no2" ~ "no2"),
+        variable=="no2" ~ "no2",
+        TRUE ~variable
+        ),
+      var_code = gsub("ns_", "ns", var_code),
+      var_code = gsub("\\..", "", var_code),
       
       design_code = case_when( 
-        design=="fewer hours" ~ "few_hrs",
-        design=="site type" ~ "site_type"),
+        design=="fewer hours" ~ "fewhrs",
+        design=="site type" ~ "sitetype",
+        design=="balanced seasons" ~ "balsea",
+        ),
+      # # note, this replicates version #. should be (or something like this):
+      # design_code = ifelse(design=="balanced seasons", "s", design_code),
+      # #design_code = ifelse(design=="balanced seasons", paste0("s", version), design_code),
       
       version_code = case_when(
         version == "business" ~ "bh",
-        version == "business temp adj" ~ "bh_adj",
+        version == "business temp adj" ~ "bhadj",
         version == "rush" ~ "rh",
-        version == "rush temp adj" ~ "rh_adj",
-        TRUE ~ gsub(" ", "", version) #%>% str_to_lower()
+        version == "rush temp adj" ~ "rhadj",
+        #TRUE ~ gsub(" ", "", version) #%>% str_to_lower()
+        TRUE ~ version
         ),
+      version_code = gsub(" ", "", version_code),
+      
       model = paste("s",
                     var_code,
                     design_code,
@@ -111,7 +136,8 @@ if(create_new_cw == TRUE) {
     }
   
 dt <- left_join(dt, cw) %>%
-  select(location, value, model, variable, visits) %>%
+  select(location, value, model, model_no, variable, visits) %>%
+  arrange(model_no) %>%
   left_join(cov) %>%
   # prep for modeling
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
