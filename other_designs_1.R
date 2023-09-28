@@ -205,7 +205,6 @@ cv_predictions0 <- lapply(group_split(dt, model),
                             FUN = do_cv, fold_name = "random_fold") %>%
   bind_rows()
 
-# --> NEED TO exp(value) if use these predictions
 saveRDS(cv_predictions0, file.path(dt_path, "UK Predictions", "TEMP_other_design_cv_predictions.rda"))
 
 ##################################################################################################
