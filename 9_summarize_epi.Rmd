@@ -201,6 +201,9 @@ ggsave(file.path(image_path, "SI", "site_averages.png"), width = 6, height = 5)
 
 ## Model R2
 
+
+### --> add new designs; LS: "show temporal adj as scatterplot – so we can see that there’s never a campaign that is better" 
+
 30 campaigns per design-version-pollutant 
 
 ```{r}

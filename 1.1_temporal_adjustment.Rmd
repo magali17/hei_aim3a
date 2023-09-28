@@ -40,8 +40,8 @@ pacman::p_load(tidyverse,
                lubridate, # %within%
                splines, #bs() in lm()
                kableExtra,
-               mgcv, # gam() #s(, bs="cc") # for cyclic spline
-               zoo #na.approx(); rolling mean
+               mgcv#, # gam() #s(, bs="cc") # for cyclic spline
+               #zoo #na.approx(); rolling mean
 )    
 
 source("functions.R")
@@ -188,13 +188,37 @@ missing_hours <- nox %>%
 print("missing hours per day in days with missingness. most days with missingness have 1-2 missing hours")
 table(missing_hours$n)
 
+```
 
-# linearly interpollate. note that 3 days have 16, 22, and 24 missing values
+interpolate missing NO2 using a fitted model (vs simple linear interpolation) since 3 days have 16, 22, and 24 missing hourly values
+
+```{r}
+missing_no2_lm <- nox %>%
+  mutate(hour = as.numeric(as.character(hour))) %>%
+  gam(data=., formula = log(no2) ~ month + s(hour, 
+                                           bs="cc", #cyclic cubic regression spline
+                                           k=6, # (later, I use 5, but this seems to increase performance by a larger bump than 4 to 5, little added in-sample performance is seen w/ more flexibility
+                                           by = dow #interaction by dow
+                                           )) 
+
+
+summary(missing_no2_lm)
+
+print("the hour functions look non-linear")
+par(mfrow = c(3, 3))
+plot(missing_no2_lm)
+par(mfrow = c(1, 1))
+
+predicted_no2 <- predict(missing_no2_lm, 
+                         newdata = nox %>% mutate(hour = as.numeric(as.character(hour)))
+                         ) %>% exp()
+
 nox <- nox %>%
   mutate(no2_interpolated = ifelse(is.na(no2), TRUE, FALSE),
-          no2 = na.approx(no2, #maxgap = 12, 
-                                       #na.rm = F
-                                       )) 
+         #no2 = zoo::na.approx(no2)
+         predicted_no2 = predicted_no2,
+         no2 = ifelse(is.na(no2), predicted_no2, no2)) %>% 
+  select(-predicted_no2)
 
 ```
 
@@ -308,16 +332,12 @@ calibration_dt %>%
 
  
 
-
-
-
 ## UFP-NO2 prediction model
 
 leverage NO2 to capture the monthly/seasonal patterns not otherwise captured by limited UFP data alone
 
 ### model 
 
-# --> knot/degree selection OK? 
 ### --> why does residuals(lm1) %>% exp() produce different results? 
 
 ```{r}
@@ -652,8 +672,6 @@ unbalanced_samples %>%
        )
 
 ```
-
-### --> what temporal adj to keep?
 
 ```{r}
 dt1 <- adjusted_annual_avg %>%
