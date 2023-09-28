@@ -190,6 +190,8 @@ table(missing_hours$n)
 
 ```
 
+## Interpolate missing NO2 values
+
 interpolate missing NO2 using a fitted model (vs simple linear interpolation) since 3 days have 16, 22, and 24 missing hourly values
 
 ```{r}
