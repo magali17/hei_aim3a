@@ -63,8 +63,8 @@ message("Generating predictions at new locations")
 # this doesn'st help b/c order is not maintained when use group_split()?
 tot_models <- max(modeling_data$model_no)
 
-predictions0 <- lapply(group_split(modeling_data, model), #[1:2]
-                       #mc.cores = 2,
+predictions0 <- mclapply(group_split(modeling_data, model), #[1:2]
+                       mc.cores = 4,
                        function(x) {
                          message(paste0("model " , first(x$model_no), " of ", tot_models, ": ", first(x$model)))
                          
