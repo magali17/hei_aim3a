@@ -34,9 +34,9 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 }
 
 pacman::p_load(tidyverse, 
-               ggpmisc, #stat_poly_eq()
-               parallel, #mclapply; detectCores()
-               future.apply, #future_replicate()
+               # ggpmisc, #stat_poly_eq()
+               # parallel, #mclapply; detectCores()
+               # future.apply, #future_replicate()
                lubridate, # %within%
                splines, #bs() in lm()
                kableExtra,
