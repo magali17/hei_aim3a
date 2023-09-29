@@ -299,4 +299,4 @@ saveRDS(dt, file.path(dt_path, "Selected Campaigns", "other_stop_designs_data.rd
 #   ggsave(file.path("..", "Manuscript", "Images", "v3_20230321", "other", "other_designs_model_performances.png"), width = 14, height = 8)
 #   }
 # 
-# message("done with other_designs_1.R")
+message("done with other_designs_1.R")

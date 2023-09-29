@@ -331,7 +331,7 @@ for(i in seq_along(rh_bh)) {
                                                      slice_sample(n=fewer_hrs_seasons_n, replace=T)
                                                    },
                                                  # save intermediate samples for temporal adjustment later
-                                                 save_sample = T,
+                                                 save_sample = F, #T,
                                                  sample_file = file.path("campaign visit samples", "fewer_hours.rda")
                                                  )) %>%
     bind_rows() %>%
