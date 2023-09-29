@@ -473,8 +473,8 @@ nox %>%
 
 
 
-visualize fix no2 to the mean and see temporal patterns
-* using long-term no2 data (dow, hour) with mean no2 observed
+# visualize fix no2 to the mean and see temporal patterns
+# * using long-term no2 data (dow, hour) with mean no2 observed
 
 test <- nox %>%
   mutate(hour = as.numeric(as.character(hour)),
