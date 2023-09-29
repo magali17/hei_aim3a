@@ -64,7 +64,7 @@ message("Generating predictions at new locations")
 tot_models <- max(modeling_data$model_no)
 
 predictions0 <- mclapply(group_split(modeling_data, model), #[1:2]
-                       mc.cores = 4,
+                       mc.cores = 6, #4
                        function(x) {
                          message(paste0("model " , first(x$model_no), " of ", tot_models, ": ", first(x$model)))
                          
