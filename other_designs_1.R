@@ -27,6 +27,9 @@ latest_version <- "v3_20230321"
 
 dt_path <- file.path("Output", latest_version)
 
+#takes long to run full script, dont always ned
+run_cv <- FALSE
+
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
@@ -159,139 +162,141 @@ dt <- left_join(dt, cw) %>%
 message("saving modeling data")
 saveRDS(dt, file.path(dt_path, "Selected Campaigns", "other_stop_designs_data.rda"))
   
-##################################################################################################
-# CV 
-##################################################################################################
-# function returns cross-valited predictions for a given dataset
-do_cv <- function (x, fold_name) {
-  
-  print(first(x$model))
-  
-  #code to make sure this fn works even if folds don't have all numbers in a sequence (e.g., if too few sites)
-  k = sort(unique(x[[fold_name]]))
-  
-  df <- data.frame()
-  
-  for(f in k) {
-    modeling_data0 = filter(x, !!as.symbol(fold_name) != f)
-    new_data0 = filter(x, !!as.symbol(fold_name) == f)
-    
-    temp <- uk_pls(modeling_data = modeling_data0, new_data = new_data0) %>% st_drop_geometry() 
-    df <- rbind(df, temp)
-  }
-  return(df)
-}
-
-##################################################################################################
-#add CV folds
-message("generating random folds")
-
-random_fold_df <- lapply(group_split(dt, model), function(x) {
-  distinct(x, location, model) %>%
-    mutate(random_fold = sample(1:k, size = nrow(.), replace = T ))
-  }) %>%
-  bind_rows()
-
-dt <- suppressMessages(left_join(dt, random_fold_df)) %>%
-  select(random_fold, everything())
-
-# saveRDS(dt, file.path(dt_path, "other_stop_designs_data2.rda"))
-
-## CV
-print(paste0("Running random ", k, " FCV"))
-
-cv_predictions0 <- lapply(group_split(dt, model),
-                            #mc.cores = 1, #use_cores,
-                            FUN = do_cv, fold_name = "random_fold") %>%
-  bind_rows()
-
-saveRDS(cv_predictions0, file.path(dt_path, "UK Predictions", "TEMP_other_design_cv_predictions.rda"))
-
-##################################################################################################
-# COMBINE PREDICTIONS & BEST ESTIMATES
-##################################################################################################
-message("combining predictions with estimates")
-
-predictions <- cv_predictions0 %>% 
-  select(model, location, value, prediction) %>%
-  rename(campaign_estimate = value) %>%
-  mutate(out_of_sample = "CV") %>% 
-  #drop_na(prediction) %>%
-  left_join(select(cw, model, variable)) %>%
-  left_join(true_annual) %>% 
-  #put back on native scale before evaluating
-  mutate_at(#vars(contains("estimate"), 
-                 vars(campaign_estimate, prediction), ~exp(.)) 
-
-message("saving predictions")
-saveRDS(predictions, file.path(dt_path, "UK Predictions", "other_design_predictions.rda"))
-
-
-##################################################################################################
-# CV STATS FUNCTION
-##################################################################################################
-message("calculating performance statistics")
-
-validation_stats <- function(dt, prediction, reference){
-  
-  # MSE of predictions
-  MSE_pred <- mean((dt[[reference]] - dt[[prediction]])^2)
-  # MSE of observations (for R2 denominator)
-  MSE_obs <- mean((dt[[reference]] - mean(dt[[reference]]))^2)
-  
-  RMSE = sqrt(MSE_pred)
-  MSE_based_R2 = max(1 - MSE_pred/MSE_obs, 0)
-  # alternative gives same mse-based R2
-  # caret::R2(pred = dt$prediction,obs =dt$estimate, form = "traditional")
-  
-  result <- distinct(dt, model, out_of_sample# , reference
-  ) %>%
-    mutate(
-      no_sites = nrow(dt),
-      RMSE = RMSE,
-      MSE_based_R2 = MSE_based_R2
-    )
-  return(result)
-}
-
-
-model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 
-                        mc.cores = use_cores,
-                        validation_stats, prediction = "prediction", reference = "gs_estimate") %>%
-  bind_rows()
-
-message("saving model evaluation statistics")
-
-model_perf0 %>%
-  saveRDS(., file.path(dt_path, "other_designs_model_eval.rda"))
-
-
-##################################################################################################
-# APPENDIX 
-##################################################################################################
-if(FALSE) {
-  # version levels
-  visit_count <- seq(2,22, 2)
-  fewer_hr_lvls <- unique(cw$version)[str_detect(unique(cw$version), "business|rush")]
-  site_type_lvls <- paste("H", rev(visit_count), "L", visit_count)
-  
-  temp <- model_perf0 %>%
-    left_join(cw) %>%  
-    mutate(version = factor(version, levels=c(fewer_hr_lvls, site_type_lvls))) %>%
-    filter(variable == "ns_total_conc") 
-  
-  
-  temp %>%
-    pivot_longer(cols = c(MSE_based_R2, RMSE)) %>%  
-    
-    ggplot(aes(x=version, y=value)) + 
-    facet_grid(name~design, scales = "free", switch = "both", space = "free_x") + 
-    geom_boxplot() + 
-    labs(title = "Distribution of UK-PLS campaign performances", 
-         subtitle = "30 campaigs per version" #, each model performance is based on  309 sites
-         )
-  
-  ggsave(file.path("..", "Manuscript", "Images", "v3_20230321", "other", "other_designs_model_performances.png"), width = 14, height = 8)
-  }
-
-message("done with other_designs_1.R")
+# ##################################################################################################
+# # CV 
+# ##################################################################################################
+# # function returns cross-valited predictions for a given dataset
+# do_cv <- function (x, fold_name) {
+#   
+#   print(first(x$model))
+#   
+#   #code to make sure this fn works even if folds don't have all numbers in a sequence (e.g., if too few sites)
+#   k = sort(unique(x[[fold_name]]))
+#   
+#   df <- data.frame()
+#   
+#   for(f in k) {
+#     modeling_data0 = filter(x, !!as.symbol(fold_name) != f)
+#     new_data0 = filter(x, !!as.symbol(fold_name) == f)
+#     
+#     temp <- uk_pls(modeling_data = modeling_data0, new_data = new_data0) %>% st_drop_geometry() 
+#     df <- rbind(df, temp)
+#   }
+#   return(df)
+# }
+# 
+# ##################################################################################################
+# #add CV folds
+# message("generating random folds")
+# 
+# random_fold_df <- lapply(group_split(dt, model), function(x) {
+#   distinct(x, location, model) %>%
+#     mutate(random_fold = sample(1:k, size = nrow(.), replace = T ))
+#   }) %>%
+#   bind_rows()
+# 
+# dt <- suppressMessages(left_join(dt, random_fold_df)) %>%
+#   select(random_fold, everything())
+# 
+# # saveRDS(dt, file.path(dt_path, "other_stop_designs_data2.rda"))
+# 
+# ## CV
+# print(paste0("Running random ", k, " FCV"))
+# 
+# cv_predictions0 <- lapply(group_split(dt, model),
+#                             #mc.cores = 1, #use_cores,
+#                             FUN = do_cv, fold_name = "random_fold") %>%
+#   bind_rows()
+# 
+# saveRDS(cv_predictions0, file.path(dt_path, "UK Predictions", "TEMP_other_design_cv_predictions.rda"))
+# 
+# ##################################################################################################
+# # COMBINE PREDICTIONS & BEST ESTIMATES
+# ##################################################################################################
+# message("combining predictions with estimates")
+# 
+# predictions <- cv_predictions0 %>% 
+#   select(model, location, value, prediction) %>%
+#   rename(campaign_estimate = value) %>%
+#   mutate(out_of_sample = "CV") %>% 
+#   #drop_na(prediction) %>%
+#   left_join(select(cw, model, variable)) %>%
+#   left_join(true_annual) %>% 
+#   #put back on native scale before evaluating
+#   mutate_at(#vars(contains("estimate"), 
+#                  vars(campaign_estimate, prediction), ~exp(.)) 
+# 
+# message("saving predictions")
+# saveRDS(predictions, file.path(dt_path, "UK Predictions", "other_design_predictions.rda"))
+# 
+# 
+# ##################################################################################################
+# # CV STATS FUNCTION
+# ##################################################################################################
+# message("calculating performance statistics")
+# 
+# validation_stats <- function(dt, prediction, reference){
+#   
+#   # MSE of predictions
+#   MSE_pred <- mean((dt[[reference]] - dt[[prediction]])^2)
+#   # MSE of observations (for R2 denominator)
+#   MSE_obs <- mean((dt[[reference]] - mean(dt[[reference]]))^2)
+#   
+#   RMSE = sqrt(MSE_pred)
+#   MSE_based_R2 = max(1 - MSE_pred/MSE_obs, 0)
+#   # alternative gives same mse-based R2
+#   # caret::R2(pred = dt$prediction,obs =dt$estimate, form = "traditional")
+#   
+#   result <- distinct(dt, model, out_of_sample# , reference
+#   ) %>%
+#     mutate(
+#       no_sites = nrow(dt),
+#       RMSE = RMSE,
+#       MSE_based_R2 = MSE_based_R2
+#     )
+#   return(result)
+# }
+# 
+# 
+# 
+# model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 
+#                         mc.cores = use_cores,
+#                         validation_stats, prediction = "prediction", reference = "gs_estimate") %>%
+#   bind_rows()
+# 
+# message("saving model evaluation statistics")
+# 
+# model_perf0 %>%
+#   saveRDS(., file.path(dt_path, "other_designs_model_eval.rda"))
+# 
+# 
+# 
+# ##################################################################################################
+# # APPENDIX 
+# ##################################################################################################
+# if(FALSE) {
+#   # version levels
+#   visit_count <- seq(2,22, 2)
+#   fewer_hr_lvls <- unique(cw$version)[str_detect(unique(cw$version), "business|rush")]
+#   site_type_lvls <- paste("H", rev(visit_count), "L", visit_count)
+#   
+#   temp <- model_perf0 %>%
+#     left_join(cw) %>%  
+#     mutate(version = factor(version, levels=c(fewer_hr_lvls, site_type_lvls))) %>%
+#     filter(variable == "ns_total_conc") 
+#   
+#   
+#   temp %>%
+#     pivot_longer(cols = c(MSE_based_R2, RMSE)) %>%  
+#     
+#     ggplot(aes(x=version, y=value)) + 
+#     facet_grid(name~design, scales = "free", switch = "both", space = "free_x") + 
+#     geom_boxplot() + 
+#     labs(title = "Distribution of UK-PLS campaign performances", 
+#          subtitle = "30 campaigs per version" #, each model performance is based on  309 sites
+#          )
+#   
+#   ggsave(file.path("..", "Manuscript", "Images", "v3_20230321", "other", "other_designs_model_performances.png"), width = 14, height = 8)
+#   }
+# 
+# message("done with other_designs_1.R")
