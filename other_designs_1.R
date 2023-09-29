@@ -135,7 +135,7 @@ if(create_new_cw == TRUE) {
   
   write.csv(cw, file.path(dt_path, "other_designs_model_cw.csv"), row.names = F)
   } else {
-    cw <- file.path(dt_path, "other_designs_model_cw.csv")
+    cw <- read.csv(file.path(dt_path, "other_designs_model_cw.csv"))
     }
   
 dt <- left_join(dt, cw) %>%
