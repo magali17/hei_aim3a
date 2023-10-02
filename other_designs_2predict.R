@@ -1,7 +1,10 @@
 # Rscript other_designs_2predict.R other_stop_designs_data.rda
 # Rscript other_designs_2predict.R other_stop_designs_data_fewhrs.rda cohort/other\ designs/fewhrs
 # Rscript other_designs_2predict.R other_stop_designs_data_sitetype.rda cohort/other\ designs/sitetype
-# Rscript other_designs_2predict.R other_stop_designs_data_balsea.rda cohort/other\ designs/balsea
+# Rscript other_designs_2predict.R other_stop_designs_data_balsea_1.rda cohort/other\ designs/balsea_1
+# Rscript other_designs_2predict.R other_stop_designs_data_balsea_2.rda cohort/other\ designs/balsea_2
+# Rscript other_designs_2predict.R other_stop_designs_data_balsea_3.rda cohort/other\ designs/balsea_3
+# Rscript other_designs_2predict.R other_stop_designs_data_balsea_4.rda cohort/other\ designs/balsea_4
 
 ################################################################################
 # SETUP
@@ -99,7 +102,7 @@ predictions <- predictions0 %>%
   ) %>%
   select(location_id, start_date, end_date, model, variable, prediction) 
 
-message("saving predictions here:")
+message("saving predictions for KP here:")
 #message(file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".csv")))
 message(prediction_directory)
 
