@@ -4,6 +4,7 @@
 # Rscript other_designs_2predict.R other_stop_designs_data_balsea_3.rda cohort/other\ designs/balsea_3
 
 # Rscript other_designs_2predict.R other_stop_designs_data_balsea_4.rda cohort/other\ designs/balsea_4
+
 # Rscript other_designs_2predict.R other_stop_designs_data_sitetype.rda cohort/other\ designs/sitetype
 
 ################################################################################
@@ -69,7 +70,7 @@ uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 message("Generating predictions at new locations")
 
 # this doesn'st help b/c order is not maintained when use group_split()?
-tot_models <- max(modeling_data$model_no)
+tot_models <- length(unique(modeling_data$model_no))
 
 predictions0 <- mclapply(group_split(modeling_data, model), #[1:2]
                        mc.cores = 6, #4

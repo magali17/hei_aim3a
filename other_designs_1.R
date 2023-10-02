@@ -163,7 +163,7 @@ saveRDS(dt, file.path(dt_path, "Selected Campaigns", "other_stop_designs_data.rd
   
 # save separately so program doesn't crash later
 model_designs <- c("fewhrs", 
-                   "sitetype",  
+                   #"sitetype",  
                    paste0("balsea_", 1:4) #this has many different pollutants
                    )
 
@@ -172,6 +172,17 @@ lapply(model_designs, function(x) {
     filter(grepl(x, model)) %>%
     saveRDS(., file.path(dt_path, "Selected Campaigns", paste0("other_stop_designs_data_", x, ".rda")))
 })
+
+# break up site type further
+sitetype_vars <- cw %>% filter(grepl("sitetype", model)) %>% distinct(variable) %>% pull()
+
+lapply(sitetype_vars, function(x) {
+  dt %>%
+    filter(grepl("sitetype", model),
+           variable == x) %>%
+    saveRDS(., file.path(dt_path, "Selected Campaigns", paste0("other_stop_designs_data_sitetype_", x, ".rda")))
+})
+
 
 # ##################################################################################################
 # # CV 
