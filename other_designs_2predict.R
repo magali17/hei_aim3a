@@ -1,9 +1,9 @@
 # Rscript other_designs_2predict.R other_stop_designs_data_fewhrs.rda cohort/other\ designs/fewhrs
-
 # Rscript other_designs_2predict.R other_stop_designs_data_balsea_1.rda cohort/other\ designs/balsea_1
 # Rscript other_designs_2predict.R other_stop_designs_data_balsea_2.rda cohort/other\ designs/balsea_2
 
 # Rscript other_designs_2predict.R other_stop_designs_data_balsea_3.rda cohort/other\ designs/balsea_3
+
 # Rscript other_designs_2predict.R other_stop_designs_data_balsea_4.rda cohort/other\ designs/balsea_4
 # Rscript other_designs_2predict.R other_stop_designs_data_sitetype.rda cohort/other\ designs/sitetype
 
@@ -86,8 +86,7 @@ predictions0 <- mclapply(group_split(modeling_data, model), #[1:2]
   bind_rows()  
 
 message("saving TEMPORARY predictions")
-#saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_other_designs_predictions_", Sys.Date(),".rda")))
-saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_predictions_", Sys.Date(),".rda")))
+#saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_predictions_", Sys.Date(),".rda")))
 
 ###########################################################################################
 # CLEAN DATA FOR KP
@@ -103,15 +102,15 @@ predictions <- predictions0 %>%
   ) %>%
   select(location_id, start_date, end_date, model, variable, prediction) 
 
-message("saving predictions for KP here:")
+message("saving predictions here:")
 #message(file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".csv")))
 message(prediction_directory)
 
 # save as RDS & CSV file
 saveRDS(predictions, file.path(prediction_directory, paste0("predictions_", Sys.Date(),".rda")))
-predictions %>%
-  select(-variable) %>%
-  write.csv(., file.path(prediction_directory, paste0("predictions_", Sys.Date(),".csv")), row.names = F)
+# predictions %>%
+#   select(-variable) %>%
+#   write.csv(., file.path(prediction_directory, paste0("predictions_", Sys.Date(),".csv")), row.names = F)
 
 ###########################################################################################
 # QC CHECKS
