@@ -2,6 +2,8 @@
 
 pacman::p_load(dplyr)
 
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+
 prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "other designs")
 model_designs <- c("fewhrs", 
                    paste0("sitetype_", c("no2", "ns_10_100", "ns_total_conc", "pnc_noscreen")),
