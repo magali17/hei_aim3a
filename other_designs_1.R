@@ -162,6 +162,19 @@ dt <- left_join(dt, cw) %>%
 message("saving modeling data")
 saveRDS(dt, file.path(dt_path, "Selected Campaigns", "other_stop_designs_data.rda"))
   
+# TEST - save separately
+# fewer_hr_models <- cw %>% filter(design == "fewer hours") %>% pull(model)
+# site_type_models <- cw %>% filter(design == "site type") %>% pull(model)
+# seasons_models <- cw %>% filter(design == "balanced seasons") %>% pull(model)
+
+model_designs <- c("fewhrs", "sitetype", "balsea")
+
+lapply(model_designs, function(x) {
+  dt %>%
+    filter(grepl(x, model)) %>%
+    saveRDS(., file.path(dt_path, "Selected Campaigns", paste0("other_stop_designs_data_", x, ".rda")))
+})
+
 # ##################################################################################################
 # # CV 
 # ##################################################################################################

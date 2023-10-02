@@ -1,4 +1,8 @@
 # Rscript other_designs_2predict.R other_stop_designs_data.rda
+# Rscript other_designs_2predict.R other_stop_designs_data_fewhrs.rda cohort/other\ designs/fewhrs
+# Rscript other_designs_2predict.R other_stop_designs_data_sitetype.rda cohort/other\ designs/sitetype
+# Rscript other_designs_2predict.R other_stop_designs_data_balsea.rda cohort/other\ designs/balsea
+
 ################################################################################
 # SETUP
 ################################################################################
@@ -33,7 +37,8 @@ user_arguments <- commandArgs(trailingOnly = TRUE)
 # user_arguments <- "other_stop_designs_data.rda" 
 
 modeling_dt <- user_arguments[1]
-
+prediction_directory <-user_arguments[2]
+  
 message("loading data")
 modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", modeling_dt))
 
@@ -41,7 +46,8 @@ dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped
 #cov_ext <- tools::file_ext(covariate_file_path)
 
 #where predictions should be saved
-prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "other_designs")
+#prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "other_designs")
+prediction_directory <- file.path(dt_path, "UK Predictions", prediction_directory)
 ## create the directory if it does not already exists
 if(!dir.exists(prediction_directory)) {dir.create(prediction_directory, recursive = T)}
 
@@ -75,10 +81,9 @@ predictions0 <- mclapply(group_split(modeling_data, model), #[1:2]
                        }) %>%
   bind_rows()  
 
-#p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
 message("saving TEMPORARY predictions")
-saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_other_designs_predictions_", #p_name, "_", 
-                                                             Sys.Date(),".rda")))
+#saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_other_designs_predictions_", Sys.Date(),".rda")))
+saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_predictions_", Sys.Date(),".rda")))
 
 ###########################################################################################
 # CLEAN DATA FOR KP
@@ -95,13 +100,14 @@ predictions <- predictions0 %>%
   select(location_id, start_date, end_date, model, variable, prediction) 
 
 message("saving predictions here:")
-message(file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".csv")))
+#message(file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".csv")))
+message(prediction_directory)
 
 # save as RDS & CSV file
-saveRDS(predictions, file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".rda")))
+saveRDS(predictions, file.path(prediction_directory, paste0("predictions_", Sys.Date(),".rda")))
 predictions %>%
   select(-variable) %>%
-  write.csv(., file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".csv")), row.names = F)
+  write.csv(., file.path(prediction_directory, paste0("predictions_", Sys.Date(),".csv")), row.names = F)
 
 ###########################################################################################
 # QC CHECKS
