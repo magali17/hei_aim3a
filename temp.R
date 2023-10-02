@@ -1,10 +1,10 @@
-# save predictions in 1 file
+# combine multiple prediction files into one
 
 pacman::p_load(dplyr)
 
 prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "other designs")
 model_designs <- c("fewhrs", 
-                   "sitetype",  
+                   paste0("sitetype_", c("no2", "ns_10_100", "ns_total_conc", "pnc_noscreen")),
                    paste0("balsea_", 1:4) #this has many different pollutants
 )
 
@@ -12,9 +12,11 @@ model_designs <- c("fewhrs",
 predictions <- lapply(model_designs, function(x) {
   readRDS(file.path(prediction_directory, x, paste0("predictions_", Sys.Date(), ".rda")))
 }) %>%
-  bind_rows()
+  bind_rows() %>%
+  select(-variable)
 
 write.csv(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_designs.csv"), row.names = F)
+saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_designs.rda"))
 
 
 # dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))

@@ -158,8 +158,10 @@ dt <- left_join(dt, cw) %>%
 #   pull(total_visits) %>%
 #   summary()
 
+##################################################################################################
+#  SAVE FILES FOR PREDICTION PROGRAM
 message("saving modeling data")
-saveRDS(dt, file.path(dt_path, "Selected Campaigns", "other_stop_designs_data.rda"))
+#saveRDS(dt, file.path(dt_path, "Selected Campaigns", "other_stop_designs_data.rda"))
   
 # save separately so program doesn't crash later
 model_designs <- c("fewhrs", 
@@ -182,7 +184,6 @@ lapply(sitetype_vars, function(x) {
            variable == x) %>%
     saveRDS(., file.path(dt_path, "Selected Campaigns", paste0("other_stop_designs_data_sitetype_", x, ".rda")))
 })
-
 
 # ##################################################################################################
 # # CV 
