@@ -113,9 +113,7 @@ saveRDS(predictions, file.path(prediction_directory, paste0("predictions_", Sys.
 ###########################################################################################
 # QC CHECKS
 ###########################################################################################
-qc <- TRUE
-
-#if(qc==TRUE) {stop}
+qc <- FALSE #TRUE
 
 # summary of predictions
 if(qc==TRUE) {
