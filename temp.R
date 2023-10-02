@@ -15,8 +15,8 @@ predictions <- lapply(model_designs, function(x) {
   bind_rows() %>%
   select(-variable)
 
-write.csv(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_designs.csv"), row.names = F)
-saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_designs.rda"))
+write.csv(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_design_predictions.csv"), row.names = F)
+saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_design_predictions.rda"))
 
 
 # dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
