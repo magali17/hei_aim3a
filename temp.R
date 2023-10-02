@@ -11,12 +11,14 @@ model_designs <- c("fewhrs",
 )
 
 
+message("reading in individual files")
 predictions <- lapply(model_designs, function(x) {
   readRDS(file.path(prediction_directory, x, paste0("predictions_", Sys.Date(), ".rda")))
 }) %>%
   bind_rows() %>%
   select(-variable)
 
+message("saving compiled predictions")
 write.csv(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_design_predictions.csv"), row.names = F)
 saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_design_predictions.rda"))
 
@@ -50,7 +52,7 @@ saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other
 #   })
 
  
-message("done")
+message("done with script")
 
 
 
