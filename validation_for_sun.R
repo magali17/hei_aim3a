@@ -345,11 +345,16 @@ model_perf_stats <- all_stats %>%
   summarize(
     n_campaign_performances = n(),
     Min = min(MSE_based_R2),
+    Q2.5 = quantile(MSE_based_R2, 0.025),
+    Q5 = quantile(MSE_based_R2, 0.05),
     Q25 = quantile(MSE_based_R2, 0.25),
     Median = median(MSE_based_R2),
     Mean = mean(MSE_based_R2),
     Q75 = quantile(MSE_based_R2, 0.75),
+    Q95 = quantile(MSE_based_R2, 0.95),
+    Q97.5 = quantile(MSE_based_R2, 0.975),
     SD = sd(MSE_based_R2),
+    IQR = IQR(MSE_based_R2),
     Max = max(MSE_based_R2)
   ) %>%
   ungroup() %>%
@@ -359,7 +364,7 @@ model_perf_stats %>%
   kable(caption = "Distribution of MSE-based R2 Across Campaigns (N=30 per design-version)") %>%
   kable_styling()
 
-write.csv(model_perf_stats, file.path(dt_path_sun, "sampling_design_stats.csv"), row.names = F)
+write.csv(model_perf_stats, file.path(dt_path_sun, paste0("sampling_design_stats_", Sys.Date(), ".csv")), row.names = F)
 
 
 # plot

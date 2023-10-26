@@ -98,8 +98,19 @@ annual <- readRDS(file.path(dt_path, "annual_training_set.rda")) %>%
 cov_names <- st_drop_geometry(annual) %>% ungroup() %>%
   select(log_m_to_a1:last_col()) %>% names() # 188 covariates
 saveRDS(cov_names, file.path(dt_path, "cov_names.rda"))
+##################################################################################################
+# TEST
+cov_train <- readRDS(file.path(#"..", "..", 
+  "~/OneDrive - UW/Documents/Post Doc/Study Projects/ACT TRAP MM",
+  "ACT HEI Supp", "act_hei_aim1a", "Output", "mm_cov_train_set.rda")) %>%
+  select(log_m_to_a1:last_col()) %>%
+  names()
 
-pls_comp_n <- 2
+# cov_train[!cov_train %in% cov_names] # "em_CO_s03000" is missing here, but it's mostly 0s anyway
+# may be due to more restrictive hei1a work - e.g., within routes coun't have low variability
+
+##################################################################################################
+pls_comp_n <- 2 #our campaign used 3
 saveRDS(pls_comp_n, file.path(dt_path, "pls_comp_n.rda"))
 
 #k-folds for CV

@@ -114,7 +114,7 @@ var_names <- readRDS(file.path(dt_path, "keep_vars.rda"))
 ###########################################################################################
 # Universal Kriging - Partial Least Squares Model function
 
-# desired PLS components to use (from a different script): 3
+# desired PLS components to use (from a different script): 2
 pls_comp_n <- read_rds(file.path(dt_path, "pls_comp_n.rda")) 
 
 #prediction model

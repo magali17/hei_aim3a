@@ -84,8 +84,35 @@ model_coefs <- model_coefs0 %>%
   label_pollutants() %>% label_designs()
 
 exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table.csv"))
+##################################################################################################
+# ADDITIONAL DESIGNS
 
+# version levels
+model_perf_other0 <- readRDS(file.path(dt_path, "other_designs_model_eval.rda")) %>%
+  filter(!grepl("balsea", model)) 
 
+cw_other <- read.csv(file.path(dt_path, "other_designs_model_cw.csv"))
+
+visit_count <- seq(2,22, 2)
+fewer_hr_lvls <- unique(cw_other$version)[str_detect(unique(cw_other$version), "business|rush")] %>% str_to_title()
+site_type_lvls <- paste("H", rev(visit_count), "L", visit_count)
+
+model_perf_other <- model_perf_other0 %>%
+  left_join(cw_other) %>%
+  mutate(adjusted = ifelse(grepl("temp adj", version, ignore.case=T), "Temporally Adjusted", 
+                           "Not Temporally Adjusted"), 
+                           #ifelse(!grepl("temp adj", version, ignore.case=T) & design== "Fewer Hours", "Not Temporally Adjusted", NA))
+        version = gsub(" Temp Adj", "", version, ignore.case=T),
+        
+        version = str_to_title(version),
+         version = factor(version, levels=c(fewer_hr_lvls, site_type_lvls)),
+         design = str_to_title(design),
+         
+        
+        
+)
+
+##################################################################################################
 #annual average site estimates (for exposure description)
 annual_trainint_set <- readRDS(file.path(dt_path, "annual_training_set.rda"))
 
@@ -201,9 +228,6 @@ ggsave(file.path(image_path, "SI", "site_averages.png"), width = 6, height = 5)
 
 ## Model R2
 
-
-### --> add new designs; LS: "show temporal adj as scatterplot – so we can see that there’s never a campaign that is better" 
-
 30 campaigns per design-version-pollutant 
 
 ```{r}
@@ -280,6 +304,46 @@ campaign_descriptions %>%
 ggsave(file.path(image_path, "SI", "r2.png"), width = 6, height = 8)
 
 ```
+
+### other designs 
+
+#### --> LS: "show temporal adj as scatterplot – so we can see that there’s never a campaign that is better" 
+
+```{r}
+print("Distribution of UK-PLS campaign performances. 30 campaigs per version")
+
+# same as below, for presentations
+model_perf_other %>%
+  filter(variable == "ns_total_conc") %>% 
+  pivot_longer(cols = c(MSE_based_R2, RMSE)) %>%
+  filter(name=="MSE_based_R2") %>%
+  
+  ggplot(aes(x=version, y=value, col=adjusted)) +
+  facet_grid(~design, scales = "free", switch = "both", space = "free_x") +
+  geom_hline(data=select(filter(t2, design=="All Data"), variable, Q50), aes(yintercept = Q50), linetype=2, alpha=0.5) + 
+  geom_boxplot() +
+  scale_y_continuous(breaks = seq(0.3, 0.65, .05)) +
+  labs(y="R2", x="Design", col=NULL)
+
+ggsave(file.path(image_path, "other", "presentation", "other_designs_model_performances.png"), width = 10, height = 5)
+
+
+# R2 and RMSE
+model_perf_other %>%
+  filter(variable == "ns_total_conc") %>% 
+  pivot_longer(cols = c(MSE_based_R2, RMSE)) %>%
+  
+  ggplot(aes(x=version, y=value)) +
+  facet_grid(name~design, scales = "free", switch = "both", space = "free_x") +
+  
+  geom_boxplot() +
+  labs(y="Campaign Performance")
+
+ggsave(file.path(image_path, "SI", "other_designs_model_performances.png"), width = 14, height = 8)
+
+```
+
+
 
 ### poster
 

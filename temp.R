@@ -7,7 +7,7 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "other designs")
 model_designs <- c("fewhrs", 
                    paste0("sitetype_", c("no2", "ns_10_100", "ns_total_conc", "pnc_noscreen")),
-                   paste0("balsea_", 1:4) #this has many different pollutants
+                   paste0("balsea_", 1:4)  
 )
 
 
@@ -19,8 +19,8 @@ predictions <- lapply(model_designs, function(x) {
   select(-variable)
 
 message("saving compiled predictions")
-write.csv(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_design_predictions.csv"), row.names = F)
-saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other_design_predictions.rda"))
+write.csv(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", paste0("other_design_predictions_", Sys.Date(), ".csv")), row.names = F)
+saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", paste0("other_design_predictions_", Sys.Date(), ".csv")))
 
 
 # dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
@@ -53,7 +53,3 @@ saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", "other
 
  
 message("done with script")
-
-
-
-# ? bind together?
