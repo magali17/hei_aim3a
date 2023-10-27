@@ -88,7 +88,7 @@ if(file.exists(exposure_dt_path)) {
 # see "ACT and HEI Data Documentation for UW" doc for all model crosswalks
 # ID model names for LCS, ML, onroad ("^r")
 other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
-other_model_names
+#other_model_names
 
 
 # SIDE NOTE - look at Si's alternative machine learning models. These are like "all-data" campaign but the models are developed differently
@@ -254,6 +254,6 @@ write.csv(exclusion_table, file.path(output_data_path, "exclusion_table.csv"), r
 saveRDS(cs, file.path(output_data_path, "dt_for_cross_sectional_analysis.rda"))
 saveRDS(cs_r, file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda"))
 saveRDS(cs_ml, file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda"))
-saveRDS(cs_lcm, file.path(output_data_path, "dt_for_cross_sectional_analysis_low_cost_monitors.rda"))
+saveRDS(cs_lcm, file.path(output_data_path, "dt_for_cross_sectional_analysis_lcm.rda"))
 
-
+message("Done with 7_clean_act_dt.R")

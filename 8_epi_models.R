@@ -23,9 +23,10 @@ use_cores <- 4
 ######################################################################
 main_pollutants <-c( 
   "ns_total_conc", "ns_10_100",
-  "ns_11.5", "ns_64.9",
-  "ns_20.5", "ns_27.4", "ns_36.5", "ns_48.7", "ns_86.6", "ns_115.5", "ns_154.0",
-  "pnc_noscreen" #onroad data use ptrak
+  "pnc_noscreen" #onroad & ML models use ptrak
+  # not using bins here
+  # "ns_11.5", "ns_64.9",
+  # "ns_20.5", "ns_27.4", "ns_36.5", "ns_48.7", "ns_86.6", "ns_115.5", "ns_154.0",
   )
 
 saveRDS(main_pollutants, file.path(output_data_path, "main_pollutants.rda"))
@@ -41,10 +42,17 @@ no2_units <- 5
 
 # --> START HERE: update e.g. balanced seasons should include _balsea_
 
+#additional designs added later. include descriptions & model eval
+campaign_descriptions_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval.rda"))  %>%
+  left_join(read.csv(file.path(dt_path, "other_designs_model_cw.csv"))  ) %>%
+  mutate(reference = "gs_estimate")
+
 campaign_descriptions <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns.rda")) %>%
-  filter(variable %in% main_pollutants &
-         # drop repetitive design
-         !(design == "balanced seasons" & version=="4"))
+  filter(# other (updated) designs will come from next file
+    design %in% c("fewer total stops", "full")) %>%
+  select(-performance) %>%
+  bind_rows(select(campaign_descriptions_other_designs, names(.))) %>%
+  filter(variable %in% main_pollutants) 
 
 saveRDS(campaign_descriptions, file.path(dt_path, "Selected Campaigns", "selected_campaigns_v2.rda"))
 
@@ -61,7 +69,6 @@ cw_r <- read.csv(file.path(dt_path, "onroad_model_cw.csv"))
 
 cs_r <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda")) %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
-  #left_join(cw_r) %>%
   mutate(variable = "pnc_noscreen",
          # modeling units
          avg_0_5_yr =  avg_0_5_yr/pnc_units)
@@ -71,24 +78,35 @@ cs_r <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_roa
 cw_ml <- read.csv(file.path(dt_path, "model_ml_cw.csv")) %>%
   mutate(model = gsub("<poll>", "", Issue.17.Model),
          model = paste0(ufp_pollutant, model),
+         model = str_trim(model),
          variable = "pnc_noscreen") %>%
   select(model, method=Method, variable)
 
 write.csv(cw_ml, file.path(dt_path, "model_ml_cw2.csv"), row.names = F)
 
 cs_ml <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda")) %>%
-  select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>% #left_join(cw_ml) %>%
+  select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>% 
   # modeling units
   mutate(avg_0_5_yr =  avg_0_5_yr/pnc_units)
 
 #####################################################################################
 # LCM MODELS
+cw_lcm <- read.csv(file.path(dt_path, "model_cw_lcm0.csv")) %>%
+  mutate(ST.Model.Label. = ifelse(ST.Model.Label.=="", NA, ST.Model.Label.)) %>%
+  pivot_longer(cols = c(ST.Model.Label., SP.Model.Label.), names_to = "model_type", values_to = "model") %>%
+  drop_na(model) %>%
+  rename(method = Description., ) %>%
+  mutate(model_type = substr(model_type, 1,2),
+         model = str_trim(model),
+         model = gsub(" ", "", model),
+         method = str_trim(method),
+         )
 
-# --> START HERE
+write.csv(cw_lcm, file.path(dt_path, "model_cw_lcm.csv"), row.names = F)
 
-
-
-
+cs_lcm <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_lcm.rda")) %>%
+  select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
+  mutate(variable = "pnc_noscreen")
 
 ######################################################################
 # EPI MODELS
@@ -102,34 +120,34 @@ lm_fn <- function(df, ap_prediction.=ap_prediction, model_covars. = model_covars
 }
 
 ######################################################################
-# STATIONARY DATA
-
-# --> ADD TEMP ADJ, SITE TYPE, UPDATED BALSEA DESIGNS, ETC.
-
-message("running STATIONARY models...")
-models <- mclapply(group_split(cs, model), 
-                   mc.cores=use_cores, 
-                   function(x) {lm_fn(df=x)})
-
-saveRDS(models, file.path(output_data_path, "models.rda"))
-
-message("saving model coeficients...")
-
-# --> MAKE INTO FN
-# save coefficient estimates
-model_coefs0 <- mclapply(models, mc.cores=use_cores, function(x) {
+# FN RETURNS MODEL COEFFICIENT SUMMARY
+get_model_results <- function(dt) {
+  
+  mclapply(dt, mc.cores=use_cores, function(x) {
   temp <- data.frame(
     model = x$model,
     est = as.vector(coef(x)[ap_prediction]),
     lower = confint(x)[ap_prediction, 1],
     upper = confint(x)[ap_prediction, 2],
-    se = coef(summary(x))[ap_prediction, "Std. Error"])}) %>%
+    se = coef(summary(x))[ap_prediction, "Std. Error"],
+    n=nobs(x)
+    )
+  }) %>%
   bind_rows() %>%
   mutate(significant = ifelse((lower <0 & upper <0) | 
                                 (lower >0 & upper >0), TRUE, FALSE))
+  } 
 
+######################################################################
+# STATIONARY DATA
+
+message("running STATIONARY models...")
+models <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
+saveRDS(models, file.path(output_data_path, "models.rda"))
+
+message("saving model coeficients...")
+model_coefs0 <- get_model_results(models)
 model_coefs <- left_join(model_coefs0, campaign_descriptions)
-
 saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
 
 
@@ -137,62 +155,34 @@ saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
 # NON-STATIONARY (ROAD) DATA
 message("running NON-STATIONARY models...")
 models_r <- mclapply(group_split(cs_r, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
-
 saveRDS(models_r, file.path(output_data_path, "models_r.rda"))
 
 message("saving model coeficients...")
-# save coefficient estimates
-model_coefs0_r <- mclapply(models_r, mc.cores=use_cores, function(x) {
-  temp <- data.frame(
-    model = x$model,
-    est = as.vector(coef(x)[ap_prediction]),
-    lower = confint(x)[ap_prediction, 1],
-    upper = confint(x)[ap_prediction, 2],
-    se = coef(summary(x))[ap_prediction, "Std. Error"])}) %>%
-  bind_rows() %>%
-  mutate(significant = ifelse((lower <0 & upper <0) | 
-                                (lower >0 & upper >0), TRUE, FALSE))
-
-model_coefs_r <- left_join(model_coefs0_r, cw_r)
-
+model_coefs_r <- get_model_results(models_r) %>%
+  left_join(cw_r)
 saveRDS(model_coefs_r, file.path(output_data_path, "model_coefs_r.rda"))
 
 ######################################################################
 # MACHINE LEARNING EXPOSURE MODELS
 message("running MACHINE LEARNING models...")
 models_ml <- mclapply(group_split(cs_ml, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
-
 saveRDS(models_ml, file.path(output_data_path, "models_ml.rda"))
 
 message("saving model coeficients...")
-# save coefficient estimates
-model_coefs0_ml <- mclapply(models_ml, mc.cores=use_cores, function(x) {
-  temp <- data.frame(
-    model = x$model,
-    est = as.vector(coef(x)[ap_prediction]),
-    lower = confint(x)[ap_prediction, 1],
-    upper = confint(x)[ap_prediction, 2],
-    se = coef(summary(x))[ap_prediction, "Std. Error"])}) %>%
-  bind_rows() %>%
-  mutate(significant = ifelse((lower <0 & upper <0) | 
-                                (lower >0 & upper >0), TRUE, FALSE),
-         #model = as.character(model)
-         )
-
-# --> issue merging "model" across 2 df's for some reason
-model_coefs_ml <- #left_join(
-  model_coefs0_ml #, cw_ml)
-
-#model_coefs_ml
-
+model_coefs_ml <-  get_model_results(models_ml) %>%
+  left_join(cw_ml)
 saveRDS(model_coefs_ml, file.path(output_data_path, "model_coefs_ml.rda"))
 
 #####################################################################################
 # LCM MODELS
+message("running LCM models...")
+models_lcm <- mclapply(group_split(cs_lcm, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
+saveRDS(models_lcm, file.path(output_data_path, "models_lcm.rda"))
 
-
-
-
+message("saving model coeficients...")
+model_coefs_lcm <-  get_model_results(models_lcm) %>%
+  left_join(cw_lcm)
+saveRDS(model_coefs_lcm, file.path(output_data_path, "model_coefs_lcm.rda"))
 
 ######################################################################
 
