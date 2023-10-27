@@ -18,7 +18,6 @@ pacman::p_load(tidyverse, lubridate, kableExtra)
 set.seed(1)
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-#dt_path <- file.path("Output", "v1_20230131")
 
 output_data_path <- file.path(dt_path, "epi")
 if(!file.exists(output_data_path)) {dir.create(output_data_path, recursive = T)}
@@ -64,14 +63,11 @@ count_remaining_sample <- function(dt, description., notes.=NA) {
 # LOAD DATA
 ######################################################################
 # outcome & covariate data
-health_dt_path <-file.path("data", "issue_12", "issue_012_for_release_20230316", "issue_012_for_release.rda"
-                           #"issue_012_for_release.Rdata"
-                           )
+health_dt_path <-file.path("data", "issue_12", "issue_012_rerun_for_release20231010", "issue_012.rda")
 
 if(file.exists(health_dt_path)) {
   health0 <- readRDS(health_dt_path)
 } else {
-    #for some reason there is now a loading issue & this doesn't work
     health0 <- haven::read_sas(gsub(".rda", ".sas7bdat", health_dt_path) , NULL)
     saveRDS(health0, health_dt_path)
 }
@@ -79,7 +75,7 @@ if(file.exists(health_dt_path)) {
 exclusion_table <- count_remaining_sample(health0, description. = "Full dataset")
 
 # exposure predictions from different models
-exposure_dt_path <- file.path("data", "issue_17", "issue_17_04242023", "issue_017_04242023.rda")
+exposure_dt_path <- file.path("data", "issue_17", "issue_017_rerun20231020.rda")
 
 if(file.exists(exposure_dt_path)) {
   exposure0 <- readRDS(exposure_dt_path)
@@ -89,15 +85,20 @@ if(file.exists(exposure_dt_path)) {
 }
 
 ########################################################
-# SIDE NOTE - look at Si's alternative machine learning models. These are like "all-data" campaign but the models are developed differently
 # see "ACT and HEI Data Documentation for UW" doc for all model crosswalks
-# #other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
-# #other_model_names
+# ID model names for LCS, ML, onroad ("^r")
+other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
+other_model_names
+
+
+# SIDE NOTE - look at Si's alternative machine learning models. These are like "all-data" campaign but the models are developed differently
 # si's ML UFP models
-# ml_models <- c("upls", "uspatpl", "uspatcv", "urf", "utprs", "urt", "utr")
-# ml_exposure0 <- filter(exposure0, model %in% ml_models)
-  
+ml_models <- c("upls", "uspatpl", "uspatcv", "urf", "utprs", "urt", "utr")
+# low-cost sensor/monitor (LCM) models
+lcm_models <- str_subset(unique(exposure0$model), "^pm25_fptv_|^pm25_fp_|^pm25_rp_|^pm25_fp_")
+
 # # do we learn anything different from the different models?
+# ml_exposure0 <- filter(exposure0, model %in% ml_models)
 # ml_exposure0 %>%
 #   pivot_wider(names_from = model, values_from = avg_0_5_yr) %>%
 #   pivot_longer(cols = urf:utr) %>%
@@ -115,9 +116,13 @@ if(file.exists(exposure_dt_path)) {
 #   summarize(cor = cor(upls, value))
   
 ########################################################
-# other models we'll eventually use: non-stationary (road), Si's ML models
+# other models we'll eventually use 
+## Road models
 exposure0_r <- filter(exposure0, grepl("^r_", model))
+## Si's ML models
 exposure0_ml <- filter(exposure0, grepl(paste(ml_models, collapse = "|"), model))
+## LCM
+exposure0_lcm <- filter(exposure0, grepl(paste(lcm_models, collapse = "|"), model))
 
 #main models use the stop data
 exposure0 <- filter(exposure0, grepl("^s_", model))
@@ -202,7 +207,7 @@ health <- health %>%
 ######################################################################
 # MISSINGNESS
 ######################################################################
-# Proportion missing: APOE, .2% race, 5% NSES is missing 
+# Proportion missing: APOE, .2% race, 5% NSES is missing [has this been updated?]
 health %>%
   summarize_all(~sum(is.na(.))) %>%
   pivot_longer(everything(), names_to = "covariate", values_to = "count") %>%
@@ -229,6 +234,8 @@ cs <- left_join(health, exposure0, by="study_id")
 cs_r <- left_join(health, exposure0_r, by="study_id")
 # ML models w/ stationary data
 cs_ml <- left_join(health, exposure0_ml, by="study_id")
+# LCM models
+cs_lcm <- left_join(health, exposure0_lcm, by="study_id")
 
 ######################################################################
 # QC VARIABLES
@@ -247,3 +254,6 @@ write.csv(exclusion_table, file.path(output_data_path, "exclusion_table.csv"), r
 saveRDS(cs, file.path(output_data_path, "dt_for_cross_sectional_analysis.rda"))
 saveRDS(cs_r, file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda"))
 saveRDS(cs_ml, file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda"))
+saveRDS(cs_lcm, file.path(output_data_path, "dt_for_cross_sectional_analysis_low_cost_monitors.rda"))
+
+

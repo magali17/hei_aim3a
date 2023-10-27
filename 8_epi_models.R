@@ -38,6 +38,9 @@ pnc_units <- 1000
 no2_units <- 5
 #####################################################################################
 # STATIONARY DATA
+
+# --> START HERE: update e.g. balanced seasons should include _balsea_
+
 campaign_descriptions <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns.rda")) %>%
   filter(variable %in% main_pollutants &
          # drop repetitive design
@@ -68,20 +71,24 @@ cs_r <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_roa
 cw_ml <- read.csv(file.path(dt_path, "model_ml_cw.csv")) %>%
   mutate(model = gsub("<poll>", "", Issue.17.Model),
          model = paste0(ufp_pollutant, model),
-         
-         # --> is this right?
          variable = "pnc_noscreen") %>%
-  
   select(model, method=Method, variable)
 
 write.csv(cw_ml, file.path(dt_path, "model_ml_cw2.csv"), row.names = F)
 
 cs_ml <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda")) %>%
-  select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
-  #left_join(cw_ml) %>%
-  
-  mutate(# modeling units
-         avg_0_5_yr =  avg_0_5_yr/pnc_units)
+  select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>% #left_join(cw_ml) %>%
+  # modeling units
+  mutate(avg_0_5_yr =  avg_0_5_yr/pnc_units)
+
+#####################################################################################
+# LCM MODELS
+
+# --> START HERE
+
+
+
+
 
 ######################################################################
 # EPI MODELS
@@ -96,6 +103,9 @@ lm_fn <- function(df, ap_prediction.=ap_prediction, model_covars. = model_covars
 
 ######################################################################
 # STATIONARY DATA
+
+# --> ADD TEMP ADJ, SITE TYPE, UPDATED BALSEA DESIGNS, ETC.
+
 message("running STATIONARY models...")
 models <- mclapply(group_split(cs, model), 
                    mc.cores=use_cores, 
@@ -104,6 +114,8 @@ models <- mclapply(group_split(cs, model),
 saveRDS(models, file.path(output_data_path, "models.rda"))
 
 message("saving model coeficients...")
+
+# --> MAKE INTO FN
 # save coefficient estimates
 model_coefs0 <- mclapply(models, mc.cores=use_cores, function(x) {
   temp <- data.frame(
@@ -173,8 +185,14 @@ model_coefs_ml <- #left_join(
 
 #model_coefs_ml
 
-
 saveRDS(model_coefs_ml, file.path(output_data_path, "model_coefs_ml.rda"))
+
+#####################################################################################
+# LCM MODELS
+
+
+
+
 
 ######################################################################
 
