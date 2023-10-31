@@ -40,8 +40,6 @@ no2_units <- 5
 #####################################################################################
 # STATIONARY DATA
 
-# --> START HERE: update e.g. balanced seasons should include _balsea_
-
 #additional designs added later. include descriptions & model eval
 campaign_descriptions_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval.rda"))  %>%
   left_join(read.csv(file.path(dt_path, "other_designs_model_cw.csv"))  ) %>%

@@ -77,6 +77,8 @@ sim_n <- 30
 
 # table(pls_categories$pls_cats) # 90*2/309 = 58% of sites changing 
 visit_count <- seq(2,22, 2)
+site_type_levels <- paste("H", rev(visit_count), "L", visit_count)
+saveRDS(site_type_levels, file.path(dt_path, "site_type_levels.rda"))
 
 default_count <- 12
 

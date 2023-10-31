@@ -3,6 +3,9 @@
 #######################################################################################################################
 label_designs <- function(dt) {
   
+  site_type_levels <- readRDS(file.path(dt_path, "site_type_levels.rda")) %>% rev()
+  site_type_levels_alt <- gsub("H ", "H", site_type_levels) %>% gsub("L ", "L", .)
+  
   dt <- dt %>% mutate(
     design = ifelse(design == "full", "All Data", 
                     ifelse(design == "balanced seasons", "Fewer Seasons",
@@ -13,15 +16,26 @@ label_designs <- function(dt) {
                                        "Fewer Visits",
                                        "Balanced Seasons",
                                        "Fewer Seasons",
-                                       "Fewer Hours")),
+                                       "Fewer Hours",
+                                       "Site Type"
+                                       )),
     
     version = ifelse(version == "all training data", "all data", version),
+    # shorten name
+    version = gsub("temp ", "", version),
+    version = gsub("business", "Bus", version),
+    version = gsub("H ", "H", version),
+    version = gsub("L ", "L", version),
     version = str_to_title(version),
     version = ifelse(version=="12_visits 309_sites", "12", #"3,700",
                      ifelse(version=="6_visits 309_sites", "6", #"1,850",
                             ifelse(version=="4_visits 309_sites", "4", #"1,200",
                                    version))),
-    version = factor(version, levels = c("All Data", 1:3, "4", "6", "12", "Business", "Rush"))) 
+    version = factor(version, levels = c("All Data", 1:3, "4", "6", "12", 
+                                         "Business", "Business Adj", "Bus", "Bus Adj",
+                                         "Rush","Rush Adj",
+                                         site_type_levels, site_type_levels_alt
+                                         ))) 
   
   return(dt)
 }

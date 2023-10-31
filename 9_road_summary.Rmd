@@ -48,11 +48,7 @@ set.seed(1)
 source("functions.R")
 output_data_path <- file.path(dt_path, "epi")
 
-image_path <- file.path("..", "Manuscript", "Images", "v3_20230321")
-
-# if(!dir.exists(file.path(image_path, "other", "presentation"))) {dir.create(file.path(image_path, "other", "presentation"), recursive = T)}
-# if(!dir.exists(file.path(image_path, "other", "poster"))) {dir.create(file.path(image_path, "other", "poster"), recursive = T)}
-# if(!dir.exists(file.path(image_path, "SI"))) {dir.create(file.path(image_path, "SI"), recursive = T)}
+image_path <- file.path("..", "Manuscript", "Images", "v4")
 
 # ggplot settings
 theme_set(theme_bw())
@@ -82,6 +78,52 @@ theme_update(legend.position = "bottom")
 #   #label_pollutants() %>% label_designs()
 
 ```
+
+
+# Model Crosswalk/definitions
+
+```{r}
+
+```
+
+
+# Model R2
+```{r}
+
+```
+
+# ? Prediction Correlations
+```{r}
+
+
+```
+
+# Compare participant exposures 
+```{r}
+
+
+```
+
+# Compare health effect estimates (CASI-IRT)
+```{r}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
