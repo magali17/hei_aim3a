@@ -653,7 +653,7 @@ true_betas <- model_coefs %>%
 
 true_betas %>%
   mutate_if(is.numeric, ~round(., 3)) %>%
-  kable(caption = "beta estiamtes from the all data campaign") %>%
+  kable(caption = "coefficient health estiamtes from the all data campaign") %>%
   kable_styling()
 
 p_list <- unique(true_betas$variable) %>% as.character()
@@ -674,7 +674,7 @@ lapply(p_list, function(x){
       geom_rect(inherit.aes = F, data=filter(true_betas, variable==x), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=0.25) +
       geom_hline(data=filter(true_betas, variable==x), aes(yintercept = est)) +
       geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
-      labs(title=x, col = "Statistically Significant", x="Campaign", y = "Beta Estimate")
+      labs(title=x, col = "Statistically Significant", x="Campaign", y = "Coefficient Estimate")
       
       if(grepl("10-420 nm|Total", x)) {
         p <- p + facet_wrap(~design+version, ncol = 2) 
@@ -713,7 +713,7 @@ p <- lapply(d, function(x) {
       geom_hline(data=filter(true_betas, grepl("Total", variable)), 
                  aes(yintercept = est)) +
       geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.5, alpha=0.8) +
-      labs(col = "Statistically Significant", x="Campaign", y = "Beta Estimate")
+      labs(col = "Statistically Significant", x="Campaign", y = "Coefficient Estimate")
   
   print(p)
 
@@ -774,11 +774,11 @@ model_coefs %>%
   filter(grepl("Visits|Seasons", design)) %>%
   group_by(variable) %>%
   alt_boxplot(var = "est") %>%
-  kable(caption = "distribution of beta estimates for fewer visits & seasons", digits = 3) %>%
+  kable(caption = "distribution of Coefficient estimates for fewer visits & seasons", digits = 3) %>%
   kable_styling()
 
 # keep this even though code below is the same to not show facet label for main analysis figure
-# true beta estimate
+# true Coefficient estimate
 tot_pnc <- filter(true_betas, grepl("Total|10-420", variable)) %>%
   pull(est)
 
@@ -794,7 +794,7 @@ model_coefs %>%
   scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="% Difference", labels = scales::percent), limits = y_lims) +
     geom_label(data=mutate(filter(true_betas, grepl("Total|10-420", variable)), design="All Data" ) %>% mutate(design= factor(design, levels= levels(model_coefs$design))), aes(x=1, y=est, label = round(tot_pnc, 3)), #col=uw_purple
                ) +
-  labs(y = "Beta Point Estimate", x = "Design")
+  labs(y = "Coefficient Point Estimate", x = "Design")
 
 ggsave(file.path(image_path, "beta_boxplots_main.png"), width = 6, height = 4)
 
@@ -820,7 +820,7 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm"), function(x) {
     scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_pnc)/-ref_pnc, name="% Difference", labels = scales::percent), limits = c(-0.02, 0.001)) +
     geom_label(data=filter(true_betas, variable==x) %>% mutate(design="All Data", design= factor(design, levels= levels(model_coefs$design))),
                aes(x=1, y=est, label = round(est, 3))) +
-  labs(y = "Beta Point Estimate", x = "Design")
+  labs(y = "Coefficient Point Estimate", x = "Design")
   
   p
   }) %>%
@@ -879,7 +879,7 @@ bias <- bias0 %>%
   alt_boxplot(var = "error") 
 
 bias %>% 
-  kable(caption = "Distribution of beta difference for each design", 
+  kable(caption = "Distribution of coefficient difference for each design", 
         digits = 3) %>%
   kable_styling()
 
@@ -888,14 +888,14 @@ bias0 %>%
   filter(grepl("Visits|Seasons", design)) %>%
   alt_boxplot(var = "error") %>%
   mutate_if(is.numeric, ~round(., 3)) %>% 
-  kable(caption = "Distribution of beta errors for fewer visits & seasons") %>%
+  kable(caption = "Distribution of Coefficient errors for fewer visits & seasons") %>%
   kable_styling()
 
 bias0 %>%
   filter(grepl("Fewer Hours", design)) %>%
   alt_boxplot(var = "error") %>%
   mutate_if(is.numeric, ~round(.,3)) %>%
-  kable(caption = "Distribution of beta differences for fewer hours") %>%
+  kable(caption = "Distribution of Coefficient differences for fewer hours") %>%
   kable_styling()
 
 ```
@@ -912,7 +912,7 @@ bias_pct <- bias0 %>%
 bias_pct %>% 
   #select(-c(Qmin, Qmax)) %>%
   mutate_if(is.numeric, ~round(.)) %>%
-  kable(caption = "Distribution of beta difference (%) for each design") %>%
+  kable(caption = "Distribution of Coefficient difference (%) for each design") %>%
   kable_styling()
 
 
@@ -921,14 +921,14 @@ bias0 %>%
   filter(grepl("Visits|Seasons", design)) %>%
   alt_boxplot(var = "error_pct") %>%
   mutate_if(is.numeric, ~round(.)) %>%
-  kable(caption = "Distribution of beta difference (%) for fewer visits & seasons") %>%
+  kable(caption = "Distribution of Coefficient difference (%) for fewer visits & seasons") %>%
   kable_styling()
 
 bias0 %>%
   filter(grepl("Fewer Hours", design)) %>%
   alt_boxplot(var = "error_pct") %>%
   mutate_if(is.numeric, ~round(.)) %>%
-  kable(caption = "Distribution of beta errors (%) for fewer hours") %>%
+  kable(caption = "Distribution of Coefficient errors (%) for fewer hours") %>%
   kable_styling()
 
 ```

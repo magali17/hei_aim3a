@@ -153,12 +153,12 @@ saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
 # NON-STATIONARY (ROAD) DATA
 message("running NON-STATIONARY models...")
 models_r <- mclapply(group_split(cs_r, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
-saveRDS(models_r, file.path(output_data_path, "models_r.rda"))
+saveRDS(models_r, file.path(output_data_path, "models_road.rda"))
 
 message("saving model coeficients...")
 model_coefs_r <- get_model_results(models_r) %>%
   left_join(cw_r)
-saveRDS(model_coefs_r, file.path(output_data_path, "model_coefs_r.rda"))
+saveRDS(model_coefs_r, file.path(output_data_path, "model_coefs_road.rda"))
 
 ######################################################################
 # MACHINE LEARNING EXPOSURE MODELS
