@@ -87,33 +87,13 @@ if(file.exists(exposure_dt_path)) {
 ########################################################
 # see "ACT and HEI Data Documentation for UW" doc for all model crosswalks
 # ID model names for LCS, ML, onroad ("^r")
-other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
+#other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
 #other_model_names
 
-
-# SIDE NOTE - look at Si's alternative machine learning models. These are like "all-data" campaign but the models are developed differently
 # si's ML UFP models
 ml_models <- c("upls", "uspatpl", "uspatcv", "urf", "utprs", "urt", "utr")
 # low-cost sensor/monitor (LCM) models
 lcm_models <- str_subset(unique(exposure0$model), "^pm25_fptv_|^pm25_fp_|^pm25_rp_|^pm25_fp_")
-
-# # do we learn anything different from the different models?
-# ml_exposure0 <- filter(exposure0, model %in% ml_models)
-# ml_exposure0 %>%
-#   pivot_wider(names_from = model, values_from = avg_0_5_yr) %>%
-#   pivot_longer(cols = urf:utr) %>%
-#   
-#   ggplot(aes(x=upls, y=value, col=name)) +
-#   geom_point(alpha=0.05) + 
-#   geom_smooth() +
-#   geom_abline(slope = 1, intercept = 0, linetype=2) 
-# 
-# # predictions are highly correlated
-# ml_exposure0 %>%
-#   pivot_wider(names_from = model, values_from = avg_0_5_yr) %>%
-#   pivot_longer(cols = urf:utr) %>%
-#   group_by(name) %>%
-#   summarize(cor = cor(upls, value))
   
 ########################################################
 # other models we'll eventually use 
@@ -123,13 +103,8 @@ exposure0_r <- filter(exposure0, grepl("^r_", model))
 exposure0_ml <- filter(exposure0, grepl(paste(ml_models, collapse = "|"), model))
 ## LCM
 exposure0_lcm <- filter(exposure0, grepl(paste(lcm_models, collapse = "|"), model))
-
 #main models use the stop data
 exposure0 <- filter(exposure0, grepl("^s_", model))
-
-######################################################################
-# COMMON VARIABLES
-######################################################################
 
 ######################################################################
 # PREP DATASET
@@ -137,6 +112,18 @@ exposure0 <- filter(exposure0, grepl("^s_", model))
 # baseline data 
 health <- filter(health0, VISIT==0)
 exclusion_table <- count_remaining_sample(health, description. = "Baseline data")
+
+######################################################################
+exposure0_lcm_ref <- health %>% 
+  select(study_id, 
+         full_pm25_ST = cum_exp_pm25_ST_05_yr, 
+         full_pm25_SP = cum_exp_pm25_SP_05_yr,
+         # note that all of these QC indicator variabels are for ST (the true ref model), not SP
+         exp_coverage= avg_wc_pm25_ST_05_yr,
+         exact_coverage=avg_ec_pm25_ST_05_yr,
+         imp_coverage=avg_ic_pm25_ST_05_yr, 
+         imputation_quality=avg_iq_pm25_ST_05_yr) %>%
+  pivot_longer(cols = c(full_pm25_ST, full_pm25_SP), names_to = "model", values_to = "avg_0_5_yr")
 
 ######################################################################
 
@@ -179,15 +166,16 @@ exclusion_table <- count_remaining_sample(health, description. = "High exposure 
 
 
 model_covars <- c("visit_age_centered75", "year2", "male", "degree"#, 
-                  #"apoe"#, dropping this requirement b/c drops ~ 16% of people (post 2018) w/o APOE genotyping
+                  #"apoe"#, dropping this requirement b/c drops ~ 16% of people (post 2018) w/o APOE genotyping. this is different from Nancy's work, but OK since this is not a confounder anyway so results should be similar
                   #"race_white" #, "nses_z_cx"
                   )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 
 health <- health %>%
   mutate(
-    # 2 yr time bins
+    # 2 yr time bins most of the time other than during the first wave (1994-1995) - following Nancy's cross-sectional analysis approach
     year2 = floor(year/2)*2,
+    year2 = ifelse(year==1995, 1995, year2),
     year2 = factor(year2),
     race_white = ifelse(race == 1, 1, 0),
     # --> should 9 be a 6 instead? but would change Rachel's models
@@ -197,7 +185,7 @@ health <- health %>%
     degree = ifelse(degree %in% c(1:2), 1, degree),
     degree = factor(degree),
     visit_age_centered75 = visit_age - 75
-  ) %>%
+  ) %>%  
   select(study_id, casi_irt, all_of(model_covars),
          #QC variables for NO2 and UFP
          ends_with(c("no2_MM_05_yr", "ufp_10_42_MM_05_yr")),
@@ -235,7 +223,9 @@ cs_r <- left_join(health, exposure0_r, by="study_id")
 # ML models w/ stationary data
 cs_ml <- left_join(health, exposure0_ml, by="study_id")
 # LCM models
-cs_lcm <- left_join(health, exposure0_lcm, by="study_id")
+## include full ST (and SP) ref models
+cs_lcm <- left_join(health, exposure0_lcm, by="study_id") %>%
+  rbind(left_join(health, exposure0_lcm_ref, by="study_id"))
 
 ######################################################################
 # QC VARIABLES

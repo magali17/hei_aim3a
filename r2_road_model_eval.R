@@ -30,41 +30,6 @@ set.seed(1)
 ##################################################################################################
 # DATA
 ##################################################################################################
-# message("loading data")
-# 
-# ## 5884 locations used. does not include all necessary covariates used (e.g. pop10, bus)
-# road_locations_used <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>%
-#   pull(native_id)
-# 
-# cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
-#   filter(native_id %in% road_locations_used) %>%
-#   mutate(native_id = as.character(native_id),
-#          location = substr(native_id, nchar(native_id)-3, nchar(native_id)),
-#          location = as.numeric(location)) %>%
-#   generate_new_vars() %>%
-#   select(location, latitude, longitude, all_of(cov_names))
-#   
-# ## 5874 locations
-# onroad_ns <- readRDS(file.path("data", "onroad", "annie", "PNC_nonspatial_annavgs.rds")) %>%
-#   mutate(spatial_code = "sn")
-# onroad_s <- readRDS(file.path("data", "onroad", "annie", "PNC_spatial_annavgs.rds")) %>%
-#   mutate(spatial_code = "sy")
-# onroad0 <- rbind(onroad_ns, onroad_s) %>%
-#   rename(location=id,
-#          value = annual_mean) %>%
-#   # log transform pollutant concentrations before modeling
-#   mutate(value = ifelse(value== 0, 1, value),
-#          value = log(value),
-#          variable = "pnc_noscreen"
-#          ) 
-#    
-# ### TEST 
-# #distinct(onroad_ns, design, version, visits, adjusted)
-# # distinct(onroad_s, design, visits, version, adjusted )
-# 
-# #rm(onroad_ns, onroad_s)
-
-
 onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
 
 # stationary data; for out-of-sample validation

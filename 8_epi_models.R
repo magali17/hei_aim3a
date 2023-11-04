@@ -24,9 +24,6 @@ use_cores <- 4
 main_pollutants <-c( 
   "ns_total_conc", "ns_10_100",
   "pnc_noscreen" #onroad & ML models use ptrak
-  # not using bins here
-  # "ns_11.5", "ns_64.9",
-  # "ns_20.5", "ns_27.4", "ns_36.5", "ns_48.7", "ns_86.6", "ns_115.5", "ns_154.0",
   )
 
 saveRDS(main_pollutants, file.path(output_data_path, "main_pollutants.rda"))
@@ -34,27 +31,37 @@ saveRDS(main_pollutants, file.path(output_data_path, "main_pollutants.rda"))
 model_covars <- readRDS(file.path(output_data_path, "model_covars.rda"))
 ap_prediction <- "avg_0_5_yr"
 
-# modeling units
-pnc_units <- 1000
-no2_units <- 5
+# modeling units - using same as Nancy et al. 2023 draft
+pm25_units <- 1 
+pnc_units <- 1900#1000
+no2_units <- 3 #5
+
 #####################################################################################
 # STATIONARY DATA
 
 #additional designs added later. include descriptions & model eval
+## note that fewer hour designs are only for total NS, so have to use the old ones for sensitivity analyses 
 campaign_descriptions_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval.rda"))  %>%
   left_join(read.csv(file.path(dt_path, "other_designs_model_cw.csv"))  ) %>%
   mutate(reference = "gs_estimate")
 
-campaign_descriptions <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns.rda")) %>%
-  filter(# other (updated) designs will come from next file
-    design %in% c("fewer total stops", "full")) %>%
+campaign_descriptions0 <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns.rda"))
+
+# I accidentally dropped these other pollutants from the temporal adjustment, so using the original 30 campaigns for these variables. Shoudl be OK since all campaigns were selected randomly anayway
+campaign_descriptions_fewer_hrs_sensitivity <- campaign_descriptions0 %>%
+  filter(design == "fewer hours" & variable %in% c("pnc_noscreen", "ns_10_100"))
+  
+campaign_descriptions <- campaign_descriptions0 %>%
+  filter(design %in% c("fewer total stops", "full")) %>%
+  bind_rows(campaign_descriptions_fewer_hrs_sensitivity) %>%
   select(-performance) %>%
   bind_rows(select(campaign_descriptions_other_designs, names(.))) %>%
   filter(variable %in% main_pollutants) 
 
 saveRDS(campaign_descriptions, file.path(dt_path, "Selected Campaigns", "selected_campaigns_v2.rda"))
 
-cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
+cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) 
+cs <- cs0 %>%
   filter(model %in% campaign_descriptions$model) %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
   left_join(select(campaign_descriptions, model, variable), by="model") %>%
@@ -97,8 +104,12 @@ cw_lcm <- read.csv(file.path(dt_path, "model_cw_lcm0.csv")) %>%
   mutate(model_type = substr(model_type, 1,2),
          model = str_trim(model),
          model = gsub(" ", "", model),
-         method = str_trim(method),
-         )
+         method = str_trim(method)) %>%
+  # add full SP models to CW
+  add_row(method = c("Full Model", "Full Model"),
+          model_type = c("ST", "SP"),
+          model = c("full_pm25_ST", "full_pm25_SP")
+          )
 
 write.csv(cw_lcm, file.path(dt_path, "model_cw_lcm.csv"), row.names = F)
 

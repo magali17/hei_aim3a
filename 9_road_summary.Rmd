@@ -50,7 +50,7 @@ theme_update(legend.position = "bottom")
 # LOAD DATA
 ##################################################################################################
 #model eval
-model_eval <- readRDS(file.path(dt_path, "model_eval_road.rda"))
+model_eval <- readRDS(file.path(dt_path, "onroad_model_eval.rda"))
 
 cw <- read.csv(file.path(dt_path, "onroad_model_cw.csv")) %>%
   mutate(variable="pnc_noscreen") %>%
@@ -83,7 +83,15 @@ cw %>%
 ```
 
 # Model R2
-This should be in Si's 2023 paper (SI?) along with model descriptiosn? 
+
+# --> START CODING HERE; update from ML model code
+
+```{r}
+
+
+```
+
+
 
 # Participant Exposrue Predictions 
 
@@ -91,7 +99,7 @@ comparison of predicted 5 yr exposures at baseline
 
 ```{r}
 # plot
-cs_ml %>%
+cs %>%
   pivot_wider(names_from = model, values_from = exposure) %>%  
   pivot_longer(cols = RF:TR) %>%
   
@@ -102,7 +110,7 @@ cs_ml %>%
   labs(col="Machine Learning\nModel", y="Machine Learning Prediction", x= "UK-PLS Prediction")
 
 #table
-cs_ml %>%
+cs %>%
   group_by(model) %>%
   alt_boxplot(var="exposure") %>%
   rename(Q2.5=Qmin, Q97.5=Qmax) %>%
@@ -116,7 +124,7 @@ cs_ml %>%
 
 ```{r}
 
-cs_ml %>%
+cs %>%
   pivot_wider(names_from = model, values_from = exposure) %>%
   rename(ukpls = 'UK-PLS') %>%
   pivot_longer(cols = RF:TR) %>%
@@ -137,7 +145,8 @@ the resulting health estimates from using UK-PLS and various ML UFP exposure mod
 # --> could color my R2
 
 ```{r}
-ref_beta <- model_coefs_ml$est[model_coefs_ml$model=="UK-PLS"]
+# --> UPDATE
+ref_beta <- model_coefs$est[model_coefs$model=="UK-PLS"]
 
 print("adjustd association between P-TRAK UFP (1k pt/cm3) and CASI-IRT")
 model_coefs_ml %>%
