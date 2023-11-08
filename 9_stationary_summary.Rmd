@@ -140,6 +140,12 @@ print(paste("Qmax in tables is", bp_max))
 
 one_to_one_band <- 0.2
 
+#reference estimates
+# --> OK that ref says "more restrictive or less bal"?
+# ref_model_coefs <- model_coefs %>%
+#   filter(design=="All Data")
+# ggsave(ref_model_coefs, file.path())
+
 # UW colors
 uw_purple <- "#4b2e83"
 uw_gold1 <- "#b7a57a" # web: e8e3d3
