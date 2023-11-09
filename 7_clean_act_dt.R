@@ -22,7 +22,10 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 output_data_path <- file.path(dt_path, "epi")
 if(!file.exists(output_data_path)) {dir.create(output_data_path, recursive = T)}
 
+if(!file.exists(file.path(dt_path, "error"))) {dir.create(file.path(dt_path, "error"), recursive = T)}
+
 if(!file.exists(file.path("data", "issue_12"))) {dir.create(file.path("data", "issue_12"))}
+if(!file.exists(file.path("data", "issue_16"))) {dir.create(file.path("data", "issue_16"))}
 if(!file.exists(file.path("data", "issue_17"))) {dir.create(file.path("data", "issue_17"))}
 
 ######################################################################
@@ -82,6 +85,18 @@ if(file.exists(exposure_dt_path)) {
 } else {
   exposure0 <- haven::read_sas(gsub(".rda", ".sas7bdat", exposure_dt_path), NULL)
   saveRDS(exposure0, exposure_dt_path)
+}
+
+# measurement error dataset - bootstrapped site/visit samples used to develop exposure prediction models
+me_dt_path <- file.path("data", "issue_16", "issue_16_rerun", "issue_016_20230929.rda")
+
+if(file.exists(me_dt_path)) {
+  me_exposure <- readRDS(me_dt_path)
+} else {
+  me_exposure <- haven::read_sas(gsub(".rda", ".sas7bdat", me_dt_path), NULL) %>%
+    #drop exp coverage, exact_coverage, imp_coverage, imp quality
+    select(study_id, avg_0_5_yr, model)
+  saveRDS(me_exposure, me_dt_path)
 }
 
 ########################################################
@@ -161,7 +176,6 @@ good_exposure_ids <- filter(exposure0, exp_coverage >= coverage_threshold) %>%
   distinct(study_id) %>% pull()
 health <- filter(health, study_id %in% good_exposure_ids)
 
-
 exclusion_table <- count_remaining_sample(health, description. = "High exposure coverage")
 
 
@@ -213,6 +227,7 @@ health %>%
 health <- drop_na(health, all_of(model_covars))
 exclusion_table <- count_remaining_sample(health, description. = "all covariates available")
 
+saveRDS(health, file.path("data", "issue_12", "issue_012_rerun_for_release20231010", "issue_012_clean.rda"))
 ######################################################################
 # COMBINE HEALTH AND EXPOSURE DATA
 ######################################################################
@@ -226,6 +241,9 @@ cs_ml <- left_join(health, exposure0_ml, by="study_id")
 ## include full ST (and SP) ref models
 cs_lcm <- left_join(health, exposure0_lcm, by="study_id") %>%
   rbind(left_join(health, exposure0_lcm_ref, by="study_id"))
+# data for measurement error (HEI Aim 3b) ananlysis
+cs_error <- left_join(health, me_exposure, by="study_id")
+
 
 ######################################################################
 # QC VARIABLES
@@ -245,5 +263,6 @@ saveRDS(cs, file.path(output_data_path, "dt_for_cross_sectional_analysis.rda"))
 saveRDS(cs_r, file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda"))
 saveRDS(cs_ml, file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda"))
 saveRDS(cs_lcm, file.path(output_data_path, "dt_for_cross_sectional_analysis_lcm.rda"))
+saveRDS(cs_error, file.path(output_data_path, "dt_for_cross_sectional_analysis_error.rda"))
 
 message("Done with 7_clean_act_dt.R")
