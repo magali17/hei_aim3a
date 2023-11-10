@@ -55,8 +55,11 @@ recode_onroad_dt <- function(dt) {
       spatial = ifelse(spatial_code=="sn", "Non-spatially Dependent Sampling", "Spatially Unbalanced Sampling"),
       visits = str_extract(visits, "\\d+"),
       version = ifelse(adjusted=="adjusted", paste(version, "plume adj"), version),
-       version = str_to_title(version),
-       version = factor(version, levels = c("All Hours Plume Adj", "All Hours", "Business Hours Plume Adj", "Business Hours")),
+      version = gsub("hours", "hr", version),
+      version = gsub("business", "bus", version),
+      version = str_to_title(version),
+      # #version = factor(version, levels = c("All Hours Plume Adj", "All Hours", "Business Hours Plume Adj", "Business Hours")),
+      #version = factor(version, levels = c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")),
       design = case_when(
          design=="clustered" ~ "random clusters",
          design=="sensible spatial" ~ "sensible clusters",
@@ -161,7 +164,7 @@ t1_b <- cw %>%
 
 rbind(t1_a, t1_b) %>%
   rename_all(~str_to_title(.)) %>%
-  kable(caption = "Onroad sampling designs. Unbalanced sampling occurs when sites receive a different number of visits, sampled on a log-normal distribution with median of 4 or 12 visits. Balanced sampling occurs when all sites receive the same number of visits, either 4 or 12") %>% 
+  kable(caption = "Onroad sampling designs. Balanced sampling occurs when all sites receive the same number of visits, either 4 or 12. Unbalanced sampling occurs when sites receive a different number of visits, sampled on a log-normal distribution with median of 4 or 12 visits.") %>% 
   kable_styling()
 
 ```
@@ -225,7 +228,7 @@ comparison of predicted 5 yr exposures at baseline
 # reference design
 cs %>%
   filter(design=="Balanced",
-         version == "All Hours Plume Adj",
+         version == "All Hr Plume Adj",
          visits==12) %>% 
   summarize(
     N = n(),
@@ -291,7 +294,7 @@ lapply(spatial_names, function (x) {
   geom_text(data=prop_sign_temp, aes(x=-Inf, y=0.01, label = text_label), 
             hjust=0, vjust=1, #nudge_x = 1,
             size=3) +
-    geom_text(aes(x=Inf, y=-0.020, label = "Best Health Estimate"),
+    geom_text(aes(x=Inf, y=-0.020, label = "Reference Health Estimate"),
               hjust=1, vjust=1, size=3
               ) +
   

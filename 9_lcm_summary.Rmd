@@ -1,0 +1,197 @@
+---
+title: "Epi Results using LCM Exposure Models"
+author: "Magali Blanco"
+date: ' `r Sys.time()` '
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '3'
+    number_sections: true
+    toc_float: true
+    collapsed: false
+    smooth_scroll: false
+editor_options: 
+  chunk_output_type: console
+---
+
+# Setup 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, 
+                      cache=F, cache.comments = F, 
+                      message = F, warning = F, 
+                      tidy.opts=list(width.cutoff=60), tidy=TRUE#, fig.height = 10, fig.width = 10
+                      )  
+
+# Clear workspace of all objects and unload all extra (non-base) packages
+rm(list = ls(all = TRUE))
+if (!is.null(sessionInfo()$otherPkgs)) {
+  res <- suppressWarnings(
+    lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
+           detach, character.only=TRUE, unload=TRUE, force=TRUE))}
+
+pacman::p_load(tidyverse, kableExtra)    
+
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+
+set.seed(1)
+
+source("functions.R")
+output_data_path <- file.path(dt_path, "epi")
+
+image_path <- file.path("..", "Manuscript", "Images", "v4", "other", "lcm")
+if(!dir.exists(image_path)) {dir.create(image_path, recursive = T)}
+# ggplot settings
+theme_set(theme_bw())
+theme_update(legend.position = "bottom")
+
+##################################################################################################
+# LOAD DATA
+##################################################################################################
+# reference models
+## stataionary and LCM
+st_ref_model <- "full_ST" #ST 
+sp_ref_model <- "full_SP" # SP 
+## no LCM
+st_ref_model2 <- "fptv_no" #ST 
+sp_ref_model2 <- "fp_no" # SP 
+
+
+cw <- read.csv(file.path(dt_path, "model_cw_lcm.csv")) %>%
+  mutate(model = gsub("pm25_", "", model))
+
+# person-level exposures 
+cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_lcm.rda")) %>%
+  rename(exposure = avg_0_5_yr) %>%  
+  select(-starts_with("avg_")) %>%
+  mutate(model = gsub("pm25_", "", model)) %>%
+  left_join(select(cw, model, model_type)) %>%
+  #drops 1 person that the "full" model has missing values for
+  drop_na(exposure)
+
+
+# --> START HERE. ERROR. WHY WON'T MODEL FACTOR SO LAST PLOT IS REARRANGED??
+# health effect estimates & CW
+model_coefs <- readRDS(file.path(output_data_path, "model_coefs_lcm.rda")) %>%
+  mutate(variable="PM2.5",
+         model = gsub("pm25_", "", model),
+         model = as.factor(model),
+         #model = relevel(model, ref=st_ref_model),
+         ref_model = ifelse(model %in% c(st_ref_model, sp_ref_model), "Full Model", "Alternative LCM Model"),
+         ref_model = factor(ref_model, levels=c("Full Model", "Alternative LCM Model"))) %>%
+  left_join(cw) #%>% filter(model != sp_ref_model)
+
+#model_coefs$model
+
+```
+
+# Model definitions
+
+
+```{r}
+model_coefs %>%
+  select(model, method, model_type, variable) %>% 
+  arrange(method) %>%
+  kable() %>% 
+  kable_styling()
+
+```
+
+# Model R2
+
+JB should have this.
+
+# Participant Exposure Predictions 
+
+comparison of predicted 5 yr exposures at baseline
+
+```{r}
+# plot
+st_cs <- cs %>%
+  filter(model_type=="ST") %>%
+  select(-c(exp_coverage, exact_coverage, imp_coverage, imputation_quality)) %>%
+  pivot_wider(names_from = model, values_from = exposure) %>%  
+  rename(full_model = st_ref_model) %>%  
+  pivot_longer(cols = starts_with(c("fptv_")))
+  
+sp_cs <- cs %>%
+  filter(model_type=="SP") %>%
+  select(-c(exp_coverage, exact_coverage, imp_coverage, imputation_quality)) %>%
+  pivot_wider(names_from = model, values_from = exposure) %>%
+  rename(full_model = sp_ref_model) %>%  
+  pivot_longer(cols = starts_with(c("fp_", "rp_")))
+  
+print("the full model is our default epi model with stationary and LCM")
+rbind(st_cs, sp_cs) %>%  
+  ggplot(aes(x=full_model, y=value, col=name)) +
+  facet_wrap(~model_type, scales="free") +
+  geom_point(alpha=0.05) +
+  geom_smooth() +
+  geom_abline(slope = 1, intercept = 0, linetype=2) + 
+  labs(col="LCM Model", y="LCM Model Prediction", x= "Full ST PM2.5 Model Prediction")
+
+ggsave(file.path(image_path, "5yr_exposure_comparisons.png"), width = 8, height = 6)
+
+#table
+cs %>%
+  group_by(model, model_type) %>%
+  alt_boxplot(var="exposure") %>%
+  rename(Q2.5=Qmin, Q97.5=Qmax) %>%
+  kable(caption = "Distribution of PM2.5 ug/m3) predictions", 
+        digits = 0, format.args = list(big.mark=",")) %>% 
+  kable_styling()
+
+```
+
+**Correlations**: exposure predictions from all models generate highly correlated predictions
+
+# --> is this right? some correlations are 1.0, most are very low 
+
+```{r}
+comparison_models <- setdiff(unique(cs$model), st_ref_model) %>% setdiff("full_SP")
+
+cs %>%
+  select(study_id, exposure, model) %>%
+  filter(model != sp_ref_model) %>%
+  pivot_wider(names_from = model, values_from = exposure) %>%  
+  pivot_longer(cols = comparison_models) %>%  
+  # 1 person doesn't have ST full predictions
+  drop_na(st_ref_model) %>%
+  group_by(name) %>% 
+  summarize(correlation = cor(get(st_ref_model), value)) %>%
+  kable(caption = "Correlation (R) of fptv_no predictions with predictions from other methods", 
+        digits = 2, 
+        col.names = c("Model", "Correlation with fptv_no")) %>%
+  kable_styling()
+
+```
+
+# Comparison of health effect estimates (CASI-IRT)
+
+the resulting health estimates from using UK-PLS and various ML UFP exposure models is similar, with random forests & spatcv being the most different (~25-35% lower point estimate)
+
+### --> edit? drop full_SP or give it its own vertical line?
+
+```{r}
+ref_beta <- model_coefs$est[model_coefs$model==st_ref_model]
+
+print("adjustd association between P-TRAK UFP (1k pt/cm3) and CASI-IRT")
+model_coefs %>%
+  ggplot(aes(y=model, col=ref_model)) +  
+  facet_grid(vars(model_type), scales = "free_y", switch = "y", space="free") +
+  geom_vline(xintercept = ref_beta, linetype=1, alpha=0.5) +
+  geom_vline(xintercept = 0, linetype=2, alpha=0.2) +
+  geom_pointrange(aes(x=est, xmin=lower, xmax=upper), size=0.5, alpha=0.8, orientation = "y") +
+  scale_x_continuous(sec.axis = sec_axis(
+    trans=~(.-ref_beta)/-ref_beta, name="% Difference from Full ST Model", labels = scales::percent, breaks = c(-1.5,0, 1.5))) +
+  labs(col = NULL,
+           y="LCM Model",
+           x = "Coefficient Estimate (95% CI)")
+
+ggsave(file.path(image_path, "pm25_health_estimate.png"), width = 6, height = 8)
+
+```
+
+
+

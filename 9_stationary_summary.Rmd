@@ -865,7 +865,8 @@ model_coefs %>%
   
   ggplot(aes(x=version, y=est, fill=ref)) +
   #ggforce::facet_row(facets = vars(design), scales = "free_x", space  = "free") +
-  facet_wrap(~design, scales="free_x", switch="x") +
+  facet_wrap(~design, scales="free_x", #switch="x"
+             ) +
   geom_hline(yintercept = tot_pnc, linetype=1, alpha=0.5) +
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
   geom_boxplot() +

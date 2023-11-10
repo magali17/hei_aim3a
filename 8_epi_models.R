@@ -36,6 +36,7 @@ pm25_units <- 1
 pnc_units <- 1900#1000
 no2_units <- 3 #5
 
+save(pm25_units, pnc_units, no2_units, file= file.path(output_data_path, "modeling_units.rdata"))
 #####################################################################################
 # STATIONARY DATA
 
