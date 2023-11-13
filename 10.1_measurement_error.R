@@ -174,13 +174,18 @@ betas <- lapply(1:sim_n, function(x){
   }) %>%
   bind_rows()
 
+saveRDS(betas, file.path(output_data_path, "betas_parametric.rda"))
 
 ######################################################################
 # BIAS
 ######################################################################
 bias <- betas %>%
-  mutate(bias = pred_beta - obs_beta) %>%
-  summarize(min = min(bias),
+  mutate(bias = pred_beta - obs_beta,
+         description = "parametric bootstrap"
+         ) %>%
+  group_by(description) %>%
+  summarize(n = n(),
+            min = min(bias),
             Q25 = quantile(bias, 0.25),
             median = median(bias),
             # only really want the mean?
@@ -191,7 +196,7 @@ bias <- betas %>%
             max = max(bias)
             )
 bias
-saveRDS(bias, file.path(output_data_path, "bias_estimate.rda"))
+#saveRDS(bias, file.path(output_data_path, "bias_estimate.rda"))
 
 ######################################################################
 # 2. NON-PARAMETRIC
@@ -241,17 +246,21 @@ betas_np <- lapply(unique(cs$model), function(x) {
   }) %>%
   bind_rows()
 
-saveRDS(betas_np, file.path(output_data_path, "beta_np.rda"))
+saveRDS(betas_np, file.path(output_data_path, "beta_nonparametric.rda"))
 
 ######################################################################
-
+# SUMMARIZE VARIABILITY
 ######################################################################
 
 # --> what else do we do with betas_np??
 
-betas_np %>%
+beta_variability <- betas_np %>%
   pivot_longer(starts_with("beta_")) %>%
-  group_by(name) %>%
+  mutate(
+    description = ifelse(name=="beta_type1", "non-parametric bootstrap; different monitoring sites",
+                         ifelse(name=="beta_type2", "non-parametric bootstrap; different subjects", NA
+                         ))) %>%
+  group_by(description) %>%
   summarize(
     n = n(),
     min = min(value),
@@ -265,6 +274,14 @@ betas_np %>%
     max = max(value)
   )
 
+beta_variability
+
+######################################################################
+# SAVE SUMMARY BETA RESULTS
+######################################################################
+
+rbind(bias, beta_variability) %>%
+  write.csv(., file.path(output_data_path, "beta_summary.csv"), row.names = F)
 
 
 
