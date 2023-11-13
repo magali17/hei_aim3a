@@ -82,7 +82,7 @@ unique_monitoring_sites <- unique(monitoring_sites$location)
 # COMMON VARIABLES
 ######################################################################
 sim_n <- 500
-cohort_n <-5e3
+cohort_n <- length(unique(cs$study_id)) #5409
 
 ######################################################################
 # 1. PARAMETRIC
@@ -99,7 +99,6 @@ model_coefs <- lapply(models, function(x) {
   bind_rows()
 
 # get the SD of each model's residuals
-# --> are the residuals similar across UFP models b/c the units are so small?
 model_residuals <- lapply(models, function(x){
   tibble(residual = x$residuals,
          model = x$model)}) %>%
@@ -131,13 +130,12 @@ monitoring_sites <- monitoring_sites %>%
          male = mean_sex,
          degree = degree_mode)
 
-# --> TEMPORARY? looking just at "ns_total_conc" here
+# will only be looking at "ns_total_conc" in this analysis
 monitoring_sites <- filter(monitoring_sites, variable== main_pollutant1)
 this_pollutant <- filter(ref_models0, variable==main_pollutant1)
 this_model <-models[[this_pollutant$model]]
 residual_sd <- model_residuals$sd[model_residuals$model==this_pollutant$model] 
 
-# x=1
 set.seed(1)
 betas <- lapply(1:sim_n, function(x){
   betas_bs <- tibble(n = x,
@@ -147,30 +145,31 @@ betas <- lapply(1:sim_n, function(x){
     
   sites_sample_bs <- monitoring_sites %>%
     sample_n(size = cohort_n, replace = T) %>%
-    # --> use this here? seems cyclical to then use it below to estimate a beta
+    # the resulting beta from lm() later should be similar to the "all data" estimate since casi is simulated using this exposure
     rename(avg_0_5_yr = gs_estimate) %>%
     mutate(
       #predicted CASI
       simulated_casi = predict(this_model, newdata=.),
       #add noise
       simulated_casi = simulated_casi + rnorm(n=cohort_n, mean=0, sd=residual_sd)) %>%
-    # rename back to its original name
+    # rename exposure variable back to its original name
     rename(gs_estimate = avg_0_5_yr)
   
   # estimated beta using site estimates
-  # --> no need to add other covariates b/c they are identical across the sample?
+  ## no need to add other covariates b/c they are identical across the sample. We are interested in differences in the betas
+  ## this should produce a similar beta as the "all data" beta estimate
   betas_bs$obs_beta <- lm(simulated_casi ~ gs_estimate, data = sites_sample_bs) %>%
    tidy() %>%
    filter(term=="gs_estimate") %>%
    pull(estimate)
   
-  # estimated beta using site predictions
+  # estimated beta using site predictions (measurement error added by using predictions)
   betas_bs$pred_beta <- lm(simulated_casi ~ prediction, data = sites_sample_bs) %>%
     tidy() %>%
     filter(term=="prediction") %>%
     pull(estimate)
   
-  betas_bs
+  betas_bs 
   }) %>%
   bind_rows()
 
@@ -181,8 +180,7 @@ saveRDS(betas, file.path(output_data_path, "betas_parametric.rda"))
 ######################################################################
 bias <- betas %>%
   mutate(bias = pred_beta - obs_beta,
-         description = "parametric bootstrap"
-         ) %>%
+         description = "parametric bootstrap; impact of measurement error of beta") %>%
   group_by(description) %>%
   summarize(n = n(),
             min = min(bias),
@@ -196,7 +194,6 @@ bias <- betas %>%
             max = max(bias)
             )
 bias
-#saveRDS(bias, file.path(output_data_path, "bias_estimate.rda"))
 
 ######################################################################
 # 2. NON-PARAMETRIC
@@ -205,20 +202,6 @@ bias
 #    predicted exposure surface derived from different monitor locations and [participants] 
 #    to capture sampling variability in the epidemiologic analysis arising from different subjects."
 ######################################################################
-
-# --> I don't understand beta_type1 vs 2
-
-# Amanda's example code:
-#   k <- 1
-# for (i in unique(issue16$model)){ # There are 500 of these
-#   this_model <- merge(issue12, issue16[model == i]
-#                       this_sample <- sample(this_model, size = 5000, replace = TRUE)
-#                       beta_type1[k] <- lm(casi ~ exposure + z, data = this_model)
-#                       beta_type2[k] <- lm(casi~exposure+z, data = this_sample)
-# }
-
-
-# x= unique(c$model)[1]
 set.seed(1)
 betas_np <- lapply(unique(cs$model), function(x) {
   betas <- tibble(model = x,
@@ -251,15 +234,11 @@ saveRDS(betas_np, file.path(output_data_path, "beta_nonparametric.rda"))
 ######################################################################
 # SUMMARIZE VARIABILITY
 ######################################################################
-
-# --> what else do we do with betas_np??
-
 beta_variability <- betas_np %>%
   pivot_longer(starts_with("beta_")) %>%
   mutate(
-    description = ifelse(name=="beta_type1", "non-parametric bootstrap; different monitoring sites",
-                         ifelse(name=="beta_type2", "non-parametric bootstrap; different subjects", NA
-                         ))) %>%
+    description = ifelse(name=="beta_type1", "non-parametric bootstrap; variability of beta from different monitoring sites",
+                         ifelse(name=="beta_type2", "non-parametric bootstrap; variability of beta from different monitoring sites and subjects", NA))) %>%
   group_by(description) %>%
   summarize(
     n = n(),
