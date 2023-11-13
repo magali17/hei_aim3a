@@ -1,3 +1,7 @@
+######################################################################
+# NOTES
+######################################################################
+# --> is this the reference methods paper? https://pubmed.ncbi.nlm.nih.gov/28099267/ 
 
 ######################################################################
 # SETUP
@@ -22,10 +26,13 @@ if(!file.exists(output_data_path)) {dir.create(output_data_path, recursive = T)}
 # LOAD DATA
 ######################################################################
 main_pollutants <- readRDS(file.path(dt_path, "epi", "main_pollutants.rda"))
+# --> just look at this here?
 main_pollutant1 <- c("ns_total_conc")
 
-# cross-sectional health-exposure data - includes exposures from 500 bootstrapped exposure models
-cs <- readRDS(file.path(dt_path, "epi", "dt_for_cross_sectional_analysis_error.rda"))
+# merged issue 12 [clean health dataset] & issue 16 (for non-parametric, bootstrapped measurement models)
+cs <- readRDS(file.path(dt_path, "epi", "dt_for_cross_sectional_analysis_error.rda")) %>%
+  select(-starts_with("avg_"), -visitdt, avg_0_5_yr)
+
 model_covars <- readRDS(file.path(dt_path, "epi", "model_covars.rda"))
 
 # reference health models using all the data
@@ -38,7 +45,7 @@ ref_models <- ref_models0 %>% pull(model)
 # health model with the all data exposure model
 # ---> use this model vs what is in issue 12??
 ## all models with stationary data
-models0 <- readRDS(file.path(dt_path, "epi", "models.rda")) #%>% filter()
+models0 <- readRDS(file.path(dt_path, "epi", "models.rda")) 
 
 ## only keep ref models
 # x=ref_model0[[1]]
@@ -59,16 +66,16 @@ monitoring_sites <- readRDS(file.path(dt_path, "UK Predictions", "all_prediction
   #add model name
   left_join(ref_models0)
 unique_monitoring_sites <- unique(monitoring_sites$location)
+
 ######################################################################
 # COMMON VARIABLES
 ######################################################################
-
-sim_n <- 10 #500
-cohort_n <-500#5e3
+sim_n <- 500
+cohort_n <-5e3
 
 ######################################################################
 # 1. PARAMETRIC
-
+# looks at the impact of exposure measurement error on the health effect estimate
 ######################################################################
 # FULL MODEL COEFFICIENTS & RESIDUALS
 ######################################################################
@@ -81,7 +88,7 @@ model_coefs <- lapply(models, function(x) {
   bind_rows()
 
 # get the SD of each model's residuals
-# --> weird that the residuals are almost identical? or maybe the units are just small?
+# --> are the residuals similar across UFP models b/c the units are so small?
 model_residuals <- lapply(models, function(x){
   tibble(residual = x$residuals,
          model = x$model)}) %>%
@@ -92,12 +99,11 @@ model_residuals <- lapply(models, function(x){
 ######################################################################
 # SIMULATE 'CASI' SCORE AT MONITORING LOCATIONS & RUN 'HEALTH' MODELS
 ######################################################################
-cs_person <- mean_cohort_covariate_values <- cs %>%
+cs_person <- cs %>%
   select(c(study_id, all_of(model_covars))) %>%
   distinct()
 
 # mean/mode model covariate values
-# --> could just use 0 since this is centered?
 mean_age <- mean(cs_person$visit_age_centered75)
 year_mode <- table(cs_person$year2) %>% as.data.frame() %>%
   filter(Freq == max(Freq)) %>%
@@ -109,15 +115,12 @@ degree_mode <- table(cs_person$degree) %>% as.data.frame() %>%
 
 # add average covariate values to monitoring data
 monitoring_sites <- monitoring_sites %>%
-  mutate(
-    visit_age_centered75 = mean_age,
-    year2 = year_mode,
-    male = mean_sex,
-    degree = degree_mode
-  )
+  mutate(visit_age_centered75 = mean_age,
+         year2 = year_mode,
+         male = mean_sex,
+         degree = degree_mode)
 
-
-# --> TEMP: CHANGE LATER?  looking just at "ns_total_conc" here
+# --> TEMPORARY? looking just at "ns_total_conc" here
 monitoring_sites <- filter(monitoring_sites, variable== main_pollutant1)
 this_pollutant <- filter(ref_models0, variable==main_pollutant1)
 this_model <-models[[this_pollutant$model]]
@@ -131,10 +134,9 @@ betas <- lapply(1:sim_n, function(x){
                   obs_beta = NA,
                   pred_beta =  NA)
     
-    
   sites_sample_bs <- monitoring_sites %>%
     sample_n(size = cohort_n, replace = T) %>%
-    # --> use this here? seems cyclical to then use it below to estiamte a beta
+    # --> use this here? seems cyclical to then use it below to estimate a beta
     rename(avg_0_5_yr = gs_estimate) %>%
     mutate(
       #predicted CASI
@@ -145,6 +147,7 @@ betas <- lapply(1:sim_n, function(x){
     rename(gs_estimate = avg_0_5_yr)
   
   # estimated betas using site estimates
+  # --> no need to add other covariates b/c they are identical across the sample?
   betas_bs$obs_beta <- lm(simulated_casi ~ gs_estimate, data = sites_sample_bs) %>%
    tidy() %>%
    filter(term=="gs_estimate") %>%
@@ -164,16 +167,13 @@ betas <- lapply(1:sim_n, function(x){
 ######################################################################
 # BIAS
 ######################################################################
-
 bias <- betas %>%
   mutate(bias = pred_beta - obs_beta) %>%
   summarize(min = min(bias),
             Q25 = quantile(bias, 0.25),
             median = median(bias),
-            
-            # --> only want this?
+            # only really want the mean?
             mean = mean(bias),
-            
             Q75 = quantile(bias, 0.75),
             IQR = IQR(bias),
             sd = sd(bias),
@@ -182,21 +182,14 @@ bias <- betas %>%
 bias
 saveRDS(bias, file.path(output_data_path, "bias_estimate.rda"))
 
-
-
-
-
-
-
-
-
 ######################################################################
 # 2. NON-PARAMETRIC
+# investigates classical-like measurement error that is associated with uncertainty in the exposure surface
+######################################################################
 
-######################################################################
-#  
-######################################################################
-# Amanda:
+# --> I don't understand beta_type1 vs 2
+
+# Amanda's example code:
 #   k <- 1
 # for (i in unique(issue16$model)){ # There are 500 of these
 #   this_model <- merge(issue12, issue16[model == i]
@@ -206,7 +199,46 @@ saveRDS(bias, file.path(output_data_path, "bias_estimate.rda"))
 # }
 
 
-# --> USE ISSUE 16- this is a different analysis??
+# x= unique(c$model)[1]
+set.seed(1)
+betas_np <- lapply(unique(cs$model), function(x) {
+  betas <- tibble(model = x,
+                     variable = main_pollutant1, #issue 16 uses total NS
+                     beta_type1 = NA,
+                     beta_type2 =  NA)
+  
+  my_model <- as.formula(paste("casi_irt ~ avg_0_5_yr" , "+", paste(model_covars, collapse = "+")))
+  
+  this_model <- filter(cs, model == x)
+  this_sample <- sample_n(this_model, size = cohort_n, replace = T)  
+  
+  # health effects for the ~5k existing participants
+  betas$beta_type1 <- lm(my_model, data = this_model) %>%
+    tidy() %>%
+    filter(term=="avg_0_5_yr") %>%
+    pull(estimate)
+  # --> why? health effects for 5k bootstrapped participants
+  betas$beta_type2 <- lm(my_model, data = this_sample) %>%
+    tidy() %>%
+    filter(term=="avg_0_5_yr") %>%
+    pull(estimate)
+  
+  betas
+  }) %>%
+  bind_rows()
+
+######################################################################
+
+######################################################################
+
+# --> what else do we do with betas_np??
 
 
+
+
+
+
+
+
+saveRDS(betas_np, file.path(output_data_path, "beta_np.rda"))
 

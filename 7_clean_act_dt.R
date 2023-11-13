@@ -241,7 +241,7 @@ cs_ml <- left_join(health, exposure0_ml, by="study_id")
 ## include full ST (and SP) ref models
 cs_lcm <- left_join(health, exposure0_lcm, by="study_id") %>%
   rbind(left_join(health, exposure0_lcm_ref, by="study_id"))
-# data for measurement error (HEI Aim 3b) ananlysis
+# data for HEI Aim 3b - non-parametric part?
 cs_error <- left_join(health, me_exposure, by="study_id")
 
 
