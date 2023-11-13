@@ -45,18 +45,28 @@ ref_models <- ref_models0 %>% pull(model)
 # health model with the all data exposure model
 # ---> use this model vs what is in issue 12??
 ## all models with stationary data
-models0 <- readRDS(file.path(dt_path, "epi", "models.rda")) 
 
-## only keep ref models
-# x=ref_model0[[1]]
-models <- lapply(models0, function(x) {if(as.character(x$model) %in% ref_models) {x}})  
-models <- models[sapply(models,function(x) !is.null(x))]
-names(models) <- ref_models
+models_fp <- file.path(dt_path, "epi", "ref_models.rda")
 
-# modeling units
+if(file.exists(models_fp)) {
+  models <- readRDS(models_fp)
+  } else { 
+    # note: this file has to be re-run & re-saved if anything changes with the models (e.g., covariates, data)
+    models0 <- readRDS(file.path(dt_path, "epi", "models.rda")) 
+  
+    ## only keep reference (all data) models
+    # x=ref_model0[[1]]
+    models <- lapply(models0, function(x) {if(as.character(x$model) %in% ref_models) {x}})  
+    rm(models0)
+    models <- models[sapply(models,function(x) !is.null(x))]
+    names(models) <- ref_models
+    saveRDS(models, models_fp) 
+}
+
+# modeling units (1,900 for PNC)
 load(file.path(output_data_path, "modeling_units.rdata"))
 
-# site predictions & true estimates from the full campaign in this study (from 2.3_uk_cv.R)
+# monitoring site predictions & true estimates from the full campaign in this study (from 2.3_uk_cv.R)
 monitoring_sites <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>%
   filter(design == "full",
          variable %in% main_pollutants) %>%
