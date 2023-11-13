@@ -157,14 +157,14 @@ betas <- lapply(1:sim_n, function(x){
     # rename back to its original name
     rename(gs_estimate = avg_0_5_yr)
   
-  # estimated betas using site estimates
+  # estimated beta using site estimates
   # --> no need to add other covariates b/c they are identical across the sample?
   betas_bs$obs_beta <- lm(simulated_casi ~ gs_estimate, data = sites_sample_bs) %>%
    tidy() %>%
    filter(term=="gs_estimate") %>%
    pull(estimate)
   
-  # estimated betas using site predictions
+  # estimated beta using site predictions
   betas_bs$pred_beta <- lm(simulated_casi ~ prediction, data = sites_sample_bs) %>%
     tidy() %>%
     filter(term=="prediction") %>%
@@ -197,7 +197,7 @@ saveRDS(bias, file.path(output_data_path, "bias_estimate.rda"))
 # 2. NON-PARAMETRIC
 # investigates classical-like measurement error that is associated with uncertainty in the exposure surface
 # from Keller 2017: "The non-parametric bootstrap resamples monitor locations to reflect variation in the 
-#    predicted exposure surface derived from different monitor locations and resamples [participant outcomes] 
+#    predicted exposure surface derived from different monitor locations and [participants] 
 #    to capture sampling variability in the epidemiologic analysis arising from different subjects."
 ######################################################################
 
@@ -231,7 +231,7 @@ betas_np <- lapply(unique(cs$model), function(x) {
     tidy() %>%
     filter(term=="avg_0_5_yr") %>%
     pull(estimate)
-  # --> why? health effects for 5k bootstrapped participants
+  # health effects for 5k bootstrapped participants
   betas$beta_type2 <- lm(my_model, data = this_sample) %>%
     tidy() %>%
     filter(term=="avg_0_5_yr") %>%
@@ -241,18 +241,33 @@ betas_np <- lapply(unique(cs$model), function(x) {
   }) %>%
   bind_rows()
 
+saveRDS(betas_np, file.path(output_data_path, "beta_np.rda"))
+
 ######################################################################
 
 ######################################################################
 
 # --> what else do we do with betas_np??
 
+betas_np %>%
+  pivot_longer(starts_with("beta_")) %>%
+  group_by(name) %>%
+  summarize(
+    n = n(),
+    min = min(value),
+    Q25 = quantile(value, 0.25),
+    median = median(value),
+    # only really want the mean?
+    mean = mean(value),
+    Q75 = quantile(value, 0.75),
+    IQR = IQR(value),
+    sd = sd(value),
+    max = max(value)
+  )
 
 
 
 
 
 
-
-saveRDS(betas_np, file.path(output_data_path, "beta_np.rda"))
 
