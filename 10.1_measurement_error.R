@@ -1,7 +1,8 @@
 ######################################################################
 # NOTES
 ######################################################################
-# --> is this the reference methods paper? https://pubmed.ncbi.nlm.nih.gov/28099267/ 
+# --> is this the reference methods paper? Keller et al. 2017 (https://pubmed.ncbi.nlm.nih.gov/28099267/I )
+#  they reference Szpiro & Pacioreck 2013 (https://pubmed.ncbi.nlm.nih.gov/24764691/)
 
 ######################################################################
 # SETUP
@@ -185,6 +186,9 @@ saveRDS(bias, file.path(output_data_path, "bias_estimate.rda"))
 ######################################################################
 # 2. NON-PARAMETRIC
 # investigates classical-like measurement error that is associated with uncertainty in the exposure surface
+# from Keller 2017: "The non-parametric bootstrap resamples monitor locations to reflect variation in the 
+#    predicted exposure surface derived from different monitor locations and resamples [participant outcomes] 
+#    to capture sampling variability in the epidemiologic analysis arising from different subjects."
 ######################################################################
 
 # --> I don't understand beta_type1 vs 2
