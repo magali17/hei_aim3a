@@ -67,7 +67,6 @@ if(file.exists(models_fp)) {
     models0 <- readRDS(file.path(dt_path, "epi", "models.rda")) 
   
     ## only keep reference (all data) models
-    # x=ref_model0[[1]]
     models <- lapply(models0, function(x) {if(as.character(x$model) %in% ref_models) {x}})  
     rm(models0)
     models <- models[sapply(models,function(x) !is.null(x))]
@@ -181,7 +180,6 @@ ggsave(file.path(image_path, "non_parametric_betas.png"), width = 6, height = 6)
 # FULL MODEL COEFFICIENTS & RESIDUALS
 ######################################################################
 # save model coefficients 
-## x = models[[1]]
 model_coefs <- lapply(models, function(x) {
   temp <- tidy(x) %>%
     select(term, estimate) %>%
@@ -309,8 +307,7 @@ bias
 
 rbind(beta_variability, bias) %>% 
   select(Bootstrap = bootstrap, Description = description, Mean, SD, everything()) %>%
-  #mutate_if(is.numeric, ~format(., format="e", digits = 3))  %>%
-  
+
   write.csv(., file.path(output_data_path, "beta_summary.csv"), row.names = F)
  
 
