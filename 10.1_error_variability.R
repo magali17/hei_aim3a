@@ -2,7 +2,7 @@
 # NOTES
 ######################################################################
 # --> is this the reference methods paper? Keller et al. 2017 (https://pubmed.ncbi.nlm.nih.gov/28099267/I )
-#  they reference Szpiro & Pacioreck 2013 (https://pubmed.ncbi.nlm.nih.gov/24764691/)
+#  or is this? Szpiro & Pacioreck 2013 (https://pubmed.ncbi.nlm.nih.gov/24764691/)
 
 ######################################################################
 # SETUP
@@ -180,7 +180,7 @@ saveRDS(betas, file.path(output_data_path, "betas_parametric.rda"))
 ######################################################################
 bias <- betas %>%
   mutate(bias = pred_beta - obs_beta,
-         description = "parametric bootstrap; impact of measurement error of beta") %>%
+         description = "parametric; impact of measurement error of beta") %>%
   group_by(description) %>%
   summarize(n = n(),
             min = min(bias),
@@ -209,18 +209,18 @@ betas_np <- lapply(unique(cs$model), function(x) {
                      beta_type1 = NA,
                      beta_type2 =  NA)
   
-  my_model <- as.formula(paste("casi_irt ~ avg_0_5_yr" , "+", paste(model_covars, collapse = "+")))
+  health_model <- as.formula(paste("casi_irt ~ avg_0_5_yr" , "+", paste(model_covars, collapse = "+")))
   
-  this_model <- filter(cs, model == x)
-  this_sample <- sample_n(this_model, size = cohort_n, replace = T)  
+  this_exposure_model <- filter(cs, model == x)
+  this_cohort_sample <- sample_n(this_exposure_model, size = cohort_n, replace = T)  
   
   # health effects for the ~5k existing participants
-  betas$beta_type1 <- lm(my_model, data = this_model) %>%
+  betas$beta_type1 <- lm(health_model, data = this_exposure_model) %>%
     tidy() %>%
     filter(term=="avg_0_5_yr") %>%
     pull(estimate)
   # health effects for 5k bootstrapped participants
-  betas$beta_type2 <- lm(my_model, data = this_sample) %>%
+  betas$beta_type2 <- lm(health_model, data = this_cohort_sample) %>%
     tidy() %>%
     filter(term=="avg_0_5_yr") %>%
     pull(estimate)
@@ -237,15 +237,14 @@ saveRDS(betas_np, file.path(output_data_path, "beta_nonparametric.rda"))
 beta_variability <- betas_np %>%
   pivot_longer(starts_with("beta_")) %>%
   mutate(
-    description = ifelse(name=="beta_type1", "non-parametric bootstrap; variability of beta from different monitoring sites",
-                         ifelse(name=="beta_type2", "non-parametric bootstrap; variability of beta from different monitoring sites and subjects", NA))) %>%
+    description = ifelse(name=="beta_type1", "non-parametric; variability of beta from different monitoring sites",
+                         ifelse(name=="beta_type2", "non-parametric; variability of beta from different monitoring sites and subjects", NA))) %>%
   group_by(description) %>%
   summarize(
     n = n(),
     min = min(value),
     Q25 = quantile(value, 0.25),
     median = median(value),
-    # only really want the mean?
     mean = mean(value),
     Q75 = quantile(value, 0.75),
     IQR = IQR(value),
