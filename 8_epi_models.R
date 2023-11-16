@@ -31,7 +31,7 @@ saveRDS(main_pollutants, file.path(output_data_path, "main_pollutants.rda"))
 model_covars <- readRDS(file.path(output_data_path, "model_covars.rda"))
 ap_prediction <- "avg_0_5_yr"
 
-# modeling units - using same as Nancy et al. 2023 draft
+# modeling units - using same as Nancy et al. 2023  
 pm25_units <- 1 
 pnc_units <- 1900#1000
 no2_units <- 3 #5
@@ -64,11 +64,23 @@ saveRDS(campaign_descriptions, file.path(dt_path, "Selected Campaigns", "selecte
 cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) 
 cs <- cs0 %>%
   filter(model %in% campaign_descriptions$model) %>%
-  select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
+  select(-c(ends_with(c("MM_05_yr", "coverage", "quality"))),
+         #keep NS & P-TRAK exposure estimate from main epi model from issue 12 (for comparision against the all-data HEI model)
+         cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr
+         ) %>%
   left_join(select(campaign_descriptions, model, variable), by="model") %>%
   # modeling units
   mutate(avg_0_5_yr = ifelse(grepl("ns_|pnc_", variable), avg_0_5_yr/pnc_units,
                               ifelse(grepl("no2", variable), avg_0_5_yr/no2_units, NA)))
+
+# data with issue 12 epi models (for reference)
+cs_issue12_models <- select(cs, -c(avg_0_5_yr, model, variable)) %>%
+  distinct() %>%
+  pivot_longer(contains("cum_exp_"), values_to = "avg_0_5_yr", names_to = "model") %>%
+  # modeling units
+  mutate(avg_0_5_yr = ifelse(grepl("_ufp_", model), avg_0_5_yr/pnc_units,
+                             ifelse(grepl("no2", model), avg_0_5_yr/no2_units, NA)))
+
 #####################################################################################
 # NON-STATIONARY DATA
 cw_r <- read.csv(file.path(dt_path, "onroad_model_cw.csv"))
@@ -160,6 +172,15 @@ model_coefs0 <- get_model_results(models)
 model_coefs <- left_join(model_coefs0, campaign_descriptions)
 saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
 
+
+# issue 12 reference models: NS & P-TRAK
+message("running ISSUE 12 reference epi models...")
+models_issue12 <- mclapply(group_split(cs_issue12_models, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
+saveRDS(models_issue12, file.path(output_data_path, "models_issue12.rda"))
+
+message("saving model coeficients...")
+model_coefs_issue12 <- get_model_results(models_issue12)
+saveRDS(model_coefs_issue12, file.path(output_data_path, "model_coefs_issue12.rda"))
 
 ######################################################################
 # NON-STATIONARY (ROAD) DATA

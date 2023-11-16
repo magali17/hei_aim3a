@@ -97,6 +97,30 @@ sim_n <- 500
 cohort_n <- length(unique(cs$study_id)) #5409
 
 ######################################################################
+# FUNCTIONS
+######################################################################
+# returns summary table
+summary_table <- function(df, value) {
+  df <- df %>%
+    rename(value = all_of(value)) %>%
+    summarize(
+    N = n(),
+    Min = min(value),
+    Q2.5 = quantile(value, 0.025),
+    Q25 = quantile(value, 0.25),
+    Median = median(value),
+    Mean = mean(value),
+    Q75 = quantile(value, 0.75),
+    Q97.5 = quantile(value, 0.975),
+    IQR = IQR(value),
+    SD = sd(value),
+    Max = max(value))
+  
+  names(df)[names(df)==value] <- value
+  return(df) 
+}
+
+######################################################################
 # 1. NON-PARAMETRIC
 # investigates classical-like measurement error that is associated with uncertainty in the exposure surface
 # from Keller 2017: "The non-parametric bootstrap resamples monitor locations to reflect variation in the 
@@ -144,17 +168,7 @@ betas_np_long <- betas_np %>%
 
 beta_variability <- betas_np_long %>%
   group_by(bootstrap, description) %>%
-  summarize(
-    N = n(),
-    Min = min(value),
-    Q25 = quantile(value, 0.25),
-    Median = median(value),
-    Mean = mean(value),
-    Q75 = quantile(value, 0.75),
-    IQR = IQR(value),
-    SD = sd(value),
-    Max = max(value)
-  )
+  summary_table(value="value")
 
 beta_variability
 
@@ -289,17 +303,8 @@ bias <- betas %>%
          bootstrap = "parametric",
          description = "health inference bias from using predicted (vs measured) PNC") %>%
   group_by(bootstrap, description) %>%
-  summarize(N = n(),
-            Min = min(bias),
-            Q25 = quantile(bias, 0.25),
-            Median = median(bias),
-            # only really want the mean?
-            Mean = mean(bias),
-            Q75 = quantile(bias, 0.75),
-            IQR = IQR(bias),
-            SD = sd(bias),
-            Max = max(bias)
-  )
+  summary_table(value="bias")
+  
 bias
 ######################################################################
 # SAVE SUMMARY BETA RESULTS
@@ -307,7 +312,7 @@ bias
 
 rbind(beta_variability, bias) %>% 
   select(Bootstrap = bootstrap, Description = description, Mean, SD, everything()) %>%
-  
+
   write.csv(., file.path(output_data_path, "beta_summary.csv"), row.names = F)
 
 

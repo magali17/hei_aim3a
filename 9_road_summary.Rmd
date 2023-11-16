@@ -294,7 +294,7 @@ lapply(spatial_names, function (x) {
   geom_text(data=prop_sign_temp, aes(x=-Inf, y=0.01, label = text_label), 
             hjust=0, vjust=1, #nudge_x = 1,
             size=3) +
-    geom_text(aes(x=Inf, y=-0.020, label = "Reference Health Estimate"),
+    geom_text(aes(x=Inf, y=-0.018, label = "Reference Health Estimate"),
               hjust=1, vjust=1, size=3
               ) +
   

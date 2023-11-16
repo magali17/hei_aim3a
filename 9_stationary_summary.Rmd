@@ -99,7 +99,9 @@ model_coefs <- model_coefs0 %>%
 
 exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table.csv"))
 
- 
+#issue 12 reference models
+model_coefs_issue12 <- readRDS(file.path(output_data_path, "model_coefs_issue12.rda"))
+
 ##################################################################################################
 #annual average site estimates (for exposure description)
 annual_site_type <- readRDS(file.path(dt_path, "annual_site_type.rda")) %>%
@@ -451,6 +453,44 @@ lapply(sensitivity_pollutant_labels, function(x) {
 
 ```
 
+comparison of exposures from the issue 12 model to the all-data HEI model
+
+```{r}
+bound0 <- 0.1
+print(paste0("NanoScan reference models. dashed line is 1-1 and +-", bound0*100, "%"))
+cs %>%
+  filter(model == "s_nstot_all_01") %>%
+  ggplot(aes(x=exposure, y=cum_exp_ufp_10_42_MM_05_yr)) + 
+  geom_point(alpha=0.1) + 
+  geom_smooth() +
+  geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) +
+  geom_abline(slope = c(1+bound0, 1-bound0), intercept = 0, linetype=3, alpha=0.3) + 
+  #make x y equal size  
+  theme(aspect.ratio = 1) +
+  labs(x="s_nstot_all_01", 
+       caption = paste0("dashed line is 1-1 and +-", bound0*100, "%"))
+
+ggsave(file.path(image_path, "other", "qc", "all_data_ns_vs_issue12_model.png"), width = 6, height = 6)
+
+print(paste0("P-TRAK reference models. dashed line is 1-1 and +-", bound0*100, "%"))
+cs %>%
+  filter(model == "s_pncnoscreen_all_01") %>%
+  ggplot(aes(x=exposure, y=cum_exp_ufp_20_1k_MM_05_yr)) + 
+  geom_point(alpha=0.1) + 
+  geom_smooth() +
+  geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) +
+  geom_abline(slope = c(1+bound0, 1-bound0), intercept = 0, linetype=3, alpha=0.3) + 
+  #make x y equal size  
+  theme(aspect.ratio = 1) +
+  labs(x="s_pncnoscreen_all_01",
+       caption = paste0("dashed line is 1-1 and +-", bound0*100, "%"))
+ggsave(file.path(image_path, "other", "qc", "all_data_ns_ptrak_issue12_model.png"), width = 6, height = 6)
+
+```
+
+
+
+
 
 ## Prediction Correlations
 
@@ -640,39 +680,12 @@ rectangle_alpha <- 0.15
 
 ## Beta Estimates 
 
-
-tables include the proportion significant
+as a reference, these are the health effect estimates from issue 12. The models are developed slightly different (e.g., have 3 vs 2 PLS components; ~1 extra modeling covariate is available; all available visit data are used in the models rather than conditioning on availability of NS readings)
 
 ```{r}
-prop_sign <- model_coefs %>%
-  group_by(variable, design, version) %>%
-  summarize(prop_sign = mean(significant),
-            sd = sd(est))
-
-coef_table <- model_coefs %>%
-  group_by(variable, design, version) %>%
-  alt_boxplot(var = "est") %>%
-  left_join(prop_sign)
-
-coef_table %>%
-  filter(variable %in% main_pollutants_labels) %>%
-  kable(caption = "Distribution of health effect estimates from each design, and the proportion of campaigns that produce significant findings", 
-        digits = 3) %>%
+model_coefs_issue12 %>%
+  kable(caption = "issue 12 health effect estimates for NS and P-TRAK models", digits=3) %>%
   kable_styling()
-
-
-#######################################
-prop_sign %>%
-  filter(variable %in% main_pollutants_labels,
-         grepl("Visits|Seasons", design)
-         ) %>%
-  group_by(variable) %>%
-  alt_boxplot(var = "prop_sign") %>%
-  mutate_if(is.numeric, ~round(., 2)) %>%
-  kable(caption = "Distribution of proportion of significant findings for fewer visits & seasons") %>%
-  kable_styling()
-
-#######################################
 ```
 
 ### paper
@@ -735,6 +748,43 @@ lapply(p_list, function(x){
       })
 
 ```
+
+
+tables include the proportion significant
+
+```{r}
+prop_sign <- model_coefs %>%
+  group_by(variable, design, version) %>%
+  summarize(prop_sign = mean(significant),
+            sd = sd(est))
+
+coef_table <- model_coefs %>%
+  group_by(variable, design, version) %>%
+  alt_boxplot(var = "est") %>%
+  left_join(prop_sign)
+
+coef_table %>%
+  filter(variable %in% main_pollutants_labels) %>%
+  kable(caption = "Distribution of health effect estimates from each design, and the proportion of campaigns that produce significant findings", 
+        digits = 3) %>%
+  kable_styling()
+
+
+#######################################
+prop_sign %>%
+  filter(variable %in% main_pollutants_labels,
+         grepl("Visits|Seasons", design)
+         ) %>%
+  group_by(variable) %>%
+  alt_boxplot(var = "prop_sign") %>%
+  mutate_if(is.numeric, ~round(., 2)) %>%
+  kable(caption = "Distribution of proportion of significant findings for fewer visits & seasons") %>%
+  kable_styling()
+
+#######################################
+```
+
+
 
 ```{r, eval=F}
 # x = p_list[2] #total UFP

@@ -203,7 +203,9 @@ health <- health %>%
   select(study_id, casi_irt, all_of(model_covars),
          #QC variables for NO2 and UFP
          ends_with(c("no2_MM_05_yr", "ufp_10_42_MM_05_yr")),
-         -starts_with(c("cum_exp_", "var_avg_", "num_years_")),
+         -starts_with(c("cum_exp_", "var_avg_", "num_years_")), 
+         #keep NS & P-TRAK exposure estimate from main epi model (for comparision against the all-data HEI model)
+         cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr, 
          visitdt)
 
 ######################################################################
