@@ -298,7 +298,7 @@ lapply(spatial_names, function (x) {
               hjust=1, vjust=1, size=3
               ) +
   
-  labs(y = "Coefficient Estimate (95% CI)",
+  labs(y = "Health Effect Estimate",
        fill="Design")
 
   if(grepl("non-spatial", x, ignore.case = T)) {
