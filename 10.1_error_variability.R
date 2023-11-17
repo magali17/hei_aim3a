@@ -75,9 +75,17 @@ if(file.exists(models_fp)) {
 }
 
 # --> may need to update this "true" beta model
-true_beta <- models$s_nstot_all_01 %>% tidy() %>%
+all_data_coefs <- models$s_nstot_all_01 %>% tidy()  
+ref_beta <- all_data_coefs %>%
   filter(term == "avg_0_5_yr") %>%
   pull(estimate)
+
+print(paste("ref beta:", ref_beta))
+ref_intercept <- all_data_coefs %>%
+  filter(term == "(Intercept)") %>%
+  pull(estimate)
+print(paste("ref beta:", ref_beta))
+
 
 # monitoring site predictions & true estimates from the full campaign in this study (from 2.3_uk_cv.R)
 monitoring_sites <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>%
@@ -180,7 +188,7 @@ betas_np_long %>%
   mutate(description = ifelse(name=="beta_type1", "monitor locations + sampling times",
                               ifelse(name=="beta_type2", "monitor locations + sampling times + subjects", NA))) %>%
   ggplot(aes(x=description, y=value)) + 
-  geom_hline(yintercept = true_beta, linetype=2) +
+  geom_hline(yintercept = ref_beta, linetype=2) +
   geom_boxplot() +
   labs(y="Beta",
        x = "Added Variability"
@@ -194,11 +202,11 @@ ggsave(file.path(image_path, "non_parametric_betas.png"), width = 6, height = 6)
 # FULL MODEL COEFFICIENTS & RESIDUALS
 ######################################################################
 # save model coefficients 
-model_coefs <- lapply(models, function(x) {
-  temp <- tidy(x) %>%
-    select(term, estimate) %>%
-    mutate(model = as.character(x$model))}) %>%
-  bind_rows()
+# model_coefs <- lapply(models, function(x) {
+#   temp <- tidy(x) %>%
+#     select(term, estimate) %>%
+#     mutate(model = as.character(x$model))}) %>%
+#   bind_rows()
 
 # get the SD of each model's residuals
 model_residuals <- lapply(models, function(x){
@@ -211,26 +219,26 @@ model_residuals <- lapply(models, function(x){
 ######################################################################
 # SIMULATE 'CASI' SCORE AT MONITORING LOCATIONS & RUN 'HEALTH' MODELS
 ######################################################################
-cs_person <- cs %>%
-  select(c(study_id, all_of(model_covars))) %>%
-  distinct()
-
-# mean/mode model covariate values
-mean_age <- mean(cs_person$visit_age_centered75)
-year_mode <- table(cs_person$year2) %>% as.data.frame() %>%
-  filter(Freq == max(Freq)) %>%
-  pull(Var1)
-mean_sex <-  mean(cs_person$male)
-degree_mode <- table(cs_person$degree) %>% as.data.frame() %>%
-  filter(Freq == max(Freq)) %>%
-  pull(Var1)
-
-# add average covariate values to monitoring data
-monitoring_sites <- monitoring_sites %>%
-  mutate(visit_age_centered75 = mean_age,
-         year2 = year_mode,
-         male = mean_sex,
-         degree = degree_mode)
+# cs_person <- cs %>%
+#   select(c(study_id, all_of(model_covars))) %>%
+#   distinct()
+# 
+# # mean/mode model covariate values
+# mean_age <- mean(cs_person$visit_age_centered75)
+# year_mode <- table(cs_person$year2) %>% as.data.frame() %>%
+#   filter(Freq == max(Freq)) %>%
+#   pull(Var1)
+# mean_sex <-  mean(cs_person$male)
+# degree_mode <- table(cs_person$degree) %>% as.data.frame() %>%
+#   filter(Freq == max(Freq)) %>%
+#   pull(Var1)
+# 
+# # add average covariate values to monitoring data
+# monitoring_sites <- monitoring_sites %>%
+#   mutate(visit_age_centered75 = mean_age,
+#          year2 = year_mode,
+#          male = mean_sex,
+#          degree = degree_mode)
 
 # will only be looking at "ns_total_conc" in this analysis
 monitoring_sites <- filter(monitoring_sites, variable== main_pollutant1)
@@ -251,7 +259,8 @@ betas <- lapply(1:sim_n, function(x){
     rename(avg_0_5_yr = gs_estimate) %>%
     mutate(
       #predicted CASI
-      simulated_casi = predict(this_model, newdata=.),
+      #simulated_casi = predict(this_model, newdata=.),
+      simulated_casi = ref_intercept + ref_beta*avg_0_5_yr,
       #add noise
       simulated_casi = simulated_casi + rnorm(n=cohort_n, mean=0, sd=residual_sd)) %>%
     # rename exposure variable back to its original name
@@ -298,25 +307,49 @@ ggsave(file.path(image_path, "parametric_beta_obs_pred.png"), width = 6, height 
 ######################################################################
 # BIAS
 ######################################################################
-bias <- betas %>%
-  mutate(bias = pred_beta - obs_beta,
-         bootstrap = "parametric",
-         description = "health inference bias from using predicted (vs measured) PNC") %>%
+beta_np_predicted <- betas %>%
+  mutate(bootstrap = "parametric",
+         description = "health inference from predicted PNC at simulated cohort locations (i.e., bootstrapped monitoring locations)") %>%
   group_by(bootstrap, description) %>%
-  summary_table(value="bias")
+  summary_table(value="pred_beta")
+
+
+# bias <- betas %>%
+#   mutate(bias = pred_beta - obs_beta,
+#          bootstrap = "parametric",
+#          description = "health inference bias from predicted (vs observed) PNC at monitoring locations") %>%
+#   group_by(bootstrap, description) %>%
+#   summary_table(value="bias")
+#   
+# bias
+######################################################################
+# SUMMARY OF BETA ESTIMATES
+######################################################################
+
+# --> TO DO: REVIEW; check w/ Amanda
+beta_estimates <- rbind(beta_variability, beta_np_predicted) %>% 
+  mutate(Bias = Mean- ref_beta) %>%
+  select(Bootstrap = bootstrap, Description = description, Mean, SD, Bias, everything()) %>%
+  ungroup()
   
-bias
+beta_estimates
+write.csv(beta_estimates, file.path(output_data_path, "beta_summary.csv"), row.names = F)
+
+total_bias <- beta_estimates %>%
+  filter(Bootstrap == "parametric" | 
+           grepl("subjects", Description)) %>%
+  summarize(total_bias = sum(Bias))
+  
+total_bias
+  
 ######################################################################
-# SAVE SUMMARY BETA RESULTS
+# bias correction
 ######################################################################
 
-rbind(beta_variability, bias) %>% 
-  select(Bootstrap = bootstrap, Description = description, Mean, SD, everything()) %>%
+# --> ???? wrong??
 
-  write.csv(., file.path(output_data_path, "beta_summary.csv"), row.names = F)
+ref_beta - total_bias
 
-
-
-
+  
 
 
