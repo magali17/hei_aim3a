@@ -40,7 +40,7 @@ local_tz <- "America/Los_Angeles"
 bdate <-ymd("2019-02-22")
 edate <-ymd("2020-03-17") 
 
-image_path <- file.path("..", "Manuscript", "Images", latest_version, "other", "temporal_adjustment")
+image_path <- file.path("..", "Manuscript", "Images", "v4", "SI")
 if(!dir.exists(image_path)) {dir.create(image_path, recursive = T)}
 
 if(!dir.exists(file.path(dt_path, "campaign visit samples"))) {dir.create(file.path(dt_path, "campaign visit samples"))}
@@ -218,24 +218,29 @@ overnight %>%
 
 # available data
 overnight %>%
-  group_by(month) %>%
-  summarize(dates = length(unique(date)),
-            start = min(date),
-            end = max(date),
+  group_by(Month=month) %>%
+  summarize(Dates = length(unique(date)),
+            Start = min(date),
+            End = max(date),
             #seasons = paste(unique(season), collapse = ", "),
-            days = paste(unique(dow), collapse = ", "),
-  )
+            Days = paste(unique(dow), collapse = ", "),
+  ) %>%
+  kable(caption = ". Continuous overnight sampling PNC times at the Beacon Hill monitoring site. Data were used to simulate a continuous, long-term PNC monitoring site, as described in the Methods and ____.") %>%
+  kable_styling()
 
 #boxplots of distributions
+print("Distribution of hourly PNC levels at Beacon Hill, stratified by day of the week, hour of the day, and sampling month")
 overnight %>%
   filter(site == "AQSBH") %>%
   pivot_longer(cols = c(month, dow, hour), names_to = "time_var", values_to = "time_value") %>% 
+  mutate(time_var = gsub("dow", "day", time_var)) %>%
   ggplot(aes(x=time_value, y=value)) +
-  facet_wrap(~time_var, scales="free", switch = "x") +
+  facet_grid(~time_var, scales="free", switch = "x") +
   geom_boxplot() +
-  labs(title = "NanoScan hourly readings stratified by day, hour, month")
+  #scale_x_discrete(guide = guide_axis(n.dodge=2)) +
+  labs(x=NULL)
 
-
+ggsave(file.path(image_path, "overnight_pnc_beaconhill.png"), width = 14, height = 4)
 # # by hour, day, month
 # overnight %>%
 #   ggplot(aes(y=value, #x=dow, col=month, group=month
@@ -277,20 +282,28 @@ calibration_dt <- overnight %>%
 # time series 
 ufp_conversion <- 1e3
 
+print(paste0("time series of hourly NO2 (ppb) and UFP (", ufp_conversion, " pt/cm3) at Beacon Hill used to simulate a continuous, long-term PNC monitoring site, as described in the Methods."))
 calibration_dt %>%
   mutate(ns_total_conc = ns_total_conc/ufp_conversion) %>%
   pivot_longer(cols = c(ns_total_conc, contains("no2")),names_to = "pollutant") %>%
-  mutate(time = ymd_h(paste(date, hour))) %>%
+  mutate(time = ymd_h(paste(date, hour)),
+         Pollutant = ifelse(pollutant == "no2", "NO2 (ppb)",
+                            ifelse(pollutant == "ns_total_conc", "PNC (1,000 pt/cm3)", NA))) %>%
   
-  ggplot(aes(x=time, y=value, col=pollutant)) + 
+  ggplot(aes(x=time, y=value, col=Pollutant)) + 
   facet_wrap(~month, scales = "free") + 
   geom_point(alpha=0.3) + 
   # make smooth line more wiggly to show hourly patterns (what we are interested in)
   geom_smooth(span=0.1, se = F) + 
-  labs(title = paste0("time series of hourly NO2 (ppb) and UFP (", ufp_conversion, " pt/cm3) at Beacon Hill"), 
-       subtitle = "Overnight data",
+  labs(y="Observed Hourly Concentration",
+        
        y="Observed Concentration"
   )
+
+ggsave(file.path(image_path, "no2_pnc_time_trend.png"), width = 8, height = 6)
+
+print("Pearson correlation between paired hourly readings:")
+cor(calibration_dt$ns_total_conc, calibration_dt$no2)
 
 #scatterplot
 calibration_dt %>%
@@ -393,6 +406,7 @@ y_breaks <- c(c(0, 3, 10, 20)*1e3,
                  c(3, 10, 20)*-1e3)
 
 # time series 
+print(paste0("time series of UFP residuals from the model (native scale)"))
 calibration_dt %>%
   ggplot(aes(x=time, y=residual)) + 
   facet_wrap(~month, scales = "free_x") + 
@@ -402,7 +416,9 @@ calibration_dt %>%
   geom_smooth(#span=0.3
               ) +
   scale_y_continuous(breaks = y_breaks) +
-  labs(title = paste0("time series of UFP residuals from the model (native scale)"))
+  labs(col="Day")
+
+ggsave(file.path(image_path, "no2_pnc_residuals_time_trend.png"), width = 8, height = 6)
 
 # calibration_dt %>%
 #   ggplot(aes(x=month, y=residual, col=dow)) + 

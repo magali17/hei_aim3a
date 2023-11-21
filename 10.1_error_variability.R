@@ -171,22 +171,20 @@ betas_np_long <- betas_np %>%
   pivot_longer(starts_with("beta_")) %>%
   mutate(
     bootstrap = "non-parametric",
-    description = ifelse(name=="beta_type1", "health inference estimate from different monitor locations and sampling times",
-                         ifelse(name=="beta_type2", "health inference estimate from different monitor locations, sampling times, and subjects", NA))) 
+    description = ifelse(name=="beta_type1", "(a) health inference estimate from different monitor locations and sampling times",
+                         ifelse(name=="beta_type2", "(b) health inference estimate from different monitor locations, sampling times, and subjects", NA))) 
 
-beta_variability <- betas_np_long %>%
+betas_np_summary <- betas_np_long %>%
   group_by(bootstrap, description) %>%
   summary_table(value="value")
-
-beta_variability
 
 ######################################################################
 # RESULTS PLOT
 ######################################################################
 print("Non-parametric analysis comparing the estimated association between PNC (per 1,900 pt/cm3) and CASI-IRT across bootstrapped samples with changing monitoring locations, sampling times, and subjects")
 betas_np_long %>%
-  mutate(description = ifelse(name=="beta_type1", "monitor locations + sampling times",
-                              ifelse(name=="beta_type2", "monitor locations + sampling times + subjects", NA))) %>%
+  mutate(description = ifelse(name=="beta_type1", "(a) monitor locations + sampling times",
+                              ifelse(name=="beta_type2", "(b) monitor locations + sampling times + subjects", NA))) %>%
   ggplot(aes(x=description, y=value)) + 
   geom_hline(yintercept = ref_beta, linetype=2) +
   geom_boxplot() +
@@ -247,7 +245,7 @@ this_model <-models[[this_pollutant$model]]
 residual_sd <- model_residuals$sd[model_residuals$model==this_pollutant$model] 
 
 set.seed(1)
-betas <- lapply(1:sim_n, function(x){
+betas_p <- lapply(1:sim_n, function(x){
   betas_bs <- tibble(n = x,
                      variable = main_pollutant1,
                      obs_beta = NA,
@@ -284,14 +282,14 @@ betas <- lapply(1:sim_n, function(x){
 }) %>%
   bind_rows()
 
-saveRDS(betas, file.path(output_data_path, "betas_parametric.rda"))
+saveRDS(betas_p, file.path(output_data_path, "betas_parametric.rda"))
 
 ######################################################################
 # RESULTS PLOT
 ######################################################################
 print("estimated association between PNC (per 1,900 pt/cm3) and CASI-IRT, adjusted for age, calendar year, sex, education")
 line_bounds <- 0.3
-betas %>%
+betas_p %>%
   ggplot(aes(x=obs_beta, y=pred_beta)) + 
   geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) + 
   geom_abline(slope = c(1-line_bounds, 1+line_bounds), intercept = 0, linetype=3, alpha=0.3) + 
@@ -307,7 +305,7 @@ ggsave(file.path(image_path, "parametric_beta_obs_pred.png"), width = 6, height 
 ######################################################################
 # BIAS
 ######################################################################
-beta_np_predicted <- betas %>%
+beta_p_summary_predicted <- betas_p %>%
   mutate(bootstrap = "parametric",
          description = "health inference from predicted PNC at simulated cohort locations (i.e., bootstrapped monitoring locations)") %>%
   group_by(bootstrap, description) %>%
@@ -325,31 +323,38 @@ beta_np_predicted <- betas %>%
 ######################################################################
 # SUMMARY OF BETA ESTIMATES
 ######################################################################
-
-# --> TO DO: REVIEW; check w/ Amanda
-beta_estimates <- rbind(beta_variability, beta_np_predicted) %>% 
-  mutate(Bias = Mean- ref_beta) %>%
-  select(Bootstrap = bootstrap, Description = description, Mean, SD, Bias, everything()) %>%
+betas_summary <- rbind(betas_np_summary, beta_p_summary_predicted) %>% 
+  mutate(Ref_Beta = ref_beta,
+         Bias = Mean- Ref_Beta) %>%
+  select(Bootstrap = bootstrap, Description = description, Mean, SD, Ref_Beta, Bias, everything()) %>%
   ungroup()
   
-beta_estimates
-write.csv(beta_estimates, file.path(output_data_path, "beta_summary.csv"), row.names = F)
+#betas_summary
 
-total_bias <- beta_estimates %>%
+total_bias <- betas_summary %>%
   filter(Bootstrap == "parametric" | 
-           grepl("subjects", Description)) %>%
-  summarize(total_bias = sum(Bias))
+           !grepl("subjects", Description)) %>%
+  summarize(Ref_Beta = ref_beta,
+            total_bias = sum(Bias),
+            # bias corrected beta
+            adjusted_beta = Ref_Beta - total_bias,
+            # SE accounting for additional variability from measurement error
+            adjusted_SE = filter(betas_summary, grepl("(b)", Description) & 
+                                   Bootstrap=="non-parametric") %>%
+              pull(SD),
+            pct_bias = total_bias/adjusted_beta*100,
+            )
   
 total_bias
   
-######################################################################
-# bias correction
-######################################################################
-
-# --> ???? wrong??
-
-ref_beta - total_bias
-
+write.csv(total_bias, file.path(output_data_path, "total_bias.csv"), row.names = F)
+ 
+# calculate bias specifically from CL & and BL error
+betas_summary <- betas_summary %>%
+  mutate(pct_bias = Bias/total_bias$adjusted_beta*100) %>%
+  select(Bootstrap, Description, Mean, SD, Ref_Beta, Bias, pct_bias, everything())
   
+betas_summary
+write.csv(betas_summary, file.path(output_data_path, "beta_summary.csv"), row.names = F)
 
 
