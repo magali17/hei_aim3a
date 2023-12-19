@@ -195,6 +195,8 @@ table(missing_hours$n)
 interpolate missing NO2 using a fitted model (vs simple linear interpolation) since 3 days have 16, 22, and 24 missing hourly values
 
 ```{r}
+# --> NOTE: Documentation says that for factors, a main effect for dow should probably been included (this is automatically generated like with lm())
+
 missing_no2_lm <- nox %>%
   mutate(hour = as.numeric(as.character(hour))) %>%
   gam(data=., formula = log(no2) ~ month + s(hour, 
@@ -250,12 +252,13 @@ overnight %>%
 overnight %>%
   filter(site == "AQSBH") %>%
   pivot_longer(cols = c(month, dow, hour), names_to = "time_var", values_to = "time_value") %>% 
+  mutate(time_var = ifelse(time_var=="dow", "day", time_var)) %>%
   ggplot(aes(x=time_value, y=value)) +
-  facet_wrap(~time_var, scales="free", switch = "x") +
+  facet_wrap(~time_var, scales="free", switch = "x", ncol = 2) +
   geom_boxplot() +
-  labs(title = "NanoScan hourly readings stratified by day, hour, month")
+  labs( )
 
-ggsave(file.path(image_path, "overnight_pnc_beaconhill.png"), width = 14, height = 4)
+ggsave(file.path(image_path, "overnight_pnc_beaconhill.png"), width = 9, height = 7)
 
 # # by hour, day, month
 # overnight %>%
@@ -342,7 +345,7 @@ leverage NO2 to capture the monthly/seasonal patterns not otherwise captured by 
 
 ### model 
 
-### --> why does residuals(lm1) %>% exp() produce different results? 
+why does residuals(lm1) %>% exp() produce different results? has to do with residuals being in the log scale initially? 
 
 ```{r}
 
@@ -365,7 +368,6 @@ leverage NO2 to capture the monthly/seasonal patterns not otherwise captured by 
 
 ########## TEST ##########
 print("fitting cubic cyclic spline")
-
 set.seed(2)
 # use cyclic spline?? mgcg::s(x, bs = "ad", xt = list(bs = "cc")) 
 lm1 <-  calibration_dt %>%
@@ -382,10 +384,26 @@ summary(lm1)
 print("the hour functions look non-linear")
 par(mfrow = c(3, 3))
 plot(lm1)
-par(mfrow = c(1, 1))
+##################################################################
+# QC check - Documentation says that for factors, a main effect for dow should probably been included (this is automatically generated like with lm()). Checking that  the results are similar.
 
-                                                         
+set.seed(2)
+# use cyclic spline?? mgcg::s(x, bs = "ad", xt = list(bs = "cc")) 
+lm1_alt <-  calibration_dt %>%
+  mutate(hour = as.numeric(as.character(hour))) %>%
+  gam(data=., formula=log(ns_total_conc)~log(no2) + dow + 
+                                                    s(hour,
+                                                      bs="cc", #cyclic cubic regression spline
+                                                      k=5, #k=5 or 6? both perform similarly
+                                                      by = dow #interaction by dow
+                                                      )) 
+summary(lm1_alt)
 
+print("alternative with dow also as a main effect")
+par(mfrow = c(3, 3))
+plot(lm1_alt)
+par(mfrow = c(1, 1))                                                       
+##################################################################
 
 # # TEST- model without no2; performs worse. R2  0.15 (vs ~0.55)
 # print("same model without NO2 performs worse")
@@ -400,12 +418,37 @@ par(mfrow = c(1, 1))
 
 calibration_dt <- calibration_dt %>%
   mutate(ufp_prediction = predict(lm1) %>% exp(),
+         ufp_prediction_alt = predict(lm1_alt) %>% exp(),
          residual = ns_total_conc - ufp_prediction,
+         residual_alt = ns_total_conc - ufp_prediction_alt,
          # residual = residuals(lm1) %>% exp(),
          time = ymd_h(paste(date, hour))
          ) 
 
 ```
+
+```{r}
+# compare UFP measurements (31 dys) to predictions
+calibration_dt %>%
+  select(date, hour, ns_total_conc, contains("ufp_prediction")) %>%
+  pivot_longer(cols = contains("ufp_prediction")) %>%
+  mutate(name = ifelse(name=="ufp_prediction", "current UFP model", "model with DOW main effect")) %>%
+  
+  ggplot(aes(x=ns_total_conc, y=value, col=name)) + 
+  geom_point() + 
+  geom_smooth() + 
+  geom_abline(slope = 1, intercept = 0, linetype=2) +
+  theme(aspect.ratio = 1) +
+  labs(x="Observed UFP",
+       y = "Predicted UFP",
+       col=NULL,
+       title = "Hourly UFP (pt/cm3) at Beacon Hill (31 dys)\nduring the study period"
+       )
+ggsave(file.path(image_path, "..", "other", "qc", "predicted_ufp_vs_measured_dow_main_effect.png"), width = 6, height = 6)
+
+
+```
+
 
 ### residuals - is the temporal pattern gone? 
 
@@ -418,6 +461,7 @@ y_breaks <- c(c(0, 3, 10, 20)*1e3,
                  c(3, 10, 20)*-1e3)
 
 # time series 
+## --> note, if I use y=residual_alt, the temporal trend is slightly reduced 
 calibration_dt %>%
   ggplot(aes(x=time, y=residual)) + 
   facet_wrap(~month, scales = "free_x") + 
@@ -444,6 +488,12 @@ summary(calibration_dt$residual)
 
 ```
 
+```{r}
+# remove alternative prediction
+calibration_dt <- calibration_dt %>%
+  select(-ufp_prediction_alt)
+
+```
 
 ### out-of-sample model performance
 
@@ -457,6 +507,11 @@ summary(calibration_dt$residual)
 predicted_ufp <- nox %>%
   mutate(hour = as.numeric(as.character(hour))) %>% 
   predict(lm1, newdata=.) %>% 
+  exp()
+
+predicted_ufp_alt <- nox %>%
+  mutate(hour = as.numeric(as.character(hour))) %>% 
+  predict(lm1_alt, newdata=.) %>% 
   exp()
 
 # table(is.na(predicted_ufp))
@@ -479,7 +534,29 @@ nox <- nox %>%
          diff_adjustment = predicted_lta_ufp - predicted_ufp,
          #diff_adjustment_rolling = predicted_lta_ufp - predicted_ufp_rolling,
          diff_adjustment_winsorize = predicted_lta_ufp - predicted_ufp_winsorized,
+         
+         #results we would have gotten with DOW as a main effect
+         predicted_ufp_alt = predicted_ufp_alt,
          )
+
+# QC - compare UFP predictions
+alt_r <- cor(nox$predicted_ufp, nox$predicted_ufp_alt) %>% round(2) 
+
+print("predicted hourly UFP at synthetic site")
+nox %>%
+  ggplot(aes(x=predicted_ufp, y=predicted_ufp_alt)) + 
+  geom_point(alpha=0.1) + 
+  geom_smooth() + 
+  geom_abline(slope = 1, intercept = 0) + 
+  geom_abline(slope = c(0.8, 1.2), intercept = 0, linetype=2, col="red") + 
+  geom_text(aes(x=5e3, y=30e3, label=paste("R=", alt_r))) +
+  theme(aspect.ratio = 1) +
+  labs(title = "Predicted hourly UFP\nfrom a model with and without a DOW main effect", 
+       subtitle = "dashed lines are +-20%",
+       x = "Current (no DOW main effect)",
+       y = "Alternative: With DOW main effect"
+       )
+ggsave(file.path(image_path, "..", "other", "qc", "predicted_ufp_dow_main_effect_comparison.png"), width = 6, height = 6)
 
 ```
 
@@ -541,76 +618,6 @@ nox %>%
     labs(title = "predicted hourly UFP when NO2 is fixed", 
          subtitle = "NO2 is fixed to the mean NO2 observed during the study period")
   
-```
-
-
-
-
-
-```{r, eval=F}
-# # OLD TEMPORAL ADJUSTMENT APPROACH
-
-########################################
-#APPROACH 1 
-hour_day_adj0 <- expand.grid(weekday = c("weekend", "weekday"),
-                             hour = sort(unique(overnight$hour)))
-
-hourly_mean <- overnight %>%
-  group_by(hour) %>%
-  summarize(#n=n(),
-            hourly_mean = mean(value))
-
-tow_mean <- overnight %>%
-  group_by(weekday) %>%
-  summarize(#n=n(),
-            tow_mean = mean(value)) %>%
-  mutate(tow_wt = ifelse(weekday=="weekday", 5/7, 2/7),
-         lta = sum(tow_mean*tow_wt),
-         weekly_tow_diff = lta-tow_mean)
-
-hour_day_adj <- hour_day_adj0 %>%
-  left_join(hourly_mean) %>%
-  left_join(tow_mean) %>%
-  mutate(tow_hourly_diff = tow_mean - hourly_mean)
-
-# these adjustment factors are pretty normally distributed
-hist(hour_day_adj$tow_hourly_diff)
-hist(hour_day_adj$weekly_tow_diff)
-
-hour_day_adj %>% 
-  mutate(total_adj = weekly_tow_diff + tow_hourly_diff) %>% 
-  summarize(min=min(total_adj), 
-            mean=mean(total_adj),
-            sd = sd(total_adj),
-            max=max(total_adj)) %>%
-  kable(caption = "distribution of overall adjustments", digits = 0) %>%
-  kable_styling()
-   
-
-########################################
-# APPROACH 2
-lta <- unique(tow_mean$lta)
-
-lm2 <- overnight %>%
-  mutate(lta_hour_diff = lta - value) %>%
-  lm(data = ., lta_hour_diff ~ weekday*hour 
-     #bs(as.numeric(hour), degree = 5)
-     )
-
-summary(lm2)
-
-# OK that fit is bad? r2 ~0.06
-hour_day_adj_v2 <- hour_day_adj0 %>%
-  mutate(lm_adjustment = predict(lm2, newdata = hour_day_adj0))
-
-hour_day_adj_v2 %>%
-  mutate(hour = hour %>% as.character() %>% as.numeric()) %>%
-  ggplot(., aes(x=hour, y=lm_adjustment, col=weekday)) + 
-  geom_hline(yintercept = 0, alpha=0.4) +
-  geom_smooth(linetype=2) + 
-  geom_point() + 
-  labs(title = "LM approach adjustments")
-
 ```
 
 # temporal adjustment
@@ -741,6 +748,29 @@ names(r) <- unique(adjusted_annual_avg$version)
 
 r
   
+```
+
+
+
+```{r}
+# compare site-level estimates vs prediction error
+#
+# band <- 0.3
+# 
+# adjusted_annual_avg %>%
+#   left_join(all_data_annual) %>% 
+#   select(design, version, campaign, location, unadjusted_obs=ns_total_conc, adjusted_obs=ns_total_conc_adj_no2lm_winsorize, true_obs=ns_total_conc_all_data) %>%
+#   pivot_longer(cols = c(contains(c("adjusted")))) %>% 
+#   mutate(error = value-true_obs) %>%
+#   
+#   ggplot(aes(x=true_obs, y=value, col=name)) + 
+#   geom_point(alpha=0.3) +
+#   #facet_wrap(~name) +
+#   geom_abline(intercept = 0, slope = c(1-band, 1+band), linetype=3, alpha=0.5) +
+#   geom_abline(intercept = 0,slope = 1, linetype=2)
+  
+
+
 ```
 
 

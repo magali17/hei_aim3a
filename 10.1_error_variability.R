@@ -86,6 +86,10 @@ ref_intercept <- all_data_coefs %>%
   pull(estimate)
 print(paste("ref beta:", ref_beta))
 
+ref_se <- all_data_coefs %>%
+  filter(term == "avg_0_5_yr") %>%
+  pull(std.error)
+
 
 # monitoring site predictions & true estimates from the full campaign in this study (from 2.3_uk_cv.R)
 monitoring_sites <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>%
@@ -357,4 +361,10 @@ betas_summary <- betas_summary %>%
 betas_summary
 write.csv(betas_summary, file.path(output_data_path, "beta_summary.csv"), row.names = F)
 
+######################################################################
+## compare ref to adjusted SE
+adjusted_se <- filter(betas_summary, grepl("(b)", Description) & Bootstrap=="non-parametric") %>% 
+  pull(SD)
 
+# percent SE difference betweed adjusted and unadjsuted SE
+(adjusted_se-ref_se)/adjusted_se # 12.67%

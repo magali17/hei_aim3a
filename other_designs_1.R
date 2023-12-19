@@ -164,9 +164,7 @@ message("saving modeling data")
 #saveRDS(dt, file.path(dt_path, "Selected Campaigns", "other_stop_designs_data.rda"))
   
 # save separately so program doesn't crash later
-model_designs <- c("fewhrs", 
-                   #"sitetype",  
-                   paste0("balsea_", 1:4) #this has many different pollutants
+model_designs <- c("fewhrs", paste0("balsea_", 1:4) #this has many different pollutants
                    )
 
 lapply(model_designs, function(x) {

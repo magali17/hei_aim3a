@@ -49,14 +49,23 @@ theme_update(legend.position = "bottom")
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
+model_levels <- c("UK-PLS", "RF", "TPRS", "RF-TPRS", "TPRS-RF", "SpatRF-PL", "SpatRF-NP")
+comparison_models <- setdiff(model_levels, "UK-PLS")
+
 # person-level exposures 
 cs_ml <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%  
   select(-starts_with("avg_")) %>%
    mutate(model = gsub("^u", "", model),
          model=str_to_upper(model),
-         model = ifelse(grepl("pls", model, ignore.case=T), "UK-PLS", model),
-         model = factor(model) %>% relevel(ref="UK-PLS")
+         # model = ifelse(grepl("pls", model, ignore.case=T), "UK-PLS", model),
+         # model = factor(model) %>% relevel(ref="UK-PLS")
+          model = ifelse(grepl("pls", model, ignore.case=T), "UK-PLS",
+                        ifelse(grepl("RT", model, ignore.case=T), "RF-TPRS",
+                               ifelse(grepl("TR", model, ignore.case=T), "TPRS-RF",
+                                      ifelse(grepl("SPATPL", model, ignore.case=T), "SpatRF-PL", 
+                                             ifelse(grepl("SPATCV", model, ignore.case=T), "SpatRF-NP", model))))),
+         model = factor(model, levels = model_levels)
          )
   
 # health effect estimates & CW
@@ -68,8 +77,12 @@ model_coefs_ml <- readRDS(file.path(output_data_path, "model_coefs_ml.rda")) %>%
   label_pollutants() %>%
   mutate(model = gsub("^u", "", model),
          model=str_to_upper(model),
-         model = ifelse(grepl("pls", model, ignore.case=T), "UK-PLS", model),
-         model = factor(model) %>% relevel(ref="UK-PLS")
+         model = ifelse(grepl("pls", model, ignore.case=T), "UK-PLS",
+                        ifelse(grepl("RT", model, ignore.case=T), "RF-TPRS",
+                               ifelse(grepl("TR", model, ignore.case=T), "TPRS-RF",
+                                      ifelse(grepl("SPATPL", model, ignore.case=T), "SpatRF-PL", 
+                                             ifelse(grepl("SPATCV", model, ignore.case=T), "SpatRF-NP", model))))),
+         model = factor(model, levels = model_levels)
          )
 
 ```
@@ -96,8 +109,10 @@ comparison of predicted 5 yr exposures at baseline
 ```{r}
 # plot
 cs_ml %>%
-  pivot_wider(names_from = model, values_from = exposure) %>%  
-  pivot_longer(cols = RF:TR) %>%
+  pivot_wider(names_from = model, values_from = exposure) %>% 
+  pivot_longer(cols = all_of(comparison_models)  
+               ) %>%
+  mutate(name = factor(name, levels=model_levels)) %>% 
   
   ggplot(aes(x=get('UK-PLS'), y=value, col=name)) +
   geom_point(alpha=0.05) +
@@ -125,7 +140,7 @@ cs_ml %>%
 cs_ml %>%
   pivot_wider(names_from = model, values_from = exposure) %>%
   rename(ukpls = 'UK-PLS') %>%
-  pivot_longer(cols = RF:TR) %>%
+  pivot_longer(cols = all_of(comparison_models)) %>%
   group_by(name) %>%
   summarize(correlation = cor(ukpls, value)) %>%
   kable(caption = "Correlation (R) of UK-PLS predictions with predictions from machine learning methods", 

@@ -43,6 +43,8 @@ dt_path <- file.path("Output", latest_version)
 
 if(!dir.exists(file.path(dt_path, "campaign visit samples"))) {dir.create(file.path(dt_path, "campaign visit samples"))}
 
+image_path <- file.path("..", "Manuscript", "Images", "v4", "SI")
+
 # ggplot settings
 theme_set(theme_bw())
 theme_update(legend.position = "bottom")
@@ -64,7 +66,7 @@ all_data_annual <- stops_w %>%
   ungroup()
 
 # site type categorization (from Amanda)
-pls_categories <- read.csv(file.path("data", "pls_cats.csv")) 
+pls_categories <- read.csv(file.path("data", "pls_cats.csv"))[-1] 
 high_sites <- filter(pls_categories, pls_cats =="high") %>% pull(location)
 med_sites <- filter(pls_categories, pls_cats =="med") %>% pull(location)
 low_sites <- filter(pls_categories, pls_cats =="low") %>% pull(location)
@@ -75,7 +77,6 @@ low_sites <- filter(pls_categories, pls_cats =="low") %>% pull(location)
 # number of simulations
 sim_n <- 30
 
-# table(pls_categories$pls_cats) # 90*2/309 = 58% of sites changing 
 visit_count <- seq(2,22, 2)
 site_type_levels <- paste("H", rev(visit_count), "L", visit_count)
 saveRDS(site_type_levels, file.path(dt_path, "site_type_levels.rda"))
@@ -85,6 +86,36 @@ default_count <- 12
 keep_vars <- readRDS(file.path(dt_path, "keep_vars.rda"))
 
 ```
+
+# summarize site types
+
+
+```{r}
+print("site variability categorizations")
+table(pls_categories$pls_cats) # 90*2/309 = 58% of sites changing 
+
+pls_categories %>%
+  mutate(
+    pls_cats = ifelse(pls_cats=="med", "medium", pls_cats),
+    pls_cats = str_to_title(pls_cats),
+    pls_cats = factor(pls_cats, levels=c("Low", "Medium", "High"))
+    ) %>%
+  pivot_longer(cols = c(iqr, predicted_iqr)) %>%
+  mutate(
+    name = ifelse(name == "iqr", "Observed IQR",
+                  ifelse(name == "predicted_iqr", "From PLS, Used in Sampling Designs", NA))) %>%
+  
+  ggplot(aes(x=pls_cats, y=value, fill=name)) + 
+  geom_boxplot() + 
+  labs(y="PNC IQR (pt/cm3)", x="Predicted Site Variability (IQR)",
+       fill = NULL
+       )
+
+ggsave(file.path(image_path, "site_type_iqr.png"), width = 6, height = 4)
+
+```
+
+
 
 # Sample by site type
 

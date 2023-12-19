@@ -41,6 +41,7 @@ output_data_path <- file.path(dt_path, "epi")
 
 image_path <- file.path("..", "Manuscript", "Images", "v4", "other", "road")
 if(!dir.exists(image_path)) {dir.create(image_path, recursive = T)}
+if(!dir.exists(file.path(image_path, "presentations"))) {dir.create(file.path(image_path, "presentations"), recursive = T)}
 # ggplot settings
 theme_set(theme_bw())
 theme_update(legend.position = "bottom")
@@ -315,6 +316,34 @@ lapply(spatial_names, function (x) {
   ggarrange(plotlist = ., ncol = 1, heights = c(1.7,1))
 
 ggsave(file.path(image_path, "ufp_health_estimate.png"), width = 8, height = 11)
+
+```
+
+same as above, reduced for presentation
+```{r}
+temp <- data.frame(version=c("All Data Stationary\nExposure Model"),
+                   label = c("Reference", "No Effect"),
+                   est=c(ref_model_coefs$est, 0),
+                   design = NA,
+                   visits = "4 visits per location")
+
+model_coefs %>%
+  filter(visits==4,
+         design != "Unbalanced") %>%  
+  mutate(visits = paste(visits, "visits per location")) %>%
+  
+  ggplot(aes(x=version, y=est, fill=design)) +
+  facet_grid(rows = vars(visits), switch = "both") +
+  geom_boxplot(position = "dodge")  +
+  geom_hline(yintercept = ref_model_coefs$est, linetype=1, alpha=0.5) +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+  geom_boxplot(data=filter(temp, label=="Reference")) +
+  geom_label(data=temp, aes(label=label, ), fill= "white",show.legend = F) +
+  labs(y = "Health Effect Estimate",
+       fill="Design")
+
+ ggsave(file.path(image_path, "presentations", "ufp_health_estimate_sample1.png"), width = 8, height = 5)
+    
 
 ```
 
