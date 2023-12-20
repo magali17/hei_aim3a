@@ -9,17 +9,10 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(tidyverse, sf,
-               parallel, #mclapply; detectCores()
-               # future.apply, #future_replicate()
-               pls, #UK 
-               gstat #variogram()
-)    
+pacman::p_load(tidyverse, sf, parallel, pls, gstat)    
 
-#source("functions.R")
 set.seed(1)
 
-#plan(multisession, workers = 6)
 use_cores <- 2
 
 latest_version <- "v3_20230321" 
@@ -110,16 +103,11 @@ if(create_new_cw == TRUE) {
         design=="site type" ~ "sitetype",
         design=="balanced seasons" ~ "balsea",
         ),
-      # # note, this replicates version #. should be (or something like this):
-      # design_code = ifelse(design=="balanced seasons", "s", design_code),
-      # #design_code = ifelse(design=="balanced seasons", paste0("s", version), design_code),
-      
       version_code = case_when(
         version == "business" ~ "bh",
         version == "business temp adj" ~ "bhadj",
         version == "rush" ~ "rh",
         version == "rush temp adj" ~ "rhadj",
-        #TRUE ~ gsub(" ", "", version) #%>% str_to_lower()
         TRUE ~ version
         ),
       version_code = gsub(" ", "", version_code),
@@ -161,7 +149,6 @@ dt <- left_join(dt, cw) %>%
 ##################################################################################################
 #  SAVE FILES FOR PREDICTION PROGRAM
 message("saving modeling data")
-#saveRDS(dt, file.path(dt_path, "Selected Campaigns", "other_stop_designs_data.rda"))
   
 # save separately so program doesn't crash later
 model_designs <- c("fewhrs", paste0("balsea_", 1:4) #this has many different pollutants
@@ -218,8 +205,6 @@ random_fold_df <- lapply(group_split(dt, model), function(x) {
 
 dt <- suppressMessages(left_join(dt, random_fold_df)) %>%
   select(random_fold, everything())
-
-# saveRDS(dt, file.path(dt_path, "other_stop_designs_data2.rda"))
 
 ## CV
 print(paste0("Running random ", k, " FCV"))
@@ -291,34 +276,9 @@ model_perf0 %>%
   saveRDS(., file.path(dt_path, "other_designs_model_eval.rda"))
 
 
+message("done with other_designs_1.R")
 
 ##################################################################################################
 # APPENDIX
 ##################################################################################################
-## MOVED THIS TO 9_summarize_epi.R
-# if(FALSE) {
-#   # version levels
-#   visit_count <- seq(2,22, 2)
-#   fewer_hr_lvls <- unique(cw$version)[str_detect(unique(cw$version), "business|rush")]
-#   site_type_lvls <- paste("H", rev(visit_count), "L", visit_count)
-# 
-#   temp <- model_perf0 %>%
-#     left_join(cw) %>%
-#     mutate(version = factor(version, levels=c(fewer_hr_lvls, site_type_lvls))) %>%
-#     filter(variable == "ns_total_conc")
-# 
-# 
-#   temp %>%
-#     pivot_longer(cols = c(MSE_based_R2, RMSE)) %>%
-# 
-#     ggplot(aes(x=version, y=value)) +
-#     facet_grid(name~design, scales = "free", switch = "both", space = "free_x") +
-#     geom_boxplot() +
-#     labs(title = "Distribution of UK-PLS campaign performances",
-#          subtitle = "30 campaigs per version" #, each model performance is based on  309 sites
-#          )
-# 
-#   ggsave(file.path("..", "Manuscript", "Images", "v3_20230321", "other", "other_designs_model_performances.png"), width = 14, height = 8)
-#   }
 
-message("done with other_designs_1.R")

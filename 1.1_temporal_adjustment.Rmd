@@ -195,15 +195,15 @@ table(missing_hours$n)
 interpolate missing NO2 using a fitted model (vs simple linear interpolation) since 3 days have 16, 22, and 24 missing hourly values
 
 ```{r}
-# --> NOTE: Documentation says that for factors, a main effect for dow should probably been included (this is automatically generated like with lm())
-
 missing_no2_lm <- nox %>%
   mutate(hour = as.numeric(as.character(hour))) %>%
-  gam(data=., formula = log(no2) ~ month + s(hour, 
-                                           bs="cc", #cyclic cubic regression spline
-                                           k=6, # (later, I use 5, but this seems to increase performance by a larger bump than 4 to 5, little added in-sample performance is seen w/ more flexibility
-                                           by = dow #interaction by dow
-                                           )) 
+  gam(data=., formula = log(no2) ~ month + 
+        dow +  #new 12/20/23
+        s(hour,
+          bs="cc", #cyclic cubic regression spline
+          k=6, # (later, I use 5, but this seems to increase performance by a larger bump than 4 to 5, little added in-sample performance is seen w/ more flexibility
+          by = dow #interaction by dow
+          )) 
 
 
 summary(missing_no2_lm)
@@ -260,16 +260,6 @@ overnight %>%
 
 ggsave(file.path(image_path, "overnight_pnc_beaconhill.png"), width = 9, height = 7)
 
-# # by hour, day, month
-# overnight %>%
-#   ggplot(aes(y=value, #x=dow, col=month, group=month
-#              x=hour, col=weekday, group=weekday 
-#              )) + 
-#   facet_wrap(~month) +
-#   geom_point(alpha=0.4) + 
-#   geom_smooth() + 
-#   labs(title = "hourly NanoScan readings")
-
 ```
 
 # NO2 vs UFP
@@ -278,16 +268,6 @@ ggsave(file.path(image_path, "overnight_pnc_beaconhill.png"), width = 9, height 
 # using overnight & regulatory data
 winsorize_quantile <- 0.05
 
-# # TEST - does adjusted no2 data look better? - no
-# rolling_no2 <- nox %>%
-#   # arrange(time) %>%  
-#   # mutate(no2_rolling = zoo::rollmean(no2, k=6, fill="extend")) %>% 
-#   group_by(date) %>%
-#   mutate(no2_winsorized = ifelse(no2 < quantile(no2, winsorize_quantile), quantile(no2, winsorize_quantile),
-#                             ifelse(no2 > quantile(no2, 1-winsorize_quantile), quantile(no2, 1-winsorize_quantile), no2))) %>%
-#   select(date, hour, contains("no2_")) 
-
-
 # combine nox & ufp data by time
 calibration_dt <- overnight %>%
   filter(site == "AQSBH") %>%
@@ -295,9 +275,9 @@ calibration_dt <- overnight %>%
   select(date, month, dow, hour, ns_total_conc) %>% 
   # note that this changes the date to ??UTC? the
   #add_season(.date_var = "date") %>% 
-  left_join(nox %>% #filter(site_name=="Beacon Hill") %>% 
+  left_join(nox %>%  
               select(date, hour, no2, season)) %>%
-  drop_na() #%>% left_join(rolling_no2)
+  drop_na() 
 
 # time series 
 ufp_conversion <- 1e3
@@ -314,8 +294,8 @@ calibration_dt %>%
   geom_smooth(span=0.1, se = F) + 
   labs(title = paste0("time series of hourly NO2 (ppb) and UFP (", ufp_conversion, " pt/cm3) at Beacon Hill"), 
        subtitle = "Overnight data",
-       y="Observed Concentration"
-       )
+       y="Observed Concentration")
+
 ggsave(file.path(image_path, "no2_pnc_time_trend.png"), width = 8, height = 6)
   
 #scatterplot
@@ -366,13 +346,13 @@ why does residuals(lm1) %>% exp() produce different results? has to do with resi
 # 
 # plot(lm1)
 
-########## TEST ##########
+#  Documentation says that for factors, a main effect for dow should probably been included (this is automatically generated like with lm()).  
 print("fitting cubic cyclic spline")
 set.seed(2)
 # use cyclic spline?? mgcg::s(x, bs = "ad", xt = list(bs = "cc")) 
 lm1 <-  calibration_dt %>%
   mutate(hour = as.numeric(as.character(hour))) %>%
-  gam(data=., formula=log(ns_total_conc)~log(no2) + #dow + 
+  gam(data=., formula=log(ns_total_conc)~log(no2) + dow + 
                                                     s(hour,
                                                       bs="cc", #cyclic cubic regression spline
                                                       k=5, #k=5 or 6? both perform similarly
@@ -384,46 +364,13 @@ summary(lm1)
 print("the hour functions look non-linear")
 par(mfrow = c(3, 3))
 plot(lm1)
-##################################################################
-# QC check - Documentation says that for factors, a main effect for dow should probably been included (this is automatically generated like with lm()). Checking that  the results are similar.
-
-set.seed(2)
-# use cyclic spline?? mgcg::s(x, bs = "ad", xt = list(bs = "cc")) 
-lm1_alt <-  calibration_dt %>%
-  mutate(hour = as.numeric(as.character(hour))) %>%
-  gam(data=., formula=log(ns_total_conc)~log(no2) + dow + 
-                                                    s(hour,
-                                                      bs="cc", #cyclic cubic regression spline
-                                                      k=5, #k=5 or 6? both perform similarly
-                                                      by = dow #interaction by dow
-                                                      )) 
-summary(lm1_alt)
-
-print("alternative with dow also as a main effect")
-par(mfrow = c(3, 3))
-plot(lm1_alt)
-par(mfrow = c(1, 1))                                                       
-##################################################################
-
-# # TEST- model without no2; performs worse. R2  0.15 (vs ~0.55)
-# print("same model without NO2 performs worse")
-# lm1b <- calibration_dt %>%
-#   mutate(hour = as.numeric(as.character(hour)),
-#          #dow = as.numeric(dow),
-#          #tow = ifelse(dow %in% c("Sat", "Sun"), "weekend", "weekday")
-#          ) %>%
-#   lm(formula=log(ns_total_conc)~ dow*bs(hour, df=4), data=.) 
-# 
-# summary(lm1b)
 
 calibration_dt <- calibration_dt %>%
   mutate(ufp_prediction = predict(lm1) %>% exp(),
-         ufp_prediction_alt = predict(lm1_alt) %>% exp(),
+         #ufp_prediction_alt = predict(lm1_alt) %>% exp(),
          residual = ns_total_conc - ufp_prediction,
-         residual_alt = ns_total_conc - ufp_prediction_alt,
-         # residual = residuals(lm1) %>% exp(),
-         time = ymd_h(paste(date, hour))
-         ) 
+         #residual_alt = ns_total_conc - ufp_prediction_alt,
+         time = ymd_h(paste(date, hour))) 
 
 ```
 
@@ -444,7 +391,7 @@ calibration_dt %>%
        col=NULL,
        title = "Hourly UFP (pt/cm3) at Beacon Hill (31 dys)\nduring the study period"
        )
-ggsave(file.path(image_path, "..", "other", "qc", "predicted_ufp_vs_measured_dow_main_effect.png"), width = 6, height = 6)
+#ggsave(file.path(image_path, "..", "other", "qc", "predicted_ufp_vs_measured_dow_main_effect.png"), width = 6, height = 6)
 
 
 ```
@@ -461,7 +408,7 @@ y_breaks <- c(c(0, 3, 10, 20)*1e3,
                  c(3, 10, 20)*-1e3)
 
 # time series 
-## --> note, if I use y=residual_alt, the temporal trend is slightly reduced 
+
 calibration_dt %>%
   ggplot(aes(x=time, y=residual)) + 
   facet_wrap(~month, scales = "free_x") + 
@@ -475,23 +422,15 @@ calibration_dt %>%
 
 ggsave(file.path(image_path, "no2_pnc_residuals_time_trend.png"), width = 8, height = 6)
 
-# calibration_dt %>%
-#   ggplot(aes(x=month, y=residual, col=dow)) + 
-#   #facet_wrap(~month) +
-#   geom_hline(yintercept = 0, linetype=2, alpha=0.6) +
-#   geom_hline(yintercept = c(-1e3, 1e3), linetype=3, alpha=0.5) +
-#   geom_boxplot() +
-#   scale_y_continuous(breaks = y_breaks) 
-  
 print("distribution of residuals")
 summary(calibration_dt$residual) 
 
 ```
 
 ```{r}
-# remove alternative prediction
-calibration_dt <- calibration_dt %>%
-  select(-ufp_prediction_alt)
+# # remove alternative prediction
+# calibration_dt <- calibration_dt %>%
+#   select(-ufp_prediction_alt)
 
 ```
 
@@ -509,10 +448,10 @@ predicted_ufp <- nox %>%
   predict(lm1, newdata=.) %>% 
   exp()
 
-predicted_ufp_alt <- nox %>%
-  mutate(hour = as.numeric(as.character(hour))) %>% 
-  predict(lm1_alt, newdata=.) %>% 
-  exp()
+# predicted_ufp_alt <- nox %>%
+#   mutate(hour = as.numeric(as.character(hour))) %>% 
+#   predict(lm1_alt, newdata=.) %>% 
+#   exp()
 
 # table(is.na(predicted_ufp))
 
@@ -523,40 +462,33 @@ predicted_ufp_high <- quantile(predicted_ufp, 1-winsorize_quantile, na.rm = T)
 
 nox <- nox %>%
   mutate(predicted_ufp = predicted_ufp,
-         
-         #TEST - reduce extreme adjustments
-         #predicted_ufp_rolling = zoo::rollmean(predicted_ufp, k=3, fill="extend"),
          predicted_ufp_winsorized = ifelse(predicted_ufp < predicted_ufp_low, predicted_ufp_low,
                              ifelse(predicted_ufp > predicted_ufp_high, predicted_ufp_high, predicted_ufp)),
          
-         
          # adjustment based on the difference method
          diff_adjustment = predicted_lta_ufp - predicted_ufp,
-         #diff_adjustment_rolling = predicted_lta_ufp - predicted_ufp_rolling,
          diff_adjustment_winsorize = predicted_lta_ufp - predicted_ufp_winsorized,
-         
-         #results we would have gotten with DOW as a main effect
-         predicted_ufp_alt = predicted_ufp_alt,
          )
 
-# QC - compare UFP predictions
-alt_r <- cor(nox$predicted_ufp, nox$predicted_ufp_alt) %>% round(2) 
-
-print("predicted hourly UFP at synthetic site")
-nox %>%
-  ggplot(aes(x=predicted_ufp, y=predicted_ufp_alt)) + 
-  geom_point(alpha=0.1) + 
-  geom_smooth() + 
-  geom_abline(slope = 1, intercept = 0) + 
-  geom_abline(slope = c(0.8, 1.2), intercept = 0, linetype=2, col="red") + 
-  geom_text(aes(x=5e3, y=30e3, label=paste("R=", alt_r))) +
-  theme(aspect.ratio = 1) +
-  labs(title = "Predicted hourly UFP\nfrom a model with and without a DOW main effect", 
-       subtitle = "dashed lines are +-20%",
-       x = "Current (no DOW main effect)",
-       y = "Alternative: With DOW main effect"
-       )
-ggsave(file.path(image_path, "..", "other", "qc", "predicted_ufp_dow_main_effect_comparison.png"), width = 6, height = 6)
+# # QC - compare UFP predictions
+# alt_r <- cor(nox$predicted_ufp, nox$predicted_ufp_alt) %>% round(2) 
+# 
+# print("predicted hourly UFP at synthetic site")
+# nox %>%
+#   ggplot(aes(x=predicted_ufp, y=predicted_ufp_alt)) + 
+#   geom_point(alpha=0.1) + 
+#   geom_smooth() + 
+#   geom_abline(slope = 1, intercept = 0) + 
+#   geom_abline(slope = c(0.8, 1.2), intercept = 0, linetype=2, col="red") + 
+#   geom_text(aes(x=5e3, y=30e3, label=paste("R=", alt_r))) +
+#   theme(aspect.ratio = 1) +
+#   labs(title = "Predicted hourly UFP\nfrom a model with and without a DOW main effect", 
+#        subtitle = "dashed lines are +-20%",
+#        x = "Current (no DOW main effect)",
+#        y = "Alternative: With DOW main effect"
+#        )
+# 
+# ggsave(file.path(image_path, "..", "other", "qc", "predicted_ufp_dow_main_effect_comparison.png"), width = 6, height = 6)
 
 ```
 
@@ -625,28 +557,10 @@ nox %>%
 ```{r}
 unbalanced_samples <- unbalanced_samples0 %>%
   #remove minutes & seconds
-  mutate(time = ymd_h(substr(time, 1, 13), tz = local_tz)) %>% 
-  # # option 1 adjustment
-  # left_join(select(hour_day_adj, weekday, hour, tow_hourly_diff, weekly_tow_diff)) %>% 
-  # # option 2 adjustment 
-  # left_join(hour_day_adj_v2) %>% 
+  mutate(time = ymd_h(substr(time, 1, 13), tz = local_tz)) %>%
   left_join(select(nox, time, contains("diff_adjustment"))) %>%
-  mutate(#ns_total_conc_adj = ns_total_conc + tow_hourly_diff + weekly_tow_diff,
-         #ns_total_conc_adj_lm = ns_total_conc + lm_adjustment
-          ns_total_conc_adj_no2lm = ns_total_conc + diff_adjustment,
-          
-          #test - rolling no2
-          #ns_total_conc_adj_no2lm_rolling = ns_total_conc + diff_adjustment_rolling,
-          ns_total_conc_adj_no2lm_winsorize = ns_total_conc + diff_adjustment_winsorize,
-          
-          
-          
-          # REPLACE negative visit concentrations with 1 pt/cm3. this affects ~4% of visit samples
-          
-          # ns_total_conc_adj_no2lm = ifelse(ns_total_conc_adj_no2lm <=0, 1, ns_total_conc_adj_no2lm),
-          # # if NO2 is missing, use unadjusted observation (~2%)
-          # ns_total_conc_adj_no2lm = ifelse(is.na(ns_total_conc_adj_no2lm), ns_total_conc, ns_total_conc_adj_no2lm)
-         )
+  mutate(ns_total_conc_adj_no2lm = ns_total_conc + diff_adjustment,
+         ns_total_conc_adj_no2lm_winsorize = ns_total_conc + diff_adjustment_winsorize)
   
 # prop.table(table(unbalanced_samples$ns_total_conc_adj_no2lm<=0))
 # prop.table(table(is.na(unbalanced_samples$ns_total_conc_adj_no2lm)))
@@ -664,8 +578,7 @@ hist(unbalanced_samples$diff_adjustment_winsorize)
 # annual averages
 adjusted_annual_avg <- unbalanced_samples %>% 
   group_by(design, version, campaign, location) %>%
-  summarize_at(vars(contains(c(#"no2", "pnc_", 
-                               "ns_"))), ~mean(., na.rm = T)) %>%
+  summarize_at(vars(contains(c( "ns_"))), ~mean(., na.rm = T)) %>%
   ungroup()
 
 
@@ -695,7 +608,7 @@ dt2 <- adjusted_annual_avg %>%
   mutate(version = paste(version, "temp adj"))
 
 # save data
-rbind(dt1, dt2) %>%
+rbind(dt1, dt2) %>% 
   saveRDS(., file.path(dt_path, "temporal_adjustment.rda"))
 
 ```

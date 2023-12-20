@@ -15,12 +15,10 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 # load the required libraries for: plotting, modeling, spatial features, script timing
 if (!require("pacman")) {install.packages("pacman")}
 
-# install.packages(c("pls", "gstat", "dplyr"))
 pacman::p_load(pls, gstat, sf, 
                lubridate,
-               #tools,
                parallel,
-               dplyr  #tidyverse
+               dplyr 
                )
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))

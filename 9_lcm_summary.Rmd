@@ -91,8 +91,11 @@ model_coefs <- readRDS(file.path(output_data_path, "model_coefs_lcm.rda")) %>%
 
 ```{r}
 model_coefs %>%
-  select(model, method, model_type, variable) %>% 
-  arrange(method) %>%
+  mutate(model = gsub("fp_|rp_|fptv_|_SP|_ST", "", model)) %>%
+  group_by(Label=model, Description=method,# variable
+           ) %>% 
+  summarize(model_type = paste(unique(model_type), collapse = ", ")) %>%
+  arrange(Label) %>%
   kable() %>% 
   kable_styling()
 
@@ -123,7 +126,8 @@ sp_cs <- cs %>%
   pivot_longer(cols = starts_with(c("fp_", "rp_")))
   
 print("the full model is our default epi model with stationary and LCM")
-rbind(st_cs, sp_cs) %>%  
+rbind(st_cs, sp_cs) %>%
+  mutate(name = gsub("fp_|rp_|fptv_|_SP|_ST", "", name)) %>%
   ggplot(aes(x=full_model, y=value, col=name)) +
   facet_wrap(~model_type, scales="free") +
   geom_point(alpha=0.05) +
@@ -171,25 +175,25 @@ cs %>%
 
 the resulting health estimates from using UK-PLS and various ML UFP exposure models is similar, with random forests & spatcv being the most different (~25-35% lower point estimate)
 
-### --> edit? drop full_SP or give it its own vertical line?
-
 ```{r}
 ref_beta <- model_coefs$est[model_coefs$model==st_ref_model]
 
 print("adjustd association between P-TRAK UFP (1k pt/cm3) and CASI-IRT")
 model_coefs %>%
+    mutate(model = gsub("fp_|rp_|fptv_|_SP|_ST", "", model)) %>%
+
   ggplot(aes(y=model, col=ref_model)) +  
-  facet_grid(vars(model_type), scales = "free_y", switch = "y", space="free") +
+  facet_grid(cols = vars(model_type), scales = "free_y", switch = "y", space="free") +
   geom_vline(xintercept = ref_beta, linetype=1, alpha=0.5) +
   geom_vline(xintercept = 0, linetype=2, alpha=0.2) +
   geom_pointrange(aes(x=est, xmin=lower, xmax=upper), size=0.5, alpha=0.8, orientation = "y") +
   scale_x_continuous(sec.axis = sec_axis(
-    trans=~(.-ref_beta)/-ref_beta, name="% Difference from Full ST Model", labels = scales::percent, breaks = c(-1.5,0, 1.5))) +
+    trans=~(.-ref_beta)/-ref_beta, name="% Difference from Full ST Model", labels = scales::percent, breaks = c(-1.5,0, 1.5)), breaks = c(-0.06, -0.03, 0, 0.03)) +
   labs(col = NULL,
            y="LCM Model",
            x = "Coefficient Estimate (95% CI)")
 
-ggsave(file.path(image_path, "pm25_health_estimate.png"), width = 6, height = 8)
+ggsave(file.path(image_path, "pm25_health_estimate.png"), width = 8, height = 6)
 
 ```
 
