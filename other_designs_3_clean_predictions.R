@@ -52,4 +52,43 @@ saveRDS(predictions, file.path(dt_path, "UK Predictions", "cohort", "KP", paste0
 #   })
 
  
+##################################################################################################
+# QC: check that the RDA and CSV files identical
+##################################################################################################
+if(qc==FALSE) {
+  predictions_csv2 <- read.csv(file.path(dt_path, "UK Predictions", "cohort", "KP", "other_design_predictions_2023-12-20.csv"))
+  predictions_rda2 <- readRDS(file.path(dt_path, "UK Predictions", "cohort", "KP", "other_design_predictions_2023-12-20.rda")) %>% as.data.frame()
+  
+  # check that the files are exactly the same
+  same_files <- all(predictions_csv2$prediction==predictions_rda2$prediction) &
+    all(predictions_csv2$model==predictions_rda2$model) &
+    all(predictions_csv2$model==predictions_rda2$model)
+  
+  if (same_files) {
+    message("Check PASSED: the CSV and RDA file predictions are the same")
+  } else{
+    message("Check FAILED: the CSV and RDA file predictions are NOT the same")}
+  
+  
+  # summary of rows, models, locations
+  csv_summary <- predictions_csv2 %>%
+    summarize(
+      file = "csv",
+      rows = n(),
+      models = length(unique(model)),
+      locations = length(unique(location_id)))
+  
+  rda_summary <- predictions_rda2 %>% 
+    as.data.frame() %>%
+    summarize(
+      file = "rda",
+      rows = n(),
+      models = length(unique(model)),
+      locations = length(unique(location_id)))
+  
+  rbind(csv_summary, rda_summary)
+}
+
+
+
 message("done with script")
