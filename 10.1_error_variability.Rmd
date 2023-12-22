@@ -15,7 +15,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r echo=F, warning=F}
+```{r echo=F, warning=F, message=F}
 ######################################################################
 # SETUP
 ######################################################################
@@ -91,22 +91,26 @@ if(file.exists(models_fp)) {
   saveRDS(models, models_fp) 
 }
 
-# --> may need to update this "true" beta model
 all_data_coefs <- models$s_nstot_all_01 %>% tidy()  
 ref_beta <- all_data_coefs %>%
   filter(term == "avg_0_5_yr") %>%
   pull(estimate)
-
 print(paste("ref beta:", ref_beta))
+
 ref_intercept <- all_data_coefs %>%
   filter(term == "(Intercept)") %>%
   pull(estimate)
-print(paste("ref beta:", ref_beta))
 
 ref_se <- all_data_coefs %>%
   filter(term == "avg_0_5_yr") %>%
   pull(std.error)
+print(paste("ref SE:", ref_se))
 
+ref_beta_ci <- confint(models$s_nstot_all_01) %>% 
+  as.data.frame() %>% rownames_to_column() %>%
+  filter(rowname == "avg_0_5_yr")
+print("beta CI:")
+ref_beta_ci
 
 # monitoring site predictions & true estimates from the full campaign in this study (from 2.3_uk_cv.R)
 monitoring_sites <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>%
@@ -217,7 +221,7 @@ ggsave(file.path(image_path, "non_parametric_betas.png"), width = 6, height = 6)
 
 ```
 
-# PARAMETRIC
+# Parametric
 
 looks at the impact of exposure measurement error on the health effect estimate
 
@@ -364,6 +368,7 @@ total_bias <- betas_summary %>%
   filter(Bootstrap == "parametric" | 
            !grepl("subjects", Description)) %>%
   summarize(Ref_Beta = ref_beta,
+            Ref_se = ref_se,
             total_bias = sum(Bias),
             # bias corrected beta
             adjusted_beta = Ref_Beta - total_bias,
@@ -374,9 +379,11 @@ total_bias <- betas_summary %>%
             pct_bias = total_bias/adjusted_beta*100,
             )
   
-total_bias
-  
-write.csv(total_bias, file.path(output_data_path, "total_bias.csv"), row.names = F)
+# total_bias %>%
+#   kable(caption = "summary of beta estimates") %>%
+#   kable_styling()
+#   
+# write.csv(total_bias, file.path(output_data_path, "total_bias.csv"), row.names = F)
  
 # calculate bias specifically from CL & and BL error
 betas_summary <- betas_summary %>%
@@ -385,8 +392,9 @@ betas_summary <- betas_summary %>%
   
 write.csv(betas_summary, file.path(output_data_path, "beta_summary.csv"), row.names = F)
 
-print("Summary of beta estimates")
-betas_summary
+betas_summary %>%
+  kable(caption = "Summary of beta estimates") %>%
+  kable_styling()
 
 
 ######################################################################
@@ -394,8 +402,21 @@ betas_summary
 adjusted_se <- filter(betas_summary, grepl("(b)", Description) & Bootstrap=="non-parametric") %>% 
   pull(SD)
 
-print("percent SE difference betweed adjusted and unadjsuted SE")
-(adjusted_se-ref_se)/adjusted_se # 12.67%
+total_bias <- total_bias %>%
+  mutate(
+    total_SE_diff = adjusted_se-ref_se,
+    pct_SE_diff = total_SE_diff/adjusted_se # 12.67%
+    ) %>%
+  select(contains("Ref"), contains("total"), everything())
+  
+total_bias %>%
+  kable(caption = "summary of beta estimates. percent SE is the difference betweed adjusted and unadjsuted SE") %>%
+  kable_styling()
+  
+write.csv(total_bias, file.path(output_data_path, "total_bias.csv"), row.names = F)
+ 
+# print("percent SE difference betweed adjusted and unadjsuted SE")
+# (adjusted_se-ref_se)/adjusted_se # 12.67%
 
 ```
 

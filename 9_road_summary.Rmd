@@ -192,6 +192,9 @@ results
 * BH unadjusted R2 are all 0     
 * All hours unadju are all 0 except for 1 value
 
+# --> drop unbalanced non-spatially dependant sampling 
+
+
 ```{r, fig.height=8, fig.with=8}
 # fig
 # x = spatial_names[2]
@@ -259,7 +262,15 @@ ggsave(file.path(image_path, "5yr_exposure_comparisons.png"), width = 10, height
 
 # Health effect estimates (CASI-IRT)
 
-the resulting health estimates from using UK-PLS and various ML UFP exposure models is similar, with random forests & spatcv being the most different (~25-35% lower point estimate)
+# --> all-data stationary P-TRAK results
+
+```{r}
+
+
+```
+
+
+
 
 ```{r, fig.height=10, fig.with=10}
 # proportion of campaigns producing non-sign results
