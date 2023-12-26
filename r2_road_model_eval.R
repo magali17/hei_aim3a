@@ -93,13 +93,15 @@ validation_stats <- function(dt, prediction, reference){
   MSE_based_R2 = max(1 - MSE_pred/MSE_obs, 0)
   # alternative gives same mse-based R2
   # caret::R2(pred = dt$prediction,obs =dt$estimate, form = "traditional")
+  reg_based_R2 = cor(dt[[reference]], dt[[prediction]], method = "pearson")^2
   
   result <- distinct(dt, model, out_of_sample# , reference
                      ) %>%
     mutate(
       no_sites = nrow(dt),
       RMSE = RMSE,
-      MSE_based_R2 = MSE_based_R2
+      MSE_based_R2 = MSE_based_R2,
+      reg_based_R2 = reg_based_R2
       )
   
   return(result)
@@ -117,9 +119,7 @@ model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
 ##################################################################################################
 
 message("saving model evaluation statistics")
-
-model_perf0 %>%
-  saveRDS(., file.path(dt_path, "onroad_model_eval.rda"))
+saveRDS(model_perf0, file.path(dt_path, "onroad_model_eval.rda"))
 
 
 

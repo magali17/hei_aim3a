@@ -118,6 +118,9 @@ model_coefs <- readRDS(file.path(output_data_path, "model_coefs_road.rda")) %>%
   recode_onroad_dt() %>%
   label_pollutants()
 
+#onroad model predictions at stationary locations
+onroad_predictions <- readRDS(file.path(dt_path, "UK Predictions", "onroad_predictions.rda"))
+
 
 ##################################################################################################
 # COMMON VARIABLES
@@ -176,6 +179,8 @@ rbind(t1_a, t1_b) %>%
 
 ```{r}
 # table/boxplots of distribution
+
+
 
 
 ```
