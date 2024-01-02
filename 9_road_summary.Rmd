@@ -220,7 +220,7 @@ onroad_cov %>%
   summarize(
     locations = length(unique(location)),
     clusters = length(unique(cluster)),
-     ean_segments_per_cluster
+     #mean_segments_per_cluster
   ) %>%
   kable(caption = "onroad segments and spatial clusters used") %>%
   kable_styling()
