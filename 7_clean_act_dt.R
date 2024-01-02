@@ -66,7 +66,10 @@ count_remaining_sample <- function(dt, description., notes.=NA) {
 # LOAD DATA
 ######################################################################
 # outcome & covariate data
-health_dt_path <-file.path("data", "issue_12", "issue_012_rerun_for_release20231010", "issue_012.rda")
+#health_dt_path <-file.path("data", "issue_12", "issue_012_rerun_for_release20231010", "issue_012.rda")
+
+#use this newer file. dimensions are the same, but some of the exposure-related columns differ
+health_dt_path <-file.path("data", "issue_12", "issue_012_rerun_for_release20231108", "issue_012.rda")
 
 if(file.exists(health_dt_path)) {
   health0 <- readRDS(health_dt_path)
