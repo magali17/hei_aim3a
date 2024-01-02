@@ -346,7 +346,8 @@ kable_styling()
 
 ref_prediction_distribution <- all_predictions %>%
   filter(model == ref_model_coefs$model) %>%
-  summarize(median = median(prediction),
+  summarize(n=n(),
+            median = median(prediction),
             q25 = quantile(prediction, 0.25),
             q75 = quantile(prediction, 0.75)
             )  
@@ -461,7 +462,7 @@ ref_cs %>%# View()
     Q75 = quantile(exposure, 0.75),
     Q95 = quantile(exposure, 0.95),
     Max = max(exposure)) %>%
-  kable(caption = "Distribution of Predicted UFP (pt/cm3) exposure from the Balanced, All Hours Plume Adj, 12-visit campaigns", digits = 0, format.args = list(big.mark=",")) %>%
+  kable(caption = "Distribution of Predicted UFP (pt/cm3) exposure from the reference All data stationary exposure model", digits = 0, format.args = list(big.mark=",")) %>%
   kable_styling()
 
 
