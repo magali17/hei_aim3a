@@ -65,6 +65,7 @@ count_remaining_sample <- function(dt, description., notes.=NA) {
 ######################################################################
 # LOAD DATA
 ######################################################################
+message("loading data")
 # outcome & covariate data
 #health_dt_path <-file.path("data", "issue_12", "issue_012_rerun_for_release20231010", "issue_012.rda")
 
@@ -103,6 +104,7 @@ if(file.exists(me_dt_path)) {
 }
 
 ########################################################
+message("selecting exposure models")
 # see "ACT and HEI Data Documentation for UW" doc for all model crosswalks
 # ID model names for LCS, ML, onroad ("^r")
 #other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
@@ -127,6 +129,7 @@ exposure0 <- filter(exposure0, grepl("^s_", model))
 ######################################################################
 # PREP DATASET
 ######################################################################
+message("cleaning health data")
 # baseline data 
 health <- filter(health0, VISIT==0)
 exclusion_table <- count_remaining_sample(health, description. = "Baseline data")
@@ -236,6 +239,7 @@ saveRDS(health, file.path("data", "issue_12", "issue_012_rerun_for_release202310
 ######################################################################
 # COMBINE HEALTH AND EXPOSURE DATA
 ######################################################################
+message("merging health & exposure data")
 # main, stationary models
 cs <- left_join(health, exposure0, by="study_id")
 # road models
@@ -263,6 +267,7 @@ cs_error <- left_join(health, me_exposure, by="study_id")
 ######################################################################
 # SAVE DATA
 ######################################################################
+message("saving datasets for modeling")
 write.csv(exclusion_table, file.path(output_data_path, "exclusion_table.csv"), row.names = F)
 saveRDS(cs, file.path(output_data_path, "dt_for_cross_sectional_analysis.rda"))
 saveRDS(cs_r, file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda"))
