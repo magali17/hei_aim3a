@@ -43,6 +43,7 @@ cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
          location = as.numeric(location)) %>%
   generate_new_vars() %>%
   select(location, latitude, longitude, all_of(cov_names))
+saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 
 ## 5874 locations
 onroad_ns <- readRDS(file.path("data", "onroad", "annie", "PNC_nonspatial_annavgs.rds")) %>%

@@ -108,7 +108,7 @@ validation_stats <- function(dt, prediction, reference){
 }
 
 
-validation_stats(dt=group_split(predictions, model, out_of_sample)[[1]], prediction = "prediction", reference = "gs_estimate")
+#validation_stats(dt=group_split(predictions, model, out_of_sample)[[1]], prediction = "prediction", reference = "gs_estimate")
 
 
 model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 

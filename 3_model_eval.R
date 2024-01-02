@@ -66,13 +66,14 @@ validation_stats <- function(dt, prediction, reference){
   MSE_based_R2 = max(1 - MSE_pred/MSE_obs, 0)
   # alternative gives same mse-based R2
   # caret::R2(pred = dt$prediction,obs =dt$estimate, form = "traditional")
+  reg_based_R2 = cor(dt[[reference]], dt[[prediction]], method = "pearson")^2
   
   result <- distinct(dt, campaign, design, version, variable, out_of_sample, reference) %>%
     mutate(
       no_sites = nrow(dt),
       RMSE = RMSE,
       MSE_based_R2 = MSE_based_R2,
-      #reg_based_R2 = reg_based_R2
+      reg_based_R2 = reg_based_R2
     )
   
   return(result)
@@ -103,7 +104,7 @@ model_perf0 <- mclapply(group_split(predictions, campaign, design, version, vari
 
 cw <- model_perf0 %>% 
   select(variable, design, version, campaign) %>% 
-  distinct() %>% #View()
+  distinct() %>%  
   arrange(variable, design, version, campaign) %>%
   mutate(
     var_code = gsub("\\.\\d", "", variable),
@@ -162,17 +163,8 @@ model_perf <- model_perf0 %>%
   group_by(design, version, variable, out_of_sample, reference) %>%
   arrange(MSE_based_R2) %>%
   mutate(performance = row_number()) %>%
-  
-  arrange(design, version, variable,
-          out_of_sample, 
-          #campaign, 
-          performance) %>%
-  
-  #group_by( design, version, variable, campaign) %>%
-  
+  arrange(design, version, variable, out_of_sample, performance) %>%
   ungroup() %>%
-  #mutate(campaign_id = row_number() ) %>%
-  #ungroup() 
   left_join(select(cw, -contains(c("code", "model_no"))), by = c("campaign", "design", "version", "variable"))
   
 ##################################################################################################

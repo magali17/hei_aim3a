@@ -30,7 +30,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
     lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
            detach, character.only=TRUE, unload=TRUE, force=TRUE))}
 
-pacman::p_load(tidyverse, kableExtra, ggpubr)    # ggpubr::ggarange()
+pacman::p_load(tidyverse, kableExtra, ggpubr, sf, ggspatial)    # ggpubr::ggarange()
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
@@ -41,6 +41,7 @@ output_data_path <- file.path(dt_path, "epi")
 
 image_path <- file.path("..", "Manuscript", "Images", "v4", "other", "road")
 if(!dir.exists(image_path)) {dir.create(image_path, recursive = T)}
+if(!dir.exists(file.path(image_path, "SI"))) {dir.create(file.path(image_path, "SI"), recursive = T)}
 if(!dir.exists(file.path(image_path, "presentations"))) {dir.create(file.path(image_path, "presentations"), recursive = T)}
 # ggplot settings
 theme_set(theme_bw())
@@ -60,7 +61,7 @@ recode_onroad_dt <- function(dt) {
       version = gsub("business", "bus", version),
       version = str_to_title(version),
       # #version = factor(version, levels = c("All Hours Plume Adj", "All Hours", "Business Hours Plume Adj", "Business Hours")),
-      #version = factor(version, levels = c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")),
+      version = factor(version, levels = c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")),
       design = case_when(
          design=="clustered" ~ "random clusters",
          design=="sensible spatial" ~ "sensible clusters",
@@ -97,30 +98,105 @@ summary_table <- function(df, var){
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
+# raw mobile data
+#cov <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) #%>% pull(native_id)
+project_crs <- 4326  #lat/long
+m_crs <- 32148
+
+clusters <- readRDS(file.path("data", "onroad", "annie", "segment_clusters.rds"))
+cov <- readRDS(file.path("data", "onroad", "dr0364d_20230331_modified.rda")) %>%
+  st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
+  st_transform(m_crs)  
+  
+onroad_cov <- cov %>%
+  # add cluster IDs
+  left_join(clusters, by = c("location" = "id")) %>%
+  select(location, cluster, everything())
+
+saveRDS(onroad_cov, file.path("data", "onroad", "dr0364d_20230331_modified_with_clusters.rda"))
+
+
+# crosswalks
 cw <- read.csv(file.path(dt_path, "onroad_model_cw.csv")) %>%
+  
+  #drop non-balanced segment level designs
+  filter(!grepl("sn_baln", model)) %>%
+  
   mutate(variable="pnc_noscreen") %>%
   recode_onroad_dt() %>%
   label_pollutants() 
 
+
+stationary_cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
+  filter(variable =="pnc_noscreen",
+         design == "full") %>% 
+  label_pollutants()  %>%
+  mutate(visits = "29",
+         adjusted = "Unadjusted",
+         spatial = "Reference"
+         )
+
+cw2 <- bind_rows(cw, stationary_cw) %>%
+  select(model, campaign, version, design, visits, adjusted, spatial)
+
+
+
+
 #model eval
 model_eval <- readRDS(file.path(dt_path, "onroad_model_eval.rda")) %>%
-  left_join(select(cw, spatial, design, version, visits, adjusted, campaign, model))
+  right_join(select(cw, spatial, design, version, visits, adjusted, campaign, model)) 
     
+stationary_model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
+  filter(reference == "gs_estimate",
+         model %in% stationary_cw$model)  
+
 # person-level exposures 
+stationary_cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
+  rename(exposure = avg_0_5_yr) %>%  
+  select(-starts_with("avg_")) %>%
+  right_join(stationary_cw)
+
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%  
   select(-starts_with("avg_")) %>%
-  left_join(cw)
+  right_join(cw) %>%
+  bind_rows(stationary_cs)
+
+
+
   
 # health effect estimates & CW
 model_coefs <- readRDS(file.path(output_data_path, "model_coefs_road.rda")) %>%
+  filter(model %in% cw$model) %>%
   mutate(variable="pnc_noscreen") %>%
   recode_onroad_dt() %>%
   label_pollutants()
 
-#onroad model predictions at stationary locations
-onroad_predictions <- readRDS(file.path(dt_path, "UK Predictions", "onroad_predictions.rda"))
+# onroad model predictions at stationary locations
+onroad_predictions <- readRDS(file.path(dt_path, "UK Predictions", "onroad_predictions.rda")) %>% right_join(cw)
 
+all_predictions <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>%
+  filter(design == "full",
+         variable == "pnc_noscreen") %>%
+  mutate(model = "s_pncnoscreen_all_01",
+         visits = "29", #as.character(visits)
+         version = "All Hr"
+         ) %>%
+  left_join(stationary_cw %>% 
+               select(variable, design, model)) #%>%
+  # select(names(onroad_predictions)) %>%
+  # bind_rows(onroad_predictions) %>% 
+all_predictions <- bind_rows(onroad_predictions, all_predictions) %>%
+  mutate(version = factor(version, levels = c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")),)
+
+
+# --> ERROR W/ LABEL MERGING  
+
+  #left_join(cw2)
+  # left_join(
+  #   bind_rows(cw, stationary_cw) %>%
+  #             select(model, design, version, campaign, visits, adjusted, spatial) %>% View()
+  #           )
 
 ##################################################################################################
 # COMMON VARIABLES
@@ -130,11 +206,58 @@ spatial_names <- unique(model_eval$spatial)
 #ref health estimates from stationary models
 ref_model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
   filter(design=="full",
-         variable == "pnc_noscreen"
-         )
+         variable == "pnc_noscreen") %>%
+  left_join(select(stationary_model_eval, model, reg_based_R2))
  
 
 ```
+
+# mobile data
+
+```{r}
+onroad_cov %>%
+  st_drop_geometry() %>%
+  summarize(
+    locations = length(unique(location)),
+    clusters = length(unique(cluster)),
+     ean_segments_per_cluster
+  ) %>%
+  kable(caption = "onroad segments and spatial clusters used") %>%
+  kable_styling()
+
+```
+
+## map
+
+# --> ? add background map? 
+Brian's example: https://github.com/brianhigh/test_stopr/blob/main/test_stopr.md 
+
+```{r}
+ 
+onroad_cov %>%
+  mutate(cluster = as.factor(cluster)) %>%
+  ggplot(aes(col=cluster), ) +
+  geom_sf(size=0.5, show.legend=F, 
+          ) +
+  
+  # add scale & N arrow to top rught
+  annotation_scale(location = "tr") +
+  annotation_scale(location = "tr", unit_category ="imperial", pad_y = unit(0.55, "cm")) +
+  annotation_north_arrow(location = "tr", pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering) +
+  
+  theme_bw() + 
+  theme(#legend.background =  element_blank()
+    # remove the vertical grid lines
+    panel.grid.major = element_blank()
+        )
+
+ggsave(file.path(image_path, "SI", "cluster_map.png"), width = 4, height = 8)
+
+
+```
+
+
+
 
 # Design definitions
 
@@ -175,17 +298,75 @@ rbind(t1_a, t1_b) %>%
 
 # Annual average estimates
 
-### --> TO DO 
-
 ```{r}
 # table/boxplots of distribution
+estimates <- all_predictions %>%
+  filter(grepl("^s_", model)) %>%
+  distinct(location, gs_estimate, prediction
+           #spatial, 
+           #adjusted, design, version, visits
+           ) %>% 
+   # --> why have to do this??
+  drop_na() %>% 
+  
+  pivot_longer(cols = c(gs_estimate, prediction)) %>% 
+  group_by(name) %>%
+  summary_table(var = "value") 
+
+estimates %>%
+  kable(caption = "Distribution of estimated and all-data stationary model predicted annual average PNC at 309 stationary locations", 
+      digits = 0,
+      format.args = list(big.mark=",")
+      ) %>%
+kable_styling()
 
 
+predicted <- all_predictions %>%
+  filter(grepl("^r_", model)) %>%
+  left_join(cw) %>%  
+  group_by(spatial, adjusted, design, version, visits) %>%   
+  
+   # --> why have to do this??
+  #drop_na(prediction) %>%
+  
+  summary_table(var = "prediction") 
 
+bind_rows(#estimates,
+      predicted) %>%
+  select(names(predicted)) %>%
+kable(caption = "Distribution of estimated and predicted annual average PNC at 309 stationary locations", 
+      digits = 0,
+      format.args = list(big.mark=",")
+      ) %>%
+kable_styling()
+
+
+########################################################################################
+# plot
+
+ref_prediction_distribution <- all_predictions %>%
+  filter(model == ref_model_coefs$model) %>%
+  summarize(median = median(prediction),
+            q25 = quantile(prediction, 0.25),
+            q75 = quantile(prediction, 0.75)
+            )  
+
+print("dashed line is median (IQR) predicted PNC from the all-data stationary model")
+all_predictions %>%
+  filter(model != ref_model_coefs$model) %>%
+  mutate(visits = paste(visits, "visits"),
+         #visits = factor(visits, levels = c("29 visits", "12 visits", "4 visits"))
+         ) %>%
+  ggplot(aes(y=prediction, x=version, fill=design)) +
+  facet_grid(rows = vars(visits), switch = "both") +
+  geom_hline(yintercept = ref_prediction_distribution$median, linetype=2, alpha=0.5) +
+  geom_hline(yintercept = c(ref_prediction_distribution$q25, ref_prediction_distribution$q75), linetype=3, alpha=0.3) +
+  geom_boxplot(position = "dodge") + 
+  labs(x = "Version", y = "Predicted PNC (pt/cm3)", fill="Design")
+
+ggsave(file.path(image_path, "SI", "predicted_ufp.png"), width = 8, height = 8)
 
 ```
-
-
 
 
 # Model R2
@@ -197,35 +378,60 @@ results
 * BH unadjusted R2 are all 0     
 * All hours unadju are all 0 except for 1 value
 
-# --> drop unbalanced non-spatially dependant sampling 
-
-
 ```{r, fig.height=8, fig.with=8}
-# fig
-# x = spatial_names[2]
-lapply(spatial_names, function (x) {
-  p <- model_eval %>%
-    filter(spatial==x) %>%  
-    mutate(visits = paste(visits, "visits")) %>%
-  ggplot(aes(y=MSE_based_R2, x=version, fill=design)) + 
+# # OLD
+# # x = spatial_names[2]
+# lapply(spatial_names, function (x) {
+#   p <- model_eval %>%
+#     filter(spatial==x) %>%  
+#     mutate(visits = paste(visits, "visits")) %>%
+#   ggplot(aes(y=MSE_based_R2, x=version, fill=design)) + 
+#   geom_boxplot(position = "dodge")  +
+#     #geom_point(position = "dodge", aes(col=design)) +
+#   labs(y = "MSE-based R2")
+# 
+#   if(grepl("non-spatial", x, ignore.case = T)) {
+#     p <- p+ labs(fill = "Visits are") +
+#       #facet_wrap(~spatial+visits, ncol = 1)
+#       facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
+#   } else {
+#     p <- p + labs(fill = "Unbalanced Sampling") +
+#       #facet_wrap(~spatial+visits, ncol = 1)
+#       facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
+#     }
+#   }) %>%
+#   ggarrange(plotlist = ., ncol = 1, heights = c(1.7,1) #, nrow=2, widths = c(1, 0.5)
+#             )
+
+stationary_r2_mse_ref <- ref_model_coefs$MSE_based_R2
+
+print(paste("reference model R2 is the all-data stationary model:", round(stationary_r2_mse_ref, 2)))
+model_eval %>%
+  mutate(visits = paste(visits, "visits")) %>%
+  ggplot(aes(y=MSE_based_R2, x=version, fill=design)) +
+  geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, alpha=0.5) +
   geom_boxplot(position = "dodge")  +
-    #geom_point(position = "dodge", aes(col=design)) +
-  labs(y = "MSE-based R2")
+  scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2") ) +
+  labs(y = "MSE-based R2") +
+labs(fill = "Sampling") +
+      facet_grid(rows = vars(visits), switch = "both")
 
-  if(grepl("non-spatial", x, ignore.case = T)) {
-    p <- p+ labs(fill = "Visits are") +
-      #facet_wrap(~spatial+visits, ncol = 1)
-      facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
-  } else {
-    p <- p + labs(fill = "Unbalanced Sampling") +
-      #facet_wrap(~spatial+visits, ncol = 1)
-      facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
-    }
-  }) %>%
-  ggarrange(plotlist = ., ncol = 1, heights = c(1.7,1) #, nrow=2, widths = c(1, 0.5)
-            )
+ggsave(file.path(image_path, "r2_mse.png"), width = 8, height = 6)
 
-ggsave(file.path(image_path, "r2.png"), width = 8, height = 10)
+stationary_r2_reg_ref <- ref_model_coefs$reg_based_R2
+print(paste("reference model R2 is the all-data stationary model:", round(stationary_r2_reg_ref, 2)))
+model_eval %>%
+  mutate(visits = paste(visits, "visits")) %>%
+  ggplot(aes(y=reg_based_R2, x=version, fill=design)) +
+  facet_grid(rows = vars(visits), switch = "both") +
+  geom_hline(yintercept = stationary_r2_reg_ref, linetype=2, alpha=0.5) +
+  geom_boxplot(position = "dodge")  +
+  scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_reg_ref, name="Proportion of Reference Model R2") ) +
+  labs(y = "Regression-based R2") +
+labs(fill = "Sampling") 
+
+ggsave(file.path(image_path, "SI", "r2_reg.png"), width = 8, height = 6)
+
 
 ```
 
@@ -235,10 +441,15 @@ comparison of predicted 5 yr exposures at baseline
 
 ```{r, fig.height=8, fig.with=10}
 # reference design
-cs %>%
-  filter(design=="Balanced",
-         version == "All Hr Plume Adj",
-         visits==12) %>% 
+ref_cs <- cs %>%
+  filter(
+    model %in% ref_model_coefs$model
+    # design=="Balanced",
+    # version == "All Hr Plume Adj",
+    # visits==12
+    ) 
+
+ref_cs %>%# View()
   summarize(
     N = n(),
     Participants = length(unique(study_id)),
@@ -253,85 +464,115 @@ cs %>%
   kable(caption = "Distribution of Predicted UFP (pt/cm3) exposure from the Balanced, All Hours Plume Adj, 12-visit campaigns", digits = 0, format.args = list(big.mark=",")) %>%
   kable_styling()
 
-# plot
-cs %>%
-  ggplot(aes(x=version, y=exposure, fill=design)) +
-  facet_wrap(~spatial+visits, scales="free_x", ncol=2) +
-  geom_boxplot() +
-  labs(fill="Design")  
 
-ggsave(file.path(image_path, "5yr_exposure_comparisons.png"), width = 10, height = 8)
+ref_cs_distribtuion <- ref_cs  %>%
+  summarize(n = n(),
+            median = median(exposure),
+            q25 = quantile(exposure, 0.25),
+            q75 = quantile(exposure, 0.75)
+            )  
+# plot
+print("dashed lines are the median (IQR) predicted PNC for participants from the all-data stationary model")
+cs %>%
+  filter(!model %in% ref_model_coefs$model) %>%
+  mutate(visits = paste(visits, "visits")) %>%
+  ggplot(aes(x=version, y=exposure, fill=design)) +
+  facet_wrap(~visits, scales="free_x", ncol = 1) +
+  geom_hline(yintercept = ref_cs_distribtuion$median, linetype=2, alpha=0.5) +
+  geom_hline(yintercept = c(ref_cs_distribtuion$q25, ref_cs_distribtuion$q75), linetype=3, alpha=0.3) +
+  geom_boxplot() +
+  labs(fill="Design",
+       y = "Predicted PNC (pt/cm3)"
+       )  
+
+ggsave(file.path(image_path, "SI", "cohort_5yr_exposure_comparisons.png"), width = 8, height = 8)
 
 ```
 
 
 # Health effect estimates (CASI-IRT)
 
-# --> all-data stationary P-TRAK results
-
 ```{r}
-
+ref_model_coefs %>%
+  select(model, est, lower, upper, MSE_based_R2, reg_based_R2) %>%
+  kable(caption = "health estimate from the reference all-data stationary exposure model", 
+        digits = 3) %>%
+  kable_styling()
 
 ```
 
-
-
-
 ```{r, fig.height=10, fig.with=10}
-# proportion of campaigns producing non-sign results
-prop_sign <-model_coefs %>%
-  group_by(spatial, version, design, visits, adjusted) %>%
-  summarize(
-    n = n(),
-    prop_sign = mean(significant) %>% round(2),
-    prop_not_sign = mean(!significant) %>% round(2),
-    ) %>%
-  mutate( prop_sign = paste0(round(prop_sign*100), "%"),
-         prop_not_sign = paste0(round(prop_not_sign*100), "%"),
-         text_label = "Campaign CI crosses 0:",
-         visits = paste(visits, "visits")
-         )
+# # proportion of campaigns producing non-sign results
+# prop_sign <-model_coefs %>%
+#   group_by(spatial, version, design, visits, adjusted) %>%
+#   summarize(
+#     n = n(),
+#     prop_sign = mean(significant) %>% round(2),
+#     prop_not_sign = mean(!significant) %>% round(2),
+#     ) %>%
+#   mutate( prop_sign = paste0(round(prop_sign*100), "%"),
+#          prop_not_sign = paste0(round(prop_not_sign*100), "%"),
+#          text_label = "Campaign CI crosses 0:",
+#          visits = paste(visits, "visits")
+#          )
+# 
+# print("adjustd association between P-TRAK UFP (1900 pt/cm3) and CASI-IRT")
+# print("horizontal line is the health effect estimate from the stationary all data campign")
+# 
+# # x=spatial_names[1]
+# lapply(spatial_names, function (x) {
+#   prop_sign_temp <- filter(prop_sign, spatial==x)
+#   
+#   p <- model_coefs %>%
+#     filter(spatial==x) %>%  
+#     mutate(visits = paste(visits, "visits")) %>%  
+#    ggplot(aes(x=version, y=est, fill=design)) +
+#     geom_boxplot(position = "dodge")  +
+#     geom_hline(yintercept = ref_model_coefs$est, linetype=1, alpha=0.5) +
+#   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+#   geom_text(data=prop_sign_temp,  aes(y=0.001,label=prop_not_sign, col=design),
+#             position = position_dodge(width = .9), size=2.5, show.legend = F) +
+#   geom_text(data=prop_sign_temp, aes(x=-Inf, y=0.01, label = text_label), 
+#             hjust=0, vjust=1, #nudge_x = 1,
+#             size=3) +
+#     geom_text(aes(x=Inf, y=-0.018, label = "Reference Health Estimate"),
+#               hjust=1, vjust=1, size=3
+#               ) +
+#   
+#   labs(y = "Health Effect Estimate",
+#        fill="Design")
+# 
+#   if(grepl("non-spatial", x, ignore.case = T)) {
+#     p <- p+ labs(fill = "Visits are") +
+#       facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
+#     
+#     print(p)
+#     
+#   } else {
+#     p <- p + labs(fill = "Unbalanced Sampling") +
+#       facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
+#     }
+#   }) %>%
+#   ggarrange(plotlist = ., ncol = 1, heights = c(1.7,1))
 
-print("adjustd association between P-TRAK UFP (1900 pt/cm3) and CASI-IRT")
-print("horizontal line is the health effect estimate from the stationary all data campign")
 
-# x=spatial_names[1]
-lapply(spatial_names, function (x) {
-  prop_sign_temp <- filter(prop_sign, spatial==x)
-  
-  p <- model_coefs %>%
-    filter(spatial==x) %>%  
-    mutate(visits = paste(visits, "visits")) %>%  
-   ggplot(aes(x=version, y=est, fill=design)) +
-    geom_boxplot(position = "dodge")  +
-    geom_hline(yintercept = ref_model_coefs$est, linetype=1, alpha=0.5) +
-  geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-  geom_text(data=prop_sign_temp,  aes(y=0.001,label=prop_not_sign, col=design),
-            position = position_dodge(width = .9), size=2.5, show.legend = F) +
-  geom_text(data=prop_sign_temp, aes(x=-Inf, y=0.01, label = text_label), 
-            hjust=0, vjust=1, #nudge_x = 1,
-            size=3) +
-    geom_text(aes(x=Inf, y=-0.018, label = "Reference Health Estimate"),
-              hjust=1, vjust=1, size=3
-              ) +
-  
+ model_coefs %>%
+  mutate(visits = paste(visits, "visits")) %>%  
+  ggplot(aes(x=version, y=est, fill=design)) +
+  geom_boxplot(position = "dodge")  +
+  facet_grid(rows = vars(visits),  switch = "both") +
+  geom_hline(yintercept = ref_model_coefs$est, linetype=2, alpha=0.5) +
+  geom_hline(yintercept = 0, linetype=4, alpha=0.2) +
+  geom_text(aes(x=Inf, y=-0.019, label = "Reference Health Estimate"), hjust=1, vjust=1, size=3) +
+  scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_model_coefs$est)/-ref_model_coefs$est, name="% Difference", labels = scales::percent) ) +
   labs(y = "Health Effect Estimate",
-       fill="Design")
-
-  if(grepl("non-spatial", x, ignore.case = T)) {
-    p <- p+ labs(fill = "Visits are") +
-      facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
+       fill="Sampling", #fill = "Visits are"
+       x = "Version"
+       )
+ 
     
-    print(p)
     
-  } else {
-    p <- p + labs(fill = "Unbalanced Sampling") +
-      facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
-    }
-  }) %>%
-  ggarrange(plotlist = ., ncol = 1, heights = c(1.7,1))
-
-ggsave(file.path(image_path, "ufp_health_estimate.png"), width = 8, height = 11)
+ggsave(file.path(image_path, "ufp_health_estimate.png"), width = 8, height = 6)
 
 ```
 
