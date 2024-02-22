@@ -109,6 +109,8 @@ summary_table <- function(df, var){
 project_crs <- 4326  #lat/long
 m_crs <- 32148
 
+# --> UPDATE CLUSTERS FILE
+
 clusters <- readRDS(file.path("data", "onroad", "annie", "segment_clusters.rds"))
 cov <- readRDS(file.path("data", "onroad", "dr0364d_20230331_modified.rda")) %>%
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
@@ -263,10 +265,12 @@ Brian's example: https://github.com/brianhigh/test_stopr/blob/main/test_stopr.md
 ```{r}
  
 onroad_cov %>%
+  # st_transform(m_crs) %>%
+  # cbind(st_coordinates(.)) %>%
+  
   mutate(cluster = as.factor(cluster)) %>%
   ggplot(aes(col=cluster), ) +
-  geom_sf(size=0.5, show.legend=F, 
-          ) +
+  geom_sf(size=0.5, show.legend=F) +
   
   # add scale & N arrow to top rught
   annotation_scale(location = "tr") +
@@ -281,8 +285,8 @@ onroad_cov %>%
 
 ggsave(file.path(image_path, "SI", "cluster_map.png"), width = 4, height = 8)
 
-
 ```
+
 
 
 

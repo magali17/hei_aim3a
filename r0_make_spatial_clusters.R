@@ -14,14 +14,9 @@ if (!is.null(sessionInfo()$otherPkgs)) {
     lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
            detach, character.only=TRUE, unload=TRUE, force=TRUE))}
 
-pacman::p_load(tidyverse, kableExtra, ggpubr, sf, ggspatial)    # ggpubr::ggarange()
-
-dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+pacman::p_load(tidyverse, kableExtra, sf) 
 
 set.seed(1)
-
-source("functions.R")
-
 
 ##################################################################################################
 # DATA
@@ -49,13 +44,10 @@ k_clusters <- cov %>%
 print("cluster size")
 summary(k_clusters$size)
 
-# TEST
 cov_new_clusters <- cov %>%
-  #drop_na(cluster) %>%
-  #group_by(cluster) %>%
   mutate(cluster = k_clusters$cluster) %>%  
   group_by(cluster) %>%
-  mutate(no_segments = n()) #%>% #select(location, cluster, no_segments, latitude, longitude) %>% View()
+  mutate(no_segments = n()) 
 
 # save new clusters
 cov_new_clusters %>%
@@ -68,8 +60,7 @@ cov_new_clusters %>%
 
 cov_new_clusters %>%
   mutate(cluster = as.factor(cluster)) %>%
-  ggplot(aes(col=cluster
-  ), ) +
+  ggplot(aes(col=cluster)) +
   geom_sf(size=0.5, show.legend=F) +
   #facet_wrap(~cluster) +
   theme_bw() + 
