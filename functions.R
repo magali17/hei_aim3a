@@ -541,7 +541,30 @@ alt_boxplot <- function(df, var, min_q=0.025, max_q=0.975){
   
 }
 
-
+##################################################################################################
+summary_table <- function(df, var){
+  df <- df %>%
+    rename(var = all_of(var)) %>%
+    
+    #calculate quantiles
+    summarize(
+      N = n(),
+      Min = min(var),
+      Q05 = quantile(var, 0.05),
+      Q10 = quantile(var, 0.10),
+      Q25 = quantile(var, 0.25),
+      Q50 = quantile(var, 0.50),
+      Q75 = quantile(var, 0.75),
+      Q90 = quantile(var, 0.90),
+      Q95 = quantile(var, 0.95),
+      Max = max(var)
+    )
+  
+  names(df)[names(df)==var] <- var
+  
+  return(df) 
+  
+}
 ################################################################################################
 # fn returns coordinates for a different transformation. it convertes the dataset into a spatial object, calculates coordinates for a diff refernce system, converts these to a df, and attaches these to the original coordinates
 # tutorial: https://ryanpeek.org/2017-08-03-converting-XY-data-with-sf-package/ 

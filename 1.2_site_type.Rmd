@@ -35,7 +35,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 pacman::p_load(tidyverse)    
 
-#source("functions.R")
+source("functions.R")
 set.seed(1)
 
 latest_version <- "v3_20230321" 
@@ -105,8 +105,13 @@ pls_categories %>%
     name = ifelse(name == "iqr", "Observed IQR",
                   ifelse(name == "predicted_iqr", "From PLS, Used in Sampling Designs", NA))) %>%
   
-  ggplot(aes(x=pls_cats, y=value, fill=name)) + 
-  geom_boxplot() + 
+  group_by(pls_cats, name) %>%
+  summary_table(var = "value") %>%
+  ggplot(aes(x=pls_cats, fill=name)) +
+  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  
+  # ggplot(aes(x=pls_cats, y=value, fill=name)) + 
+  # geom_boxplot() + 
   labs(y="PNC IQR (pt/cm3)", x="Predicted Site Variability (IQR)",
        fill = NULL
        )

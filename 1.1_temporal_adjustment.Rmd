@@ -253,10 +253,15 @@ overnight %>%
   filter(site == "AQSBH") %>%
   pivot_longer(cols = c(month, dow, hour), names_to = "time_var", values_to = "time_value") %>% 
   mutate(time_var = ifelse(time_var=="dow", "day", time_var)) %>%
-  ggplot(aes(x=time_value, y=value)) +
+  
+  group_by(time_value, time_var) %>%
+  summary_table(var = "value") %>%
+  ggplot(aes(x=time_value)) +
+  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  #ggplot(aes(x=time_value, y=value)) +
   facet_wrap(~time_var, scales="free", switch = "x", ncol = 2) +
-  geom_boxplot() +
-  labs( )
+  #geom_boxplot() +
+  labs(x = "Time", y="PNC (pt/cm3)")
 
 ggsave(file.path(image_path, "overnight_pnc_beaconhill.png"), width = 9, height = 7)
 
@@ -469,6 +474,8 @@ nox <- nox %>%
          diff_adjustment = predicted_lta_ufp - predicted_ufp,
          diff_adjustment_winsorize = predicted_lta_ufp - predicted_ufp_winsorized,
          )
+
+saveRDS(nox, file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda"))
 
 # # QC - compare UFP predictions
 # alt_r <- cor(nox$predicted_ufp, nox$predicted_ufp_alt) %>% round(2) 

@@ -144,6 +144,10 @@ other_design_site_predictions <- readRDS(file.path(dt_path, "UK Predictions", "o
          #absolute error
          error = abs(error)) 
 
+# number of visits (stops) per site 
+stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
+
+
 ##################################################################################################
 # COMMON VARIABLES
 
@@ -165,6 +169,7 @@ one_to_one_band <- 0.2
 uw_purple <- "#4b2e83"
 uw_gold1 <- "#b7a57a" # web: e8e3d3
 uw_gold2 <- "#85754d"
+
 
 ```
 
@@ -226,6 +231,30 @@ distinct(cs, study_id, avg_iq_ufp_10_42_MM_05_yr) %>%
 
 # Exposure
 
+## visits per site in the "all data" reference campaign
+note that these "visits" are based on the NanoScan (different for on-road data based on P-TRAK data)
+
+```{r}
+stops_w %>%
+  drop_na(ns_total_conc) %>%
+  #drop_na(pnc_noscreen) %>%
+  
+  group_by(location) %>%
+  summarize(visits = n()) %>%
+  summarize(
+    min = min(visits),
+    q25 = quantile(visits, 0.25),
+    mean = mean(visits),
+    q50 = quantile(visits, 0.50),
+    max=max(visits)
+  ) %>%
+  kable(caption = "distribution of visits per stop with NanoScan readings") %>%
+  kable_styling()
+
+```
+
+
+
 ## Site annual averages
 
 
@@ -255,10 +284,20 @@ annual_avgs %>%
 
 print("distribution of annual average site estimates used to develop exposure models")
 annual_avgs %>%
-  ggplot(aes(x=version, y=value, col=interaction(instrument, variable, sep = " "))) + 
+  
+  group_by(version, design, 
+           instrument, variable
+           ) %>%
+  summary_table(var = "value") %>%
+
+  ggplot(aes(x=version, col=interaction(instrument, variable, sep = " "))) +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  
+  
+  #ggplot(aes(x=version, y=value, col=interaction(instrument, variable, sep = " "))) + 
   #facet_grid(~design, scales="free_x", space="free") + 
   facet_wrap(~design, scales="free_x", switch = "x", ncol = 2)+
-  geom_boxplot(alpha=0.4,) +
+  #geom_boxplot(alpha=0.4,) +
   labs(y = "PNC (pt/cm3)", x="Version", col="Measure", fill="Analysis")
 
 ggsave(file.path(image_path, "SI", "site_averages.png"), width = 8, height = 8)
@@ -303,12 +342,14 @@ campaign_descriptions %>%
     mutate(variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
            variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")),
            analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity")) %>%
-
-  ggplot(aes(x=version, y=MSE_based_R2)) + 
+  group_by(version, design, ref) %>%
+  summary_table(var = "MSE_based_R2") %>%
+  ggplot(aes(x=version, fill=ref)) +
+  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  #ggplot(aes(x=version, y=MSE_based_R2)) + 
   geom_hline(data=filter(refs1, grepl("10-420", variable)), aes(yintercept = MSE_based_R2), linetype=2, alpha=0.5, ) + 
-  geom_boxplot(aes(fill=ref))+
-  facet_wrap(~design, scales = "free_x", switch = "x"
-             ) + 
+  #geom_boxplot(aes(fill=ref))+
+  facet_wrap(~design, scales = "free_x", switch = "x") + 
   labs(y = "Exposure Model R2", x = "Design", fill=NULL)
 
 ggsave(file.path(image_path, "r2.png"), width = 8, height = 6)
@@ -322,9 +363,13 @@ campaign_descriptions %>%
            variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")),
            analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity")) %>%
 
-  ggplot(aes(x=version, y=MSE_based_R2)) + 
+  group_by(version, design, variable, ref) %>%
+  summary_table(var = "MSE_based_R2") %>%
+  ggplot(aes(x=version, fill=ref)) +
+  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  #ggplot(aes(x=version, y=MSE_based_R2)) + 
   geom_hline(data=refs1, aes(yintercept = MSE_based_R2), linetype=2, alpha=0.5, ) + 
-  geom_boxplot(aes(fill=ref))+
+  #geom_boxplot(aes(fill=ref))+
   facet_grid(variable~design, scales = "free_x", switch = "both") + 
   labs(y = "Exposure Model R2", x = "Design", fill=NULL)
 
@@ -425,8 +470,16 @@ print(paste("Prediction site errors from", nrow(sample_sites), "random sites. Si
 other_design_site_predictions %>%
   filter(location %in% sample_sites$location) %>%
   mutate(location = factor(location, levels=temp$location)) %>% 
-  ggplot(aes(y=location, x=error, fill=adjusted)) +
-  geom_boxplot() +
+  
+  group_by(version, location, adjusted) %>%
+  summary_table(var = "error") %>%
+  ggplot(aes(y=location, fill=adjusted)) +
+  geom_boxplot(stat="identity", 
+               #orientation = "x", 
+               aes(xmin=Q10, xlower=Q25, xmiddle=Q50, xupper=Q75, xmax=Q90)) +
+  
+  # ggplot(aes(y=location, x=error, fill=adjusted)) +
+  # geom_boxplot() +
   facet_wrap(~version) +
   geom_vline(xintercept = 0, linetype=2) +
   labs(x="Prediction Error (pt/cm3)",
@@ -706,9 +759,13 @@ corr_table %>%
   mutate(variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
            variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")),
            analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity")) %>%
-
-  ggplot(aes(x=version, y=r, fill=ref)) +
-  geom_boxplot(aes())+
+  
+  group_by(version, design, variable, ref) %>%
+  summary_table(var = "r") %>%
+  ggplot(aes(x=version, fill=ref)) +
+  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  # ggplot(aes(x=version, y=r, fill=ref)) +
+  # geom_boxplot(aes())+
   facet_grid(variable~design, scales = "free_x", switch="both") + 
   labs(y = "Correlation (R)", x = "Design", col="Analysis", fill=NULL)
 
@@ -900,12 +957,7 @@ lapply(p_list, function(x){
                       position=position_dodge(width=0.7)) +
       scale_x_continuous(breaks = c(1, seq(10,30,10))) +
       labs(x="Campaign", y = "Coefficient Estimate (95% CI)", shape=NULL, col=NULL)
-      
-      # if(grepl("10-420 nm|Total", x)) {
-      #   p <- p + facet_wrap(~design+version, ncol = 2)
-      #   print(p)
-      #   ggsave(file.path(image_path, paste0("beta_", x, ".png")), width = 12, height = 8)
-      #   } else {
+    
         p <- p + facet_wrap(~design+version, ncol = 2) +
           labs(title=x)
         print(p)
@@ -1079,13 +1131,15 @@ tot_pnc <- filter(true_betas, grepl("Total|10-420", variable)) %>%
 model_coefs %>%
   filter(grepl("Total", variable)) %>%  
   
-  ggplot(aes(x=version, y=est, fill=ref)) +
-  #ggforce::facet_row(facets = vars(design), scales = "free_x", space  = "free") +
-  facet_wrap(~design, scales="free_x", switch="x"
-             ) +
+  group_by(version, design, variable, ref) %>%
+  summary_table(var = "est") %>%
+  ggplot(aes(x=version, fill=ref)) +
+  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  #ggplot(aes(x=version, y=est, fill=ref)) +
+  facet_wrap(~design, scales="free_x", switch="x") +
   geom_hline(yintercept = tot_pnc, linetype=1, alpha=0.5) +
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-  geom_boxplot() +
+  #geom_boxplot() +
   scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="% Difference", labels = scales::percent), #limits = y_lims
                      ) +
     geom_label(inherit.aes = F, data=mutate(filter(true_betas, grepl("Total|10-420", variable)), design="All Data" ) %>% mutate(design= factor(design, levels= levels(model_coefs$design))), aes(x=1, y=est, label = round(tot_pnc, 2))) +
@@ -1112,11 +1166,16 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm"), function(x) {
            variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")))  %>%
     filter(grepl(x, variable)) %>%
   
-    ggplot(aes(x=version, y=est, fill=ref)) +
+    group_by(version, design, variable, ref) %>%
+  summary_table(var = "est") %>%
+  ggplot(aes(x=version, fill=ref)) +
+  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+    
+    #ggplot(aes(x=version, y=est, fill=ref)) +
     facet_grid(variable~design, scales="free", switch="both", space="free") + 
     geom_hline(yintercept = ref_pnc, linetype=1, alpha=0.5) +
     geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-    geom_boxplot() + 
+    #geom_boxplot() + 
     scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_pnc)/-ref_pnc, name="% Difference", labels = scales::percent)#, #limits = c(-0.02, 0.001)
                        ) +
     geom_label(inherit.aes = F, data=filter(true_betas2, grepl(x, variable)) %>% 

@@ -51,6 +51,9 @@ theme_update(legend.position = "bottom")
 # FUNCTIONS
 ##################################################################################################
 # fn to recode onroad data
+design_levels <- c("Balanced", "Random Segments", #"Unbalanced", 
+                                         "Random Clusters", "Sensible Clusters", "Unsensible Clusters", "Road Type")
+
 recode_onroad_dt <- function(dt) {
   dt %>%
     mutate(
@@ -66,9 +69,10 @@ recode_onroad_dt <- function(dt) {
          design=="clustered" ~ "random clusters",
          design=="sensible spatial" ~ "sensible clusters",
          design=="unsensible spatial" ~ "unsensible clusters",
+         design=="unbalanced" ~ "random segments",
          .default = design),
       design = str_to_title(design), 
-      design = factor(design, levels = c("Balanced", "Unbalanced", "Random Clusters", "Sensible Clusters", "Unsensible Clusters", "Road Type")),
+      design = factor(design, levels = design_levels),
       adjusted = str_to_title(adjusted)
       )
   
@@ -83,9 +87,11 @@ summary_table <- function(df, var){
       N = n(),
       Min = min(var),
       Q05 = quantile(var, 0.05),
+      Q10 = quantile(var, 0.10),
       Q25 = quantile(var, 0.25),
       Q50 = quantile(var, 0.50),
       Q75 = quantile(var, 0.75),
+      Q90 = quantile(var, 0.90),
       Q95 = quantile(var, 0.95),
       Max = max(var)
     )
@@ -119,8 +125,8 @@ saveRDS(onroad_cov, file.path("data", "onroad", "dr0364d_20230331_modified_with_
 # crosswalks
 cw <- read.csv(file.path(dt_path, "onroad_model_cw.csv")) %>%
   
-  #drop non-balanced segment level designs
-  filter(!grepl("sn_baln", model)) %>%
+  # #drop non-balanced segment level designs
+  # filter(!grepl("sn_baln", model)) %>%
   
   mutate(variable="pnc_noscreen") %>%
   recode_onroad_dt() %>%
@@ -162,8 +168,6 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.
   right_join(cw) %>%
   bind_rows(stationary_cs)
 
-
-
   
 # health effect estimates & CW
 model_coefs <- readRDS(file.path(output_data_path, "model_coefs_road.rda")) %>%
@@ -198,6 +202,9 @@ all_predictions <- bind_rows(onroad_predictions, all_predictions) %>%
   #             select(model, design, version, campaign, visits, adjusted, spatial) %>% View()
   #           )
 
+# reference P-TRAK data - number of visits (stops) per site; for the HEI dataset (not necessarily the "true" health models)
+stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
+
 ##################################################################################################
 # COMMON VARIABLES
 ##################################################################################################
@@ -211,6 +218,27 @@ ref_model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
  
 
 ```
+
+# reference stationary P-TRAK data
+
+```{r}
+
+stops_w %>%
+  drop_na(pnc_noscreen) %>%
+  group_by(location) %>%
+  summarize(visits = n()) %>%
+  summarize(
+    min = min(visits),
+    q25 = quantile(visits, 0.25),
+    mean = mean(visits),
+    q50 = quantile(visits, 0.50),
+    max=max(visits)
+  )%>%
+  kable(caption = "distribution of visits per stop with unscreened P-TRAK readings") %>%
+  kable_styling()
+
+```
+
 
 # mobile data
 
@@ -357,12 +385,20 @@ all_predictions %>%
   filter(model != ref_model_coefs$model) %>%
   mutate(visits = paste(visits, "visits"),
          #visits = factor(visits, levels = c("29 visits", "12 visits", "4 visits"))
+         design = factor(design, levels = design_levels)
          ) %>%
-  ggplot(aes(y=prediction, x=version, fill=design)) +
+  
+  group_by(version, design, visits) %>%
+  summary_table(var = "prediction") %>%
+  
+  ggplot(aes(x=version, fill=design)) +
+  #ggplot(aes(y=prediction, x=version, fill=design)) +
   facet_grid(rows = vars(visits), switch = "both") +
+  #geom_boxplot(position = "dodge") +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
   geom_hline(yintercept = ref_prediction_distribution$median, linetype=2, alpha=0.5) +
   geom_hline(yintercept = c(ref_prediction_distribution$q25, ref_prediction_distribution$q75), linetype=3, alpha=0.3) +
-  geom_boxplot(position = "dodge") + 
+
   labs(x = "Version", y = "Predicted PNC (pt/cm3)", fill="Design")
 
 ggsave(file.path(image_path, "SI", "predicted_ufp.png"), width = 8, height = 8)
@@ -409,13 +445,20 @@ stationary_r2_mse_ref <- ref_model_coefs$MSE_based_R2
 print(paste("reference model R2 is the all-data stationary model:", round(stationary_r2_mse_ref, 2)))
 model_eval %>%
   mutate(visits = paste(visits, "visits")) %>%
-  ggplot(aes(y=MSE_based_R2, x=version, fill=design)) +
+  
+  group_by(version, design, visits) %>%
+  summary_table(var = "MSE_based_R2") %>%
+
+  ggplot(aes(x=version, fill=design)) +
+  facet_grid(rows = vars(visits), switch = "both") +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  
+  #ggplot(aes(y=MSE_based_R2, x=version, fill=design)) +
   geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, alpha=0.5) +
-  geom_boxplot(position = "dodge")  +
+  #geom_boxplot(position = "dodge")  +
   scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2") ) +
   labs(y = "MSE-based R2") +
-labs(fill = "Sampling") +
-      facet_grid(rows = vars(visits), switch = "both")
+labs(fill = "Sampling")  
 
 ggsave(file.path(image_path, "r2_mse.png"), width = 8, height = 6)
 
@@ -423,10 +466,17 @@ stationary_r2_reg_ref <- ref_model_coefs$reg_based_R2
 print(paste("reference model R2 is the all-data stationary model:", round(stationary_r2_reg_ref, 2)))
 model_eval %>%
   mutate(visits = paste(visits, "visits")) %>%
-  ggplot(aes(y=reg_based_R2, x=version, fill=design)) +
+  
+  group_by(version, design, visits) %>%
+  summary_table(var = "reg_based_R2") %>%
+  ggplot(aes(x=version, fill=design)) +
   facet_grid(rows = vars(visits), switch = "both") +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  
+  # ggplot(aes(y=reg_based_R2, x=version, fill=design)) +
+  # facet_grid(rows = vars(visits), switch = "both") +
   geom_hline(yintercept = stationary_r2_reg_ref, linetype=2, alpha=0.5) +
-  geom_boxplot(position = "dodge")  +
+  #geom_boxplot(position = "dodge")  +
   scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_reg_ref, name="Proportion of Reference Model R2") ) +
   labs(y = "Regression-based R2") +
 labs(fill = "Sampling") 
@@ -476,12 +526,20 @@ ref_cs_distribtuion <- ref_cs  %>%
 print("dashed lines are the median (IQR) predicted PNC for participants from the all-data stationary model")
 cs %>%
   filter(!model %in% ref_model_coefs$model) %>%
-  mutate(visits = paste(visits, "visits")) %>%
-  ggplot(aes(x=version, y=exposure, fill=design)) +
+  mutate(visits = paste(visits, "visits"),
+         design = factor(design, levels = design_levels)) %>%
+  
+  group_by(version, design, visits) %>%
+  summary_table(var = "exposure") %>%
+  ggplot(aes(x=version, fill=design)) +
+  #facet_grid(rows = vars(visits), switch = "both") +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  
+  #ggplot(aes(x=version, y=exposure, fill=design)) +
   facet_wrap(~visits, scales="free_x", ncol = 1) +
   geom_hline(yintercept = ref_cs_distribtuion$median, linetype=2, alpha=0.5) +
   geom_hline(yintercept = c(ref_cs_distribtuion$q25, ref_cs_distribtuion$q75), linetype=3, alpha=0.3) +
-  geom_boxplot() +
+  #geom_boxplot() +
   labs(fill="Design",
        y = "Predicted PNC (pt/cm3)"
        )  
@@ -559,9 +617,16 @@ ref_model_coefs %>%
 
  model_coefs %>%
   mutate(visits = paste(visits, "visits")) %>%  
-  ggplot(aes(x=version, y=est, fill=design)) +
-  geom_boxplot(position = "dodge")  +
-  facet_grid(rows = vars(visits),  switch = "both") +
+  
+  group_by(version, design, visits) %>%
+  summary_table(var = "est") %>%
+  ggplot(aes(x=version, fill=design)) +
+  facet_grid(rows = vars(visits), switch = "both") +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  
+  # ggplot(aes(x=version, y=est, fill=design)) +
+  # geom_boxplot(position = "dodge")  +
+  # facet_grid(rows = vars(visits),  switch = "both") +
   geom_hline(yintercept = ref_model_coefs$est, linetype=2, alpha=0.5) +
   geom_hline(yintercept = 0, linetype=4, alpha=0.2) +
   geom_text(aes(x=Inf, y=-0.019, label = "Reference Health Estimate"), hjust=1, vjust=1, size=3) +
@@ -578,31 +643,38 @@ ggsave(file.path(image_path, "ufp_health_estimate.png"), width = 8, height = 6)
 ```
 
 same as above, reduced for presentation
+
 ```{r}
 temp <- data.frame(version=c("All Data Stationary\nExposure Model"),
                    label = c("Reference", "No Effect"),
                    est=c(ref_model_coefs$est, 0),
                    design = NA,
-                   visits = "4 visits per location")
+                   visits = "4 visits per location") #%>% mutate(design = factor(design, levels = c(design_levels, NA)))
 
 model_coefs %>%
   filter(visits==4,
          design != "Unbalanced") %>%  
-  mutate(visits = paste(visits, "visits per location")) %>%
+  mutate(visits = paste(visits, "visits per location"),
+         #design = factor(design, levels = design_levels)
+         ) %>%
   
-  ggplot(aes(x=version, y=est, fill=design)) +
+  group_by(version, design, visits) %>%
+  summary_table(var = "est") %>%
+  ggplot(aes(x=version, fill=design)) +
   facet_grid(rows = vars(visits), switch = "both") +
-  geom_boxplot(position = "dodge")  +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  # ggplot(aes(x=version, y=est, fill=design)) +
+  # facet_grid(rows = vars(visits), switch = "both") +
+  # geom_boxplot(position = "dodge")  +
   geom_hline(yintercept = ref_model_coefs$est, linetype=1, alpha=0.5) +
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-  geom_boxplot(data=filter(temp, label=="Reference")) +
-  geom_label(data=temp, aes(label=label, ), fill= "white",show.legend = F) +
+  #geom_boxplot(data=filter(temp, label=="Reference")) + 
+  geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F) +
   labs(y = "Health Effect Estimate",
        fill="Design")
 
  ggsave(file.path(image_path, "presentations", "ufp_health_estimate_sample1.png"), width = 8, height = 5)
     
-
 ```
 
 
