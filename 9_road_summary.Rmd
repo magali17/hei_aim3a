@@ -51,8 +51,9 @@ theme_update(legend.position = "bottom")
 # FUNCTIONS
 ##################################################################################################
 # fn to recode onroad data
-design_levels <- c("Balanced", "Random Segments", #"Unbalanced", 
-                                         "Random Clusters", "Sensible Clusters", "Unsensible Clusters", "Road Type")
+design_levels <- c("Balanced", "Random Segments", "Random Clusters", "Sensible Clusters", "Unsensible Clusters", "Road Type")
+
+version_levels <- c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")
 
 recode_onroad_dt <- function(dt) {
   dt %>%
@@ -63,8 +64,7 @@ recode_onroad_dt <- function(dt) {
       version = gsub("hours", "hr", version),
       version = gsub("business", "bus", version),
       version = str_to_title(version),
-      # #version = factor(version, levels = c("All Hours Plume Adj", "All Hours", "Business Hours Plume Adj", "Business Hours")),
-      version = factor(version, levels = c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")),
+      version = factor(version, levels = version_levels),
       design = case_when(
          design=="clustered" ~ "random clusters",
          design=="sensible spatial" ~ "sensible clusters",
@@ -403,9 +403,9 @@ all_predictions %>%
   geom_hline(yintercept = ref_prediction_distribution$median, linetype=2, alpha=0.5) +
   geom_hline(yintercept = c(ref_prediction_distribution$q25, ref_prediction_distribution$q75), linetype=3, alpha=0.3) +
 
-  labs(x = "Version", y = "Predicted PNC (pt/cm3)", fill="Design")
+  labs(x = "Version", y = "Predicted PNC (pt/cm3)", fill="Location Visit\nSelection")
 
-ggsave(file.path(image_path, "SI", "predicted_ufp.png"), width = 8, height = 8)
+ggsave(file.path(image_path, "SI", "predicted_ufp_309_sites.png"), width = 8, height = 8)
 
 ```
 
@@ -462,7 +462,7 @@ model_eval %>%
   #geom_boxplot(position = "dodge")  +
   scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2") ) +
   labs(y = "MSE-based R2") +
-labs(fill = "Sampling")  
+labs(fill = "Location Visit\nSelection")  
 
 ggsave(file.path(image_path, "r2_mse.png"), width = 8, height = 6)
 
@@ -483,7 +483,7 @@ model_eval %>%
   #geom_boxplot(position = "dodge")  +
   scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_reg_ref, name="Proportion of Reference Model R2") ) +
   labs(y = "Regression-based R2") +
-labs(fill = "Sampling") 
+labs(fill = "Location Visit\nSelection") 
 
 ggsave(file.path(image_path, "SI", "r2_reg.png"), width = 8, height = 6)
 
@@ -531,20 +531,19 @@ print("dashed lines are the median (IQR) predicted PNC for participants from the
 cs %>%
   filter(!model %in% ref_model_coefs$model) %>%
   mutate(visits = paste(visits, "visits"),
-         design = factor(design, levels = design_levels)) %>%
+         design = factor(design, levels = design_levels),
+         version = factor(version, levels = version_levels),
+         ) %>%
   
   group_by(version, design, visits) %>%
   summary_table(var = "exposure") %>%
+   
   ggplot(aes(x=version, fill=design)) +
-  #facet_grid(rows = vars(visits), switch = "both") +
   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  
-  #ggplot(aes(x=version, y=exposure, fill=design)) +
   facet_wrap(~visits, scales="free_x", ncol = 1) +
   geom_hline(yintercept = ref_cs_distribtuion$median, linetype=2, alpha=0.5) +
   geom_hline(yintercept = c(ref_cs_distribtuion$q25, ref_cs_distribtuion$q75), linetype=3, alpha=0.3) +
-  #geom_boxplot() +
-  labs(fill="Design",
+  labs(fill="Location Visit\nSelection",
        y = "Predicted PNC (pt/cm3)"
        )  
 
@@ -636,7 +635,7 @@ ref_model_coefs %>%
   geom_text(aes(x=Inf, y=-0.019, label = "Reference Health Estimate"), hjust=1, vjust=1, size=3) +
   scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_model_coefs$est)/-ref_model_coefs$est, name="% Difference", labels = scales::percent) ) +
   labs(y = "Health Effect Estimate",
-       fill="Sampling", #fill = "Visits are"
+       fill="Location Visit\nSelection",  
        x = "Version"
        )
  
@@ -675,7 +674,7 @@ model_coefs %>%
   #geom_boxplot(data=filter(temp, label=="Reference")) + 
   geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F) +
   labs(y = "Health Effect Estimate",
-       fill="Design")
+       fill="Location Visit\nSelection")
 
  ggsave(file.path(image_path, "presentations", "ufp_health_estimate_sample1.png"), width = 8, height = 5)
     
