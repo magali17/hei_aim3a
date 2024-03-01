@@ -1,7 +1,10 @@
 .Rproj.user
+*.Rproj
 .Rhistory
 .RData
 .Ruserdata
 /data
 /old
 /Output
+*.html
+*.pdf
