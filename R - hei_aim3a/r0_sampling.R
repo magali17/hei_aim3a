@@ -7,31 +7,35 @@ rm(list = ls(all = TRUE))
 if (!is.null(sessionInfo()$otherPkgs)) {
     res <- suppressWarnings(
         lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
-               detach, character.only=TRUE, unload=TRUE, force=TRUE))
-}
+               detach, character.only=TRUE, unload=TRUE, force=TRUE))}
 
 # Load pacman into memory, installing as needed
 my_repo <- 'http://cran.r-project.org'
 if (!require("pacman")) {install.packages("pacman", repos = my_repo)}
 
-pacman::p_load(knitr, data.table, ggplot2, tidyverse, kableExtra, lubridate, ggpubr, tsibble, DescTools,
-              parallel, future.apply, purrr,
-              psych, sf, tmap, mapview #added 2/29/24
-              )
+pacman::p_load(#knitr, data.table, ggplot2, kableExtra,
+               tidyverse,
+               #lubridate, ggpubr, tsibble, DescTools,
+               parallel, #future.apply, purrr,
+               #psych, 
+               sf#, tmap, mapview #added 2/29/24
+               )
 
 dt_path <- file.path("data", "onroad", "annie", "Additional Sampling")
-#source("./TRAP_rotation/code/ad_functions.R")
 
 #save updated estimates
 new_dt_pt <- file.path("data", "onroad", "annie", "v2")
-if(!dir.exists(file.path(new_dt_pt, "design_samples"))){dir.create(file.path(new_dt_pt, "design_samples"), recursive = T)}
+if(!dir.exists(file.path(new_dt_pt))){dir.create(file.path(new_dt_pt), recursive = T)}
 
 core_count <- 4
 set.seed(21)
 ########################################################################################################
 # COMMON VARIABLES
 ########################################################################################################
+
+# --> UPDATE
 sim_n <- 2#30
+
 all_hours <- c(0:23)
 business_hours <- c(9:17)
 
@@ -55,7 +59,7 @@ log_normal_sample <- function(med_log, sd_log = visit_sd, max_value=28) {
   value <- rlnorm(1, med_log, sd_log) %>%
     round()
   # set min/max # of samples
-  value <- ifelse(value==0, 1, value)
+  value <- ifelse(value<1, 1, value)
   value <- min(value, max_value)
   
   value <- as.integer(value)
@@ -73,31 +77,28 @@ cov_mm <- readRDS(file=file.path("/projects/rad/Transfer/Magali/hei_aim3a/R - he
 adj_pnc_med <- readRDS(file = file.path("data", "onroad", "annie", "Additional Sampling", "AdjPNCMedian.rds")) %>% 
   mutate(dow = lubridate::wday(date, label=TRUE, abbr=FALSE),
          dow2 = ifelse(dow %in% c("Saturday", "Sunday"), "weekend", "weekday"),
-         adjusted = "adjusted"
-         )  
+         adjusted = "adjusted")  
 
 #Unadjusted PNC Medians
 unadj_pnc_med <- readRDS(file = file.path("data", "onroad", "annie", "Additional Sampling", "UnadjPNCMedian.rds")) %>% 
   group_by(id) %>% 
   mutate(visit_num = n(),
-         adjusted = "unadjusted"
-         )
+         adjusted = "unadjusted")
 
 #combine unadjusted and adjusted
 pnc_med <- bind_rows(adj_pnc_med, unadj_pnc_med)
-
-
 
 segment_clusters <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
   select(id=location, contains("cluster")) 
 
 segment_clusters_l <- segment_clusters %>%
-  pivot_longer(cols = contains("cluster"), names_to = "cluster_type", values_to = "cluster_value")
+  pivot_longer(cols = contains("cluster"), names_to = "cluster_type", values_to = "cluster_value") %>%
+  # cluster3 drops some segments
+  drop_na()
    
 road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
-  distinct(id, road_type) %>%
-  filter(road_type != "A!")
-
+  filter(road_type != "A1") %>%
+  distinct(id, road_type) 
 
 ########################################################################################################
 # LOCATION ANNUAL AVGS & VARIABILITY
@@ -156,7 +157,7 @@ assign_rank1 = cluster_road_type %>%
   group_by(cluster_type, cluster_value) %>%
   arrange(desc(A2)) %>% 
   group_by(cluster_type) %>%
-  mutate(rank = row_number())# %>% 
+  mutate(rank = row_number()) %>% 
   select(cluster_type, cluster_value, rank)
  
 assign_rank2 = cluster_road_type %>% 
@@ -197,7 +198,7 @@ sampling_combos <-expand.grid(
 # visit_count <- temp$visit_count
 # balanced <- temp$balanced
 
-one_sample = function(df, 
+one_campaign <- function(df, 
                       visit_count,
                       balanced) {
 
@@ -215,21 +216,14 @@ one_sample = function(df,
                    replace=T) %>% 
     mutate(actual_visits = n())}) %>%
       bind_rows()
-
-  } 
-  # #calculate annual average
-  # if(get_annual_avg == TRUE) {
-  #   one_sample <- one_sample %>%
-  #     summarise(annual_mean = mean(median_value, na.rm=T))
-  # }
+  }
   return(one_sample)
 }
 
-many_times <- function(sims=sim_n, df, ...) {
+many_campaigns <- function(sims=sim_n, df, ...) {
   mclapply(1:sims, mc.cores = core_count, function(s) {
-    one_sample(df, ...) %>%
-      mutate(campaign = s)
-    }) %>%
+    one_campaign(df, ...) %>%
+      mutate(campaign = s)}) %>%
     bind_rows()
   }
 
@@ -249,7 +243,6 @@ nonspatial_visit_samples <- lapply(1:nrow(sampling_combos),
   if(temp$hours == "all hours"){
      sampling_hours <- all_hours
      sampling_days <- all_days} 
-  
   if(temp$hours == "business hours"){
      sampling_hours <- business_hours
      sampling_days <- business_days} 
@@ -258,29 +251,185 @@ nonspatial_visit_samples <- lapply(1:nrow(sampling_combos),
     filter(adjusted == temp$adjusted,
            hour %in% sampling_hours,
            dow2 %in% sampling_days) %>%
-    many_times(df = ., visit_count = temp$visit_count, balanced = temp$balanced) %>%
+    many_campaigns(df = ., visit_count = temp$visit_count, balanced = temp$balanced) %>%
     mutate(
       adjusted = temp$adjusted,
       design = temp$balanced,
       visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
       version = temp$hours)
-  
-}) %>%
+  }) %>%
   bind_rows() %>%
   ungroup()
 
-saveRDS(nonspatial_visit_samples, file = file.path(new_dt_pt, "design_samples", "nonspatial_visit_samples.rds"))
+saveRDS(nonspatial_visit_samples, file = file.path(new_dt_pt, "nonspatial_visit_samples.rds"))
+
+# calculate annual averages
+nonspatial_site_avgs <- nonspatial_visit_samples %>%
+  group_by(id, adjusted, actual_visits, campaign, design, visits, version) %>%
+  summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+  ungroup()
+
+saveRDS(nonspatial_site_avgs, file = file.path(new_dt_pt, "nonspatial_site_avgs.rds"))
+
+########################################################################################################
+# UNBALANCED CLUSTERED SAMPLING DESIGNS
+########################################################################################################
+sampling_combos_random_clusters <-expand.grid(
+  adjusted = adjusted_vars,
+  visit_count = c(visit_count2, visit_count1),
+  balanced = c("unbalanced"),  
+  hours = c("all hours", "business hours"),
+  design = c("clustered", "sensible spatial", "unsensible spatial", "road type"),
+  cluster_type = unique(segment_clusters_l$cluster_type)
+  )
+
+########################################################################################################
+# df <- pnc_med_clusters %>%
+#   filter(adjusted == temp$adjusted,
+#          hour %in% sampling_hours,
+#          dow2 %in% sampling_days,
+#          cluster_type == temp$cluster_type)
+# visit_count <- 4
+one_campaign_clustered <- function(df, visit_count) {
+  
+  df <- df %>% ungroup()
+  
+  cluster_type <- unique(df$cluster_type) 
+  
+  # select cluster samples
+  ## RANDOM clusters
+  if(cluster_type == "cluster") {
+    cluster_samples <- df %>%
+      distinct(cluster_value) %>%
+      group_by(cluster_value) %>%
+      mutate(visit_samples = log_normal_sample(med=log(visit_count), sd=log(visit_sd))) %>%
+      ungroup()
+    }
+   
+  # ==> add: sensible/unsesible/road type clustered samplieng
+  
+  
+  
+
+  df <- left_join(df, cluster_samples) %>% 
+    ungroup()
+  
+  # randomly select samples for each location at a time
+  # u=group_split(df, id)[[1]]
+  one_sample = lapply(group_split(df, id), function(u){
+      
+    cluster_visits <- unique(u$visit_samples)
+    
+    slice_sample(u, n= cluster_visits, replace=T) %>%
+      mutate(actual_visits = n())
+    }) %>%
+    bind_rows()
+    
+    return(one_sample)
+  }
+
+many_campaigns_clustered <- function(sims=sim_n, df, ...) {
+  mclapply(1:sims, mc.cores = 1, function(s) {
+    one_campaign_clustered(df, ...) %>%
+      mutate(campaign = s)}) %>%
+    bind_rows()
+}
+
+########################################################################################################
+pnc_med_clusters <- pnc_med %>%
+  left_join(segment_clusters) %>% 
+  pivot_longer(cols = contains("cluster"), names_to = "cluster_type", values_to = "cluster_value")
+
+set.seed(21)
+# x=5
+cluster_visit_samples <- lapply(1:nrow(sampling_combos_random_clusters), 
+                                        #4:5,
+                                        function(x) {
+                                     temp <- sampling_combos_random_clusters[x,]
+                                     
+                                     message("running:")
+                                     message(temp)
+                                     
+                                     # all vs business hours/days
+                                     if(temp$hours == "all hours"){
+                                       sampling_hours <- all_hours
+                                       sampling_days <- all_days} 
+                                     if(temp$hours == "business hours"){
+                                       sampling_hours <- business_hours
+                                       sampling_days <- business_days} 
+                                     
+                                     my_samples <- pnc_med_clusters %>%
+                                       filter(adjusted == temp$adjusted,
+                                              hour %in% sampling_hours,
+                                              dow2 %in% sampling_days,
+                                              cluster_type == temp$cluster_type 
+                                              ) %>% 
+                                       many_campaigns_clustered(df = ., visit_count = temp$visit_count) %>%
+                                       mutate(
+                                         adjusted = temp$adjusted,
+                                         design = temp$design,
+                                         visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
+                                         version = temp$hours,
+                                         cluster_type = temp$cluster_type
+                                         )
+                                   }) %>%
+  bind_rows() %>%
+  ungroup()
+
+saveRDS(cluster_visit_samples, file = file.path(new_dt_pt, "cluster_visit_samples.rds"))
+
+# calculate annual averages
+cluster_site_avgs <- cluster_visit_samples %>%
+  group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+  summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+  ungroup()
+
+saveRDS(cluster_site_avgs, file = file.path(new_dt_pt, "cluster_site_avgs.rds"))
 
 
-# ---> START HERE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ########################################################################################################
-# CLUSTERED SAMPLING DESIGNS
+# ANNIE'S CODE
 ########################################################################################################
+# segment_clusters
 
-clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
-  select(id, cluster)  
+# clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
+#   select(id, cluster)  
 
 set.seed(21)
 #visits=12
@@ -288,8 +437,8 @@ set.seed(21)
 #median for one is 12, for another is 6
 
 #GM = median = 6; geometric SD = 2
-visit_nums = rlnorm(63, log(4), log(2))
-visit_nums = round(visit_nums, digits=0)
+# visit_nums = rlnorm(63, log(4), log(2))
+# visit_nums = round(visit_nums, digits=0)
 
 one_sample_avg_unb_cluster = function(df) {
   one_sample = df %>%
