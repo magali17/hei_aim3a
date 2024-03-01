@@ -3,8 +3,10 @@
 .Rhistory
 .RData
 .Ruserdata
-/data
-/old
-/Output
+data/
+old/
+Output/
 *.html
 *.pdf
+
+# how to ignore previous github location filles???
