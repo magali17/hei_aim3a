@@ -1,0 +1,52 @@
+
+R version 4.2.2 (2022-10-31) -- "Innocent and Trusting"
+Copyright (C) 2022 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> # Install sf and related R packages, if not already installed
+> 
+> # Force use of personal library and specify CRAN repo
+> lib_dir <- Sys.getenv("R_LIBS_USER")
+> if (!dir.exists(lib_dir)) dir.create(lib_dir, recursive = TRUE)
+> .libPaths(lib_dir, include.site = FALSE)
+> options(repos = c(CRAN = "https://cloud.r-project.org"))
+> 
+> # Define a function to conditionally install packages, if needed
+> pkg_load <- function(pkgs) {
++     if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak")
++     res <- sapply(pkgs, function(pkg) {
++         if (!requireNamespace(pkg, quietly = TRUE)) pak::pkg_install(pkg)
++         suppressPackageStartupMessages(require(pkg, character.only = TRUE))
++     })
++ }
+> 
+> # Install other packages, if needed
+> pkg_load(c("units", "stringr", "rgdal", "raster", "sf", "gstat"))
+ℹ Loading metadata database
+✔ Loading metadata database ... done
+
+ 
+→ Will install 3 packages.
+→ All 3 packages (8.75 MB) are cached.
++ stringi   1.7.12 [bld][cmp]
++ stringr   1.5.0  [bld]
++ vctrs     0.5.2  [bld][cmp]
+ℹ No downloads are needed, 3 pkgs (8.75 MB) are cached
+ℹ Building stringi 1.7.12
+ℹ Building vctrs 0.5.2
+✔ Built vctrs 0.5.2 (37.5s)
+✔ Installed vctrs 0.5.2  (176ms)

@@ -1,0 +1,177 @@
+---
+title: "UFP size"
+output: html_document
+date: '2023-04-30'
+---
+
+```{r setup, include=FALSE}
+#############################################################################
+# SETUP
+#############################################################################
+knitr::opts_chunk$set(echo = F, 
+                      cache=F, cache.comments = F, 
+                      message = F, warning = F, 
+                      tidy.opts=list(width.cutoff=60), tidy=TRUE#, fig.height = 10, fig.width = 10
+)  
+
+# Clear workspace of all objects and unload all extra (non-base) packages
+rm(list = ls(all = TRUE))
+if (!is.null(sessionInfo()$otherPkgs)) {
+  res <- suppressWarnings(
+    lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
+           detach, character.only=TRUE, unload=TRUE, force=TRUE))
+}
+
+pacman::p_load(tidyverse,
+               ggpubr, #ggarrange()
+               ggmap, sf, #mapping
+               ggspatial #mapping, adding scales, N arrows...
+               )    
+
+latest_v <- readRDS(file.path("Output", "latest_dt_version.rda"))
+
+set.seed(1)
+
+#source("functions.R")
+
+image_path <- file.path("..", "Manuscript", "Images", "v3")
+
+if(!dir.exists(file.path(image_path, "other", "ufp_size"))) {dir.create(file.path(image_path, "other", "ufp_size"), recursive = T)}
+# ggplot settings
+theme_set(theme_bw())
+theme_update(legend.position = "bottom")
+
+
+```
+
+
+```{r}
+
+
+#############################################################################
+# DATA
+#############################################################################
+#dt <- readRDS(file.path("output", latest_v, "annual_training_set.rda"))
+
+locs <- readRDS("data/location_lat_long.rda") %>% select(-route)
+
+dt <- readRDS("/Users/magaliblanco/Library/CloudStorage/OneDrive-UW/Documents/DEOHS/Projects/Mobile Monitoring Predictions/R-ACT_MM_Predictions/data/output/annual_avgs.rda") %>%
+  left_join(locs)
+
+
+# --> do a weighted median??
+
+# calculate NS weighted mean pt size
+## using each bin's mid size  
+ns_size <- dt %>%
+  filter(grepl("ns_", variable) & !variable %in% c("ns_10_100", "ns_total_conc")) %>%  
+  mutate(variable = as.numeric(gsub("ns_", "", variable))) %>%
+  filter(variable <= 154) %>% 
+  group_by(location, latitude, longitude) %>%
+  mutate(total_pnc = sum(value),
+         wt = value/total_pnc) %>%
+  summarize(value = sum(variable*wt)) %>%
+  mutate(variable="ns_size")
+  
+#############################################################################
+# MAP FN
+#############################################################################
+map_fn <- function(dt., ...) {
+  
+  ggmap(ggmap = base_map) +
+    
+    inset_ggmap(ggmap = roads) +
+    geom_point(data=dt., aes(x=longitude, y=latitude, col=value),inherit.aes = F ) +
+    geom_sf(data=monitoring_land_shp, inherit.aes = F, alpha=0, size=0.1) +
+    scale_color_gradient(name = "Conc", low = "red", high = "green") +
+    # add scales & N arrow 
+    annotation_scale(location = "tr") +
+    annotation_scale(location = "tr", unit_category ="imperial", pad_y = unit(0.55, "cm")) +
+    annotation_north_arrow(location = "tr", pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering) +
+    theme_bw() +
+    theme(
+      legend.justification=c(0,1),  
+      legend.position=c(0,1),  
+      legend.background =  element_blank()) +
+    coord_sf(expand = F) +
+    scale_x_continuous(breaks = map_x_labels, labels = map_x_labels ) +
+    scale_y_continuous(breaks = map_y_labels,
+                       labels = format(map_y_labels,digits = 1, nsmall = 1)) +
+    #add attribution/reference to bottom left
+    geom_text(aes(x=-Inf, y=-Inf, hjust=-0.01, vjust=-0.3, 
+                  label= "Map tiles by Stamen Design, under CC BY 3.0. \nData by OpenStreetMap, under ODbL."), size=2.5) +
+    labs(x = "Longitude",
+         y = "Latitude")  
+  
+}
+
+#############################################################################
+# MAPPING
+#############################################################################
+crs_m <- 32148
+crs_deg <- 4326 #WGS84. in decimal degrees
+## PROJ.4 string for crs_deg
+#crs_deg_proj4 <- "+proj=longlat +datum=WGS84 +no_defs"
+
+#shapefiles
+monitoring_area_shp <- readRDS(file.path("data", "GIS", "monitoring_area_shp.rda")) %>%
+  #convert from 4269 
+  st_transform(crs_deg)
+monitoring_land_shp <- readRDS(file.path("data", "GIS", "monitoring_land_shp.rda"))
+
+# map labels
+map_x_labels <- c(seq(-122.5, -121.9, 0.2)) #0.2
+map_y_labels <- c(seq(47.2, 48, 0.2)) #%>% format(nsmall=1)
+
+#need bbox w/ lat/long coordinates
+bbox <- st_bbox(st_transform(st_buffer(st_transform(monitoring_area_shp, crs_m), 10000), crs_deg))
+names(bbox) <- c("left", "bottom", "right", "top")
+# basic map w/ airport symbol
+zm_lvl <- 10
+base_map <- suppressMessages(get_stamenmap( bbox = bbox, zoom = zm_lvl, maptype = "toner-lite"))
+# layer map w/ roads & airport
+roads <- suppressMessages(get_stamenmap(bbox = bbox,zoom = zm_lvl, maptype = "toner-hybrid"))
+# ggmap(ggmap = roads)
+
+
+#############################################################################
+# DiSCMINI
+#############################################################################
+#scatterplot: size vs conc
+dt %>%
+  filter(grepl("pmdisc", variable)) %>% 
+  pivot_wider(names_from = variable, values_from = value) %>%
+  ggplot(aes(x=pmdisc_number, y=pmdisc_size)) + 
+  geom_point(alpha=0.2) + 
+  geom_smooth()
+
+# MAP
+map_fn(dt.=filter(dt, grepl("pmdisc_size", variable)))
+       
+
+#############################################################################
+# NaNoScan
+#############################################################################
+rbind(filter(dt, grepl("ns_total_conc", variable)),
+      ns_size) %>% 
+  pivot_wider(names_from = variable, values_from = value) %>%
+  ggplot(aes(x=ns_total_conc, y=ns_size)) + 
+  geom_point(alpha=0.2) + 
+  geom_smooth()
+
+
+map_fn(dt. = ns_size)
+
+
+#############################################################################
+# DISCMINI + NANOSCAN
+#############################################################################
+
+rbind(filter(dt, grepl("pmdisc_size", variable)),
+      ns_size) %>%
+  map_fn() +
+  facet_wrap(~variable)
+
+
+```
+
