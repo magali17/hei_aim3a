@@ -102,7 +102,16 @@ unadj_pnc_med <- readRDS(file = file.path("data", "onroad", "annie", "Additional
 
 #combine unadjusted and adjusted
 ## 5874 unique segments
-pnc_med <- bind_rows(adj_pnc_med, unadj_pnc_med)
+pnc_med <- bind_rows(adj_pnc_med, unadj_pnc_med) %>% 
+  ungroup()
+
+# save segments used
+## 5874 segments
+pnc_med %>%
+  distinct(id) %>%
+  pull(id) %>%
+  saveRDS(., file.path(new_dt_pt, "ids_included.rds"))
+
 
 # test <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds"))
 # filter(test, id==534) %>% View()
@@ -113,33 +122,31 @@ road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Dat
     ) %>%
   distinct(id, road_type) 
 
-segment_clusters <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
-  select(id=location, contains("cluster")) 
+segment_clusters_l <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
+  select(id, contains("cluster")) 
 
-segment_clusters_l <- segment_clusters %>%
-  pivot_longer(cols = contains("cluster"), names_to = "cluster_type", values_to = "cluster_value") %>%
+segment_clusters <- segment_clusters_l %>%
+  pivot_wider(names_from = "cluster_type", values_from = "cluster_value") #%>%
   # cluster3 drops some segments
-  drop_na()
+  #drop_na()
    
 ########################################################################################################
 # LOCATION ANNUAL AVGS & CLUSTER RANKINGS
 ########################################################################################################
-unadj_pnc_summary = unadj_pnc_med %>% 
+unadj_pnc_summary <- unadj_pnc_med %>% 
   group_by(id) %>% 
   summarise(annual_avg = mean(median_value, na.rm=T), 
             sd = sd(median_value, na.rm=T))
 
-adj_pnc_summary = adj_pnc_med %>% 
+adj_pnc_summary <- adj_pnc_med %>% 
   group_by(id) %>% 
   summarise(annual_avg = mean(median_value, na.rm=T), 
             sd = sd(median_value, na.rm=T))
 
-unadj_pnc_summary_map = unadj_pnc_summary %>% 
+unadj_pnc_summary_map <- unadj_pnc_summary %>% 
   inner_join(segment_clusters) %>% 
   left_join(cov_mm) %>%
-  
   pivot_longer(cols = contains("cluster"), names_to = "cluster_type", values_to = "cluster_value") %>%
-  
   mutate(cluster_value = factor(cluster_value))
 
 # pts = st_as_sf(unadj_pnc_summary_map, coords = c("longitude","latitude"),  crs = 4326)
@@ -153,59 +160,66 @@ unadj_pnc_summary_map = unadj_pnc_summary %>%
 
 # rank clusters  
 ##cluster road type 
-cluster_road_type <- segment_clusters_l %>% 
-  left_join(road_type) %>% #filter(cluster_value==18, cluster_type=="cluster") %>% View()
-  
-  # --> TEMP. WHY NA'S??
-  drop_na(road_type) %>%
-  
+cluster_road_type_rank <- segment_clusters_l %>% 
+  left_join(road_type) %>% 
   group_by(cluster_type, cluster_value) %>% 
   mutate(segments_in_cluster = n()) %>%# View()
   ungroup() %>% 
   group_by(cluster_type, cluster_value, road_type, segments_in_cluster) %>% 
-  summarise(freq = n()) %>% 
-  # mutate(percent = freq/segments_in_cluster*100) %>%  
-  pivot_wider(id_cols = c(cluster_type, cluster_value), names_from = "road_type", values_from = "freq" #"percent"
-              ) #%>%  
-  # group_by(cluster_type) %>%
-  # arrange(road_type, desc(freq)) %>% View()
-
-assign_rank1 <- cluster_road_type %>% 
-  # clusters w A2s
-  filter(!is.na(A2)) %>% 
-  group_by(cluster_type#, cluster_value
-           ) %>%
-  arrange(desc(A2)) %>% 
-  #group_by(cluster_type) %>%
-  mutate(rank = row_number())  
+  summarize(road_type_n = n()) %>%  
+  mutate(#percent = freq/segments_in_cluster*100
+    road_type_prop = road_type_n/segments_in_cluster,
+    road_type_weight = ifelse(road_type=="A2", 0.60,
+                              ifelse(road_type=="A3", 0.30, 
+                                     ifelse(road_type=="A4", 0.10))),
+    road_type_prop_weight = road_type_prop*road_type_weight) %>% 
+  group_by(cluster_type, cluster_value) %>%
+  summarize(rank0 = sum(road_type_prop_weight)) %>% 
+  group_by(cluster_type) %>%
+  arrange(desc(rank0)) %>%
+  mutate(rank=row_number()) %>%
+  ungroup() %>%
+  select(cluster_type, cluster_value, road_type_rank=rank)
+   
+  
+ 
+# assign_rank1 <- cluster_road_type %>% 
+#   # clusters w A2s
+#   filter(!is.na(A2)) %>% 
+#   group_by(cluster_type#, cluster_value
+#            ) %>%
+#   arrange(desc(A2)) %>% 
+#   #group_by(cluster_type) %>%
+#   mutate(rank = row_number())  
  
 # --> UPDATE CLUSTER TO CLUSTER1
-cluster1_max_rank <- filter(assign_rank1, cluster_type=="cluster") %>% summarize(max=max(rank)) %>% pull(max)
-cluster2_max_rank <- filter(assign_rank1, cluster_type=="cluster2") %>% summarize(max=max(rank)) %>% pull(max)
-cluster3_max_rank <- filter(assign_rank1, cluster_type=="cluster3") %>% summarize(max=max(rank)) %>% pull(max)
+cluster1_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster1") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
+cluster2_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster2") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
+cluster3_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster3") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
  
-assign_rank2 <- cluster_road_type %>% 
-  # clusters w/o a prior rank
-  filter(is.na(A2)) %>% 
-  group_by(cluster_type#, cluster_value
-           ) %>%
-  arrange(desc(A3)) %>%  
-  #ungroup() %>% 
-  #group_by(cluster_type) %>%
-  mutate(rank = row_number(), 
-         #rank = rank+20
-         
-    # --> UPDATE CLUSTER TO CLUSTER1  
-         rank = ifelse(cluster_type=="cluster", rank + cluster1_max_rank,
-                       ifelse(cluster_type=="cluster2", rank + cluster2_max_rank,
-                              ifelse(cluster_type=="cluster3", rank + cluster3_max_rank, NA)))
-         ) 
-
-cluster_road_type_rank <- bind_rows(assign_rank1, assign_rank2) %>% 
-  select(cluster_type, cluster_value, road_type_rank=rank)
+# assign_rank2 <- cluster_road_type %>% 
+#   # clusters w/o a prior rank
+#   filter(is.na(A2)) %>% 
+#   group_by(cluster_type#, cluster_value
+#            ) %>%
+#   arrange(desc(A3)) %>%  
+#   #ungroup() %>% 
+#   #group_by(cluster_type) %>%
+#   mutate(rank = row_number(), 
+#          #rank = rank+20
+#          
+#     # --> UPDATE CLUSTER TO CLUSTER1  
+#          rank = ifelse(cluster_type=="cluster", rank + cluster1_max_rank,
+#                        ifelse(cluster_type=="cluster2", rank + cluster2_max_rank,
+#                               ifelse(cluster_type=="cluster3", rank + cluster3_max_rank, NA)))
+#          ) 
+# 
+# cluster_road_type_rank <- bind_rows(assign_rank1, assign_rank2) %>% 
+#   select(cluster_type, cluster_value, road_type_rank=rank)
 
 
 # rank order clusters by average annual average 
+## lower numbers are prioritized for more visits
 cluster_rank <- unadj_pnc_summary_map %>%
   group_by(cluster_type, cluster_value) %>% 
   summarise(avg_ann_avg = mean(annual_avg, na.rm=T)) %>%
@@ -215,7 +229,7 @@ cluster_rank <- unadj_pnc_summary_map %>%
   arrange(avg_ann_avg) %>% 
   mutate(unsensible_rank = row_number(),
           cluster_value = as.numeric(as.character(cluster_value))) %>%  
-  # add road type
+  # add road type rank
   left_join(cluster_road_type_rank) %>%
   ungroup()
 
@@ -231,7 +245,7 @@ cluster_rank1 <- cluster_rank %>%
 cluster_rank2 <- cluster_rank %>%
   pivot_longer(cols = c(avg_ann_avg, 
                         contains("rank"))) %>% 
-  left_join(segment_clusters_l, #relationship = "one-to-many" # error w/ row 12324?
+  left_join(segment_clusters_l, #relationship = "one-to-many" # error w/ row 12313?
             ) %>% 
   left_join(cov_mm) 
 

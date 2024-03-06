@@ -27,15 +27,20 @@ if(!dir.exists(file.path(image_path, "SI"))){dir.create(file.path(image_path, "S
 project_crs <- 4326  #lat/long
 #m_crs <- 32148
 
-# ids in analysis. 5878
-keep_ids <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
-  filter(road_type != "A1", # don't use A1_flag b/c some A1 roads have A1_flag=0 for some reason
-         exclude_flag==0)  
+# IDs from r0_sampling.R. Otherwise, results i 5878 segments instead of 5874
+## 5874 
+keep_ids <- readRDS(file.path(new_dt_pt, "ids_included.rds"))
 
 cov <- readRDS(file.path("data", "onroad", "dr0364d_20230331_modified.rda")) %>%
   filter(location %in% keep_ids) %>%
-  select(location, latitude, longitude) %>%
+  select(id=location, latitude, longitude) %>%
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F)  
+
+# annie's time-based clusters
+# --> why does this have 5878??
+segment_clusters_annie <- readRDS(file.path("data", "onroad", "annie", "segment_clusters.rds")) %>%
+  rename(cluster3 = cluster) %>% 
+  filter(id %in% keep_ids)
 
 ##################################################################################################
 # MAKE CLUSTERS
@@ -62,6 +67,7 @@ summary(k_clusters2$size)
 cov_new_clusters <- cov %>%
   mutate(cluster1 = k_clusters$cluster,
          cluster2 = k_clusters2$cluster) %>%  
+  left_join(segment_clusters_annie) %>%
   pivot_longer(cols=contains("cluster"), names_to = "cluster_type", values_to = "cluster_value") %>%
   group_by(cluster_type, cluster_value) %>%
   mutate(no_segments = n()) 
