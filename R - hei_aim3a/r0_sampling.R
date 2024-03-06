@@ -15,7 +15,9 @@ if (!require("pacman")) {install.packages("pacman", repos = my_repo)}
 
 pacman::p_load(#knitr, data.table, ggplot2, kableExtra,
                tidyverse,
-               #lubridate, ggpubr, tsibble, DescTools,
+               #lubridate, 
+               ggpubr, #ggarrange()
+               tsibble, DescTools,
                parallel, #future.apply, purrr,
                #psych, 
                sf#, tmap, mapview #added 2/29/24
@@ -27,14 +29,18 @@ dt_path <- file.path("data", "onroad", "annie", "Additional Sampling")
 new_dt_pt <- file.path("data", "onroad", "annie", "v2")
 if(!dir.exists(file.path(new_dt_pt))){dir.create(file.path(new_dt_pt), recursive = T)}
 
-core_count <- 4
+image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
+if(!dir.exists(file.path(image_path, "SI"))){dir.create(file.path(image_path, "SI"), recursive = T)}
+
+# --> UPDATE
+core_count <- 1 #4
 set.seed(21)
 ########################################################################################################
 # COMMON VARIABLES
 ########################################################################################################
 
 # --> UPDATE
-sim_n <- 2#30
+sim_n <- 30 #2
 
 all_hours <- c(0:23)
 business_hours <- c(9:17)
@@ -52,15 +58,24 @@ visit_count1 <- 4
 visit_sd <- 2 # use log(visit_sd)
 
 adjusted_vars <- c("adjusted", "unadjusted")
+
+project_crs <- 4326  #lat/long
+
 ########################################################################################################
 # COMMON FUNCTIONS
 ########################################################################################################
-log_normal_sample <- function(med_log, sd_log = visit_sd, max_value=28) {
-  value <- rlnorm(1, med_log, sd_log) %>%
+# med=log(visit_count)
+# sd=log(visit_sd)
+# n = cluster_n
+# max_value=28
+
+#med and sd should be on the log-scale
+log_normal_sample <- function(med, sd = visit_sd, max_value=28, n=1) {
+  value <- rlnorm(n, med, sd) %>%
     round()
   # set min/max # of samples
   value <- ifelse(value<1, 1, value)
-  value <- min(value, max_value)
+  value <- ifelse(value>max_value, max_value, value) #min(value, max_value) 
   
   value <- as.integer(value)
   return(value)
@@ -86,7 +101,17 @@ unadj_pnc_med <- readRDS(file = file.path("data", "onroad", "annie", "Additional
          adjusted = "unadjusted")
 
 #combine unadjusted and adjusted
+## 5874 unique segments
 pnc_med <- bind_rows(adj_pnc_med, unadj_pnc_med)
+
+# test <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds"))
+# filter(test, id==534) %>% View()
+road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
+  filter(
+    # use segments w/ median estimates from prior work
+    id %in% pnc_med$id # 5874 road segments kept
+    ) %>%
+  distinct(id, road_type) 
 
 segment_clusters <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
   select(id=location, contains("cluster")) 
@@ -96,13 +121,9 @@ segment_clusters_l <- segment_clusters %>%
   # cluster3 drops some segments
   drop_na()
    
-road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
-  filter(road_type != "A1") %>%
-  distinct(id, road_type) 
-
 ########################################################################################################
-# LOCATION ANNUAL AVGS & VARIABILITY
-########################################################################################################\
+# LOCATION ANNUAL AVGS & CLUSTER RANKINGS
+########################################################################################################
 unadj_pnc_summary = unadj_pnc_med %>% 
   group_by(id) %>% 
   summarise(annual_avg = mean(median_value, na.rm=T), 
@@ -130,48 +151,108 @@ unadj_pnc_summary_map = unadj_pnc_summary %>%
 # mapview(pts, zcol="cluster")
 
 
-#rank order clusters by average annual average OR average SD; then rank order lognormal dist and assign that way
-cluster_rank = unadj_pnc_summary_map %>%
-  group_by(cluster_type, cluster_value) %>% 
-  summarise(avg_ann_avg = mean(annual_avg, na.rm=T),
-            avg_sd = mean(sd, na.rm=T)) %>% 
-  arrange(desc(avg_ann_avg)) %>% 
-  mutate(ann_avg_rank = row_number()) %>% 
-  arrange(desc(avg_sd)) %>% 
-  mutate(sd_avg_rank = row_number())
-
+# rank clusters  
 ##cluster road type 
-cluster_road_type = segment_clusters_l %>% 
-  left_join(road_type) %>% 
+cluster_road_type <- segment_clusters_l %>% 
+  left_join(road_type) %>% #filter(cluster_value==18, cluster_type=="cluster") %>% View()
+  
+  # --> TEMP. WHY NA'S??
+  drop_na(road_type) %>%
+  
   group_by(cluster_type, cluster_value) %>% 
-  mutate(Total = n()) %>% 
+  mutate(segments_in_cluster = n()) %>%# View()
   ungroup() %>% 
-  group_by(cluster_type, cluster_value, road_type, Total) %>% 
-  summarise(Freq = n()) %>% 
-  mutate(percent = Freq/Total*100) %>% 
-  pivot_wider(id_cols = c(cluster_type, cluster_value), 
-              names_from = "road_type", values_from = "percent") 
+  group_by(cluster_type, cluster_value, road_type, segments_in_cluster) %>% 
+  summarise(freq = n()) %>% 
+  # mutate(percent = freq/segments_in_cluster*100) %>%  
+  pivot_wider(id_cols = c(cluster_type, cluster_value), names_from = "road_type", values_from = "freq" #"percent"
+              ) #%>%  
+  # group_by(cluster_type) %>%
+  # arrange(road_type, desc(freq)) %>% View()
 
-assign_rank1 = cluster_road_type %>% 
+assign_rank1 <- cluster_road_type %>% 
+  # clusters w A2s
   filter(!is.na(A2)) %>% 
-  group_by(cluster_type, cluster_value) %>%
+  group_by(cluster_type#, cluster_value
+           ) %>%
   arrange(desc(A2)) %>% 
-  group_by(cluster_type) %>%
-  mutate(rank = row_number()) %>% 
-  select(cluster_type, cluster_value, rank)
+  #group_by(cluster_type) %>%
+  mutate(rank = row_number())  
  
-assign_rank2 = cluster_road_type %>% 
+# --> UPDATE CLUSTER TO CLUSTER1
+cluster1_max_rank <- filter(assign_rank1, cluster_type=="cluster") %>% summarize(max=max(rank)) %>% pull(max)
+cluster2_max_rank <- filter(assign_rank1, cluster_type=="cluster2") %>% summarize(max=max(rank)) %>% pull(max)
+cluster3_max_rank <- filter(assign_rank1, cluster_type=="cluster3") %>% summarize(max=max(rank)) %>% pull(max)
+ 
+assign_rank2 <- cluster_road_type %>% 
+  # clusters w/o a prior rank
   filter(is.na(A2)) %>% 
-  group_by(cluster_type, cluster_value) %>%
+  group_by(cluster_type#, cluster_value
+           ) %>%
   arrange(desc(A3)) %>%  
-  ungroup() %>% 
-  group_by(cluster_type) %>%
-  mutate(rank = row_number()) %>% 
-  mutate(rank = rank+20) %>% 
-  select(cluster_type, cluster_value, rank)
+  #ungroup() %>% 
+  #group_by(cluster_type) %>%
+  mutate(rank = row_number(), 
+         #rank = rank+20
+         
+    # --> UPDATE CLUSTER TO CLUSTER1  
+         rank = ifelse(cluster_type=="cluster", rank + cluster1_max_rank,
+                       ifelse(cluster_type=="cluster2", rank + cluster2_max_rank,
+                              ifelse(cluster_type=="cluster3", rank + cluster3_max_rank, NA)))
+         ) 
 
-cluster_road_type_rank = assign_rank1 %>% 
-  bind_rows(assign_rank2)
+cluster_road_type_rank <- bind_rows(assign_rank1, assign_rank2) %>% 
+  select(cluster_type, cluster_value, road_type_rank=rank)
+
+
+# rank order clusters by average annual average 
+cluster_rank <- unadj_pnc_summary_map %>%
+  group_by(cluster_type, cluster_value) %>% 
+  summarise(avg_ann_avg = mean(annual_avg, na.rm=T)) %>%
+  group_by(cluster_type) %>%
+  arrange(desc(avg_ann_avg)) %>% 
+  mutate(sensible_rank = row_number()) %>% 
+  arrange(avg_ann_avg) %>% 
+  mutate(unsensible_rank = row_number(),
+          cluster_value = as.numeric(as.character(cluster_value))) %>%  
+  # add road type
+  left_join(cluster_road_type_rank) %>%
+  ungroup()
+
+saveRDS(cluster_rank, file.path(new_dt_pt, "cluster_ranks.rds"))
+
+cluster_rank1 <- cluster_rank %>%
+  select(-avg_ann_avg) %>%
+  pivot_longer(cols = c(contains("rank")), names_to = "cluster_approach", values_to = "rank") %>%
+  mutate(cluster_approach = gsub("_rank", "", cluster_approach))
+
+########################################################################################################
+# visualize cluster rankings
+cluster_rank2 <- cluster_rank %>%
+  pivot_longer(cols = c(avg_ann_avg, 
+                        contains("rank"))) %>% 
+  left_join(segment_clusters_l, #relationship = "one-to-many" # error w/ row 12324?
+            ) %>% 
+  left_join(cov_mm) 
+
+lapply(unique(cluster_rank2$name), function(x) {
+  cluster_rank2 %>%
+    filter(#cluster_type==x
+      name==x
+           ) %>%
+    st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
+    ggplot(aes(col=value)) + 
+    geom_sf() + 
+    facet_wrap(~name+cluster_type) +
+    theme_bw() + 
+    theme(panel.grid.major = element_blank()
+          ) + 
+    labs(#col="Rank"
+         )
+  }) %>%
+  ggarrange(plotlist = .)
+
+ggsave(file.path(image_path, "SI", "cluster_road_type_map.png"), width = 8, height = 12)
 
 ########################################################################################################
 # DESIGNS WITHOUT SPATIAL STRUCTURE
@@ -181,7 +262,7 @@ cluster_road_type_rank = assign_rank1 %>%
 
 # --> add group by id, clusters?
 
-sampling_combos <-expand.grid(
+sampling_combos <- expand.grid(
   adjusted = adjusted_vars,
   visit_count = c(visit_count2, visit_count1),
   balanced = c("balanced", "unbalanced"),
@@ -237,7 +318,7 @@ nonspatial_visit_samples <- lapply(1:nrow(sampling_combos),
   temp <- sampling_combos[x,]
   
   message("running:")
-  message(temp)
+  message(capture.output(temp))
   
   # all vs business hours/days
   if(temp$hours == "all hours"){
@@ -279,44 +360,53 @@ sampling_combos_random_clusters <-expand.grid(
   visit_count = c(visit_count2, visit_count1),
   balanced = c("unbalanced"),  
   hours = c("all hours", "business hours"),
-  design = c("clustered", "sensible spatial", "unsensible spatial", "road type"),
+  #design = c("clustered", "sensible spatial", "unsensible spatial", "road type")
+  cluster_approach = c("random", "sensible", "unsensible", "road_type"),
   cluster_type = unique(segment_clusters_l$cluster_type)
   )
 
 ########################################################################################################
 # df <- pnc_med_clusters %>%
-#   filter(adjusted == temp$adjusted,
-#          hour %in% sampling_hours,
-#          dow2 %in% sampling_days,
-#          cluster_type == temp$cluster_type)
+#   filter(adjusted == "adjusted",
+#          hour %in% c(0:23),
+#          #dow2 %in% sampling_days,
+#          cluster_type == "cluster2")
 # visit_count <- 4
-one_campaign_clustered <- function(df, visit_count) {
+# cluster_approach. = "unsensible"
+
+one_campaign_clustered <- function(df, visit_count, cluster_approach.) {
   
   df <- df %>% ungroup()
   
-  cluster_type <- unique(df$cluster_type) 
+  cluster_type. <- unique(df$cluster_type) 
+  cluster_n <- length(unique(df$cluster_value))
+  samples_per_cluster <- log_normal_sample(med=log(visit_count), sd=log(visit_sd), n = cluster_n)
+  
+  cluster_ranks <- cluster_rank1 %>%
+    filter(cluster_type==cluster_type.) %>%
+    arrange(cluster_value)
   
   # select cluster samples
-  ## RANDOM clusters
-  if(cluster_type == "cluster") {
-    cluster_samples <- df %>%
-      distinct(cluster_value) %>%
-      group_by(cluster_value) %>%
-      mutate(visit_samples = log_normal_sample(med=log(visit_count), sd=log(visit_sd))) %>%
-      ungroup()
+  ## random clusters
+  if(cluster_approach. == "random") {
+    cluster_samples <- distinct(cluster_ranks, cluster_type, cluster_value) %>%
+      mutate(visit_samples = samples_per_cluster)
+  } else {
+    # spatially-structured clusters
+    cluster_samples <- cluster_ranks %>%
+      filter(cluster_approach == cluster_approach.) %>%
+      arrange(rank) %>%
+      mutate(visit_samples = sort(samples_per_cluster, decreasing=T))
     }
    
-  # ==> add: sensible/unsesible/road type clustered samplieng
+  cluster_samples <- select(cluster_samples, cluster_type, cluster_value, visit_samples)
   
-  
-  
-
   df <- left_join(df, cluster_samples) %>% 
     ungroup()
   
   # randomly select samples for each location at a time
   # u=group_split(df, id)[[1]]
-  one_sample = lapply(group_split(df, id), function(u){
+  one_sample <- lapply(group_split(df, id), function(u){
       
     cluster_visits <- unique(u$visit_samples)
     
@@ -329,7 +419,7 @@ one_campaign_clustered <- function(df, visit_count) {
   }
 
 many_campaigns_clustered <- function(sims=sim_n, df, ...) {
-  mclapply(1:sims, mc.cores = 1, function(s) {
+  mclapply(1:sims, mc.cores = core_count, function(s) {
     one_campaign_clustered(df, ...) %>%
       mutate(campaign = s)}) %>%
     bind_rows()
@@ -340,15 +430,22 @@ pnc_med_clusters <- pnc_med %>%
   left_join(segment_clusters) %>% 
   pivot_longer(cols = contains("cluster"), names_to = "cluster_type", values_to = "cluster_value")
 
-set.seed(21)
+
+# df <- pnc_med_clusters %>%
+#   filter(adjusted == "adjusted",
+#          hour %in% c(0:23),
+#          #dow2 %in% sampling_days,
+#          cluster_type == "cluster2")
+
 # x=5
+set.seed(21)
 cluster_visit_samples <- lapply(1:nrow(sampling_combos_random_clusters), 
-                                        #4:5,
+                                  #c(4:5,12:13),
                                         function(x) {
                                      temp <- sampling_combos_random_clusters[x,]
                                      
                                      message("running:")
-                                     message(temp)
+                                     message(capture.output(temp))
                                      
                                      # all vs business hours/days
                                      if(temp$hours == "all hours"){
@@ -364,10 +461,10 @@ cluster_visit_samples <- lapply(1:nrow(sampling_combos_random_clusters),
                                               dow2 %in% sampling_days,
                                               cluster_type == temp$cluster_type 
                                               ) %>% 
-                                       many_campaigns_clustered(df = ., visit_count = temp$visit_count) %>%
+                                       many_campaigns_clustered(df = ., visit_count = temp$visit_count,cluster_approach.=temp$cluster_approach) %>%
                                        mutate(
                                          adjusted = temp$adjusted,
-                                         design = temp$design,
+                                         design = temp$cluster_approach,
                                          visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
                                          version = temp$hours,
                                          cluster_type = temp$cluster_type
@@ -377,6 +474,14 @@ cluster_visit_samples <- lapply(1:nrow(sampling_combos_random_clusters),
   ungroup()
 
 saveRDS(cluster_visit_samples, file = file.path(new_dt_pt, "cluster_visit_samples.rds"))
+
+# # check counts
+# cluster_visit_samples %>% 
+#   filter(design==first(design)) %>% 
+#   distinct(id, dow2, adjusted, cluster_type, cluster_value, visit_samples, actual_visits, campaign, design, visits, version) %>% 
+#   group_by_at(vars(-id)) %>%
+#   summarize(ids = length(unique(id))) %>% View()
+
 
 # calculate annual averages
 cluster_site_avgs <- cluster_visit_samples %>%
@@ -422,874 +527,889 @@ saveRDS(cluster_site_avgs, file = file.path(new_dt_pt, "cluster_site_avgs.rds"))
 
 
 
-
-########################################################################################################
-# ANNIE'S CODE
-########################################################################################################
-# segment_clusters
-
+# 
+# ########################################################################################################
+# # ANNIE'S CODE
+# ########################################################################################################
+# # segment_clusters
+# 
+# # clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
+# #   select(id, cluster)  
+# 
+# set.seed(21)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #GM = median = 6; geometric SD = 2
+# # visit_nums = rlnorm(63, log(4), log(2))
+# # visit_nums = round(visit_nums, digits=0)
+# 
+# one_sample_avg_unb_cluster = function(df) {
+#   one_sample = df %>%
+#     left_join(clusters) %>% 
+#     group_by(cluster) %>% 
+#     mutate(weight = sample(visit_nums, 1)) 
+#  
+#    sample_days = one_sample %>% 
+#      select(date, cluster, weight) %>% 
+#      distinct() %>% 
+#      group_by(cluster, weight) %>% 
+#      nest() %>% 
+#      mutate(samp = map2(data, weight, sample_n, replace = T)) %>% 
+#      select(-data) %>% 
+#      unnest(samp)
+#    
+#    one_sample_final = one_sample %>% 
+#      ungroup() %>% 
+#      inner_join(sample_days, by=c("date", "cluster", "weight")) %>% 
+#      group_by(id) %>% 
+#      summarise(annual_mean = mean(median_value, na.rm=T)) %>% 
+#      ungroup() 
+#   
+#   return(one_sample_final)
+# }
+# 
+# 
+# 
+# unbal_cluster_unadj <- future_replicate(n = sim_n,
+#                            #future.label = TRUE,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_cluster(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     #group_by(id) %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "all hours",
+#       design = "clustered", 
+#       visits = "median 4 visits",
+#       adjusted = "unadjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+#   
+# unbal_cluster_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_cluster(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     #group_by(id) %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "all hours",
+#       design = "clustered", 
+#       visits = "median 4 visits",
+#       adjusted = "adjusted"
+#     ) %>%
+#     as.data.frame() %>%
+#     mutate(dif = id - lag(id)) %>%
+#     mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_cluster_design = rbind(unbal_cluster_unadj, unbal_cluster_adj) %>% 
+#   select(id, annual_mean, campaign, version, design, visits, adjusted)
+# 
+# saveRDS(unbal_cluster_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_cluster.rds"))
+# ```
+# 
+# # Pre-defined site clustering: business hours   
+# Randomly pick number of visits per CLUSTER from the lognormal distribution  
+# Pick drive days to apply to the entire cluster.
+# 
+# ```{r}
 # clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
 #   select(id, cluster)  
-
-set.seed(21)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#GM = median = 6; geometric SD = 2
+# 
+# set.seed(21)
+# business_hours <- c(9:17)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #GM = median = 6; geometric SD = 2
+# #visit_nums = rlnorm(50, log(4), log(2))
+# #visit_nums = round(visit_nums, digits=0)
+# 
+# one_sample_avg_unb_cluster_bh = function(df) {
+#   one_sample = df %>%
+#     filter(dow2 == "weekday", hour %in% business_hours) %>%
+#     left_join(clusters) %>% 
+#     group_by(cluster) %>% 
+#     mutate(weight = sample(visit_nums, 1)) 
+#  
+#    sample_days = one_sample %>% 
+#      select(date, cluster, weight) %>% 
+#      distinct() %>% 
+#      group_by(cluster, weight) %>% 
+#      nest() %>% 
+#      mutate(samp = map2(data, weight, sample_n, replace = T)) %>% 
+#      select(-data) %>% 
+#      unnest(samp)
+#    
+#    one_sample_final = one_sample %>% 
+#      ungroup() %>% 
+#      inner_join(sample_days, by=c("date", "cluster", "weight")) %>% 
+#      group_by(id) %>% 
+#      summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample_final)
+# }
+# 
+# 
+# unbal_cluster_bh_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_cluster_bh(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     #group_by(id) %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "business hours",
+#       design = "clustered", 
+#       visits = "median 4 visits",
+#       adjusted = "unadjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# unbal_cluster_bh_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_cluster_bh(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     #group_by(id) %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "business hours",
+#       design = "clustered", 
+#       visits = "median 4 visits",
+#       adjusted = "adjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_cluster_bh_design = rbind(unbal_cluster_bh_unadj, unbal_cluster_bh_adj) %>% 
+#   select(id, annual_mean, campaign, version, design, visits, adjusted)
+# 
+# saveRDS(unbal_cluster_bh_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_cluster_bh.rds"))
+# ```
+# 
+# 
+# # Spatial structure: Model 1  
+# Using the pre-defined site clusters, sample from the lognormal distribution to create spatial structure in the #visits per site, using the same drive day algorithm.  
+# 
+# Model 1: High number of visits along chunks/routes where we expect a lot of exposure contrast; fewer where we don't. Assign clusters with high annual averages and high SD to higher number of visits. 
+# 
+# ```{r}
+# clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
+#   select(id, cluster)
+# 
+# set.seed(21)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #GM = median = 6; geometric SD = 2
+# #visit_nums = rlnorm(56, log(4), log(2))
+# #visit_nums = round(visit_nums, digits=0)
+# 
+# visit_nums_rank = as.data.frame(visit_nums) %>% 
+#   arrange(desc(visit_nums)) %>% 
+#   mutate(rank = row_number())
+# 
+# cluster_rank_select = cluster_rank %>% 
+#   select(cluster, ann_avg_rank) %>% 
+#   left_join(visit_nums_rank, by=c("ann_avg_rank" = "rank"))
+#  
+# 
+# one_sample_avg_unb_spatial = function(df) {
+#   
+#   one_sample = df %>%
+#     left_join(clusters) %>% 
+#     left_join(cluster_rank_select) %>% 
+#     ungroup()
+#  
+#    sample_days = one_sample %>% 
+#      select(date, cluster, visit_nums) %>% 
+#      distinct() %>% 
+#      filter(!is.na(cluster)) %>% 
+#      group_by(cluster, visit_nums) %>% 
+#      nest() %>% 
+#      mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
+#      select(-data) %>% 
+#      unnest(samp)
+#    
+#    one_sample_final = one_sample %>% 
+#      ungroup() %>% 
+#      inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
+#      group_by(id) %>% 
+#      summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample_final)
+# }
+# 
+# 
+# unbal_spatial_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     #group_by(id) %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "all hours",
+#       design = "sensible spatial", 
+#       visits = "median 4",
+#       adjusted = "unadjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_spatial_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "all hours",
+#       design = "sensible spatial", 
+#       visits = "median 4",
+#       adjusted = "adjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_spatial_design = rbind(unbal_spatial_unadj, unbal_spatial_adj) %>% 
+#   select(id, annual_mean, campaign, version, design, visits, adjusted)
+# 
+# saveRDS(unbal_spatial_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial.rds"))
+# 
+# ```
+# 
+# 
+# # Spatial structure: Model 1, business hours   
+# Using the pre-defined site clusters, sample from the lognormal distribution to create spatial structure in the #visits per site, using the same drive day algorithm.  
+# 
+# Model 1: High number of visits along chunks/routes where we expect a lot of exposure contrast; fewer where we don't. Assign clusters (or full routes?) with high annual averages and high SD to higher number of visits. 
+# 
+# ```{r}
+# clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
+#   select(id, cluster)
+# 
+# 
+# set.seed(21)
+# business_hours <- c(9:17)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #visit_nums = rlnorm(56, log(4), log(2))
+# #visit_nums = round(visit_nums, digits=0)
+# 
+# #visit_nums_rank = as.data.frame(visit_nums) %>% 
+# #  arrange(desc(visit_nums)) %>% 
+# #  mutate(rank = row_number())
+# 
+# cluster_rank_select = cluster_rank %>% 
+#   select(cluster, ann_avg_rank) %>% 
+#   left_join(visit_nums_rank, by=c("ann_avg_rank" = "rank"))
+#  
+# 
+# one_sample_avg_unb_spatial_bh = function(df) {
+#   
+#   one_sample = df %>%
+#     filter(dow2 == "weekday", hour %in% business_hours) %>%
+#     left_join(clusters) %>% 
+#     left_join(cluster_rank_select) %>% 
+#     ungroup()
+#  
+#    sample_days = one_sample %>% 
+#      select(date, cluster, visit_nums) %>% 
+#      distinct() %>% 
+#      filter(!is.na(cluster)) %>% 
+#      group_by(cluster, visit_nums) %>% 
+#      nest() %>% 
+#      mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
+#      select(-data) %>% 
+#      unnest(samp)
+#    
+#    one_sample_final = one_sample %>% 
+#      ungroup() %>% 
+#      inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
+#      group_by(id) %>% 
+#      summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample_final)
+# }
+# 
+# 
+# unbal_spatial_bh_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial_bh(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "business hours",
+#       design = "sensible spatial", 
+#       visits = "median 4",
+#       adjusted = "unadjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# unbal_spatial_bh_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial_bh(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "business hours",
+#       design = "sensible spatial", 
+#       visits = "median 4",
+#       adjusted = "adjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_spatial_design_bh = rbind(unbal_spatial_bh_unadj, unbal_spatial_bh_adj) %>% 
+#   select(id, annual_mean, campaign, version, design, visits, adjusted)
+# 
+# saveRDS(unbal_spatial_design_bh, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial_bh.rds"))
+# 
+# ```
+# 
+# 
+# # Spatial structure: Model 2  
+# Using the pre-defined site clusters, sample from the lognormal distribution to create spatial structure in the #visits per site, using the same drive day algorithm.  
+# 
+# Model 2: High number of visits along chunks/routes where we expect a lot of exposure contrast; fewer where we don't. Assign clusters  with high annual averages and high SD to LOWER number of visits. 
+# 
+# ```{r}
+# clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
+#   select(id, cluster)
+# 
+# set.seed(21)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #GM = median = 6; geometric SD = 2
 # visit_nums = rlnorm(63, log(4), log(2))
 # visit_nums = round(visit_nums, digits=0)
-
-one_sample_avg_unb_cluster = function(df) {
-  one_sample = df %>%
-    left_join(clusters) %>% 
-    group_by(cluster) %>% 
-    mutate(weight = sample(visit_nums, 1)) 
- 
-   sample_days = one_sample %>% 
-     select(date, cluster, weight) %>% 
-     distinct() %>% 
-     group_by(cluster, weight) %>% 
-     nest() %>% 
-     mutate(samp = map2(data, weight, sample_n, replace = T)) %>% 
-     select(-data) %>% 
-     unnest(samp)
-   
-   one_sample_final = one_sample %>% 
-     ungroup() %>% 
-     inner_join(sample_days, by=c("date", "cluster", "weight")) %>% 
-     group_by(id) %>% 
-     summarise(annual_mean = mean(median_value, na.rm=T)) %>% 
-     ungroup() 
-  
-  return(one_sample_final)
-}
-
-
-
-unbal_cluster_unadj <- future_replicate(n = sim_n,
-                           #future.label = TRUE,
-                           simplify = F,
-                           expr = one_sample_avg_unb_cluster(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    #group_by(id) %>%
-    mutate(
-      #campaign = row_number(),
-      version = "all hours",
-      design = "clustered", 
-      visits = "median 4 visits",
-      adjusted = "unadjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-  
-unbal_cluster_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_cluster(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    #group_by(id) %>%
-    mutate(
-      #campaign = row_number(),
-      version = "all hours",
-      design = "clustered", 
-      visits = "median 4 visits",
-      adjusted = "adjusted"
-    ) %>%
-    as.data.frame() %>%
-    mutate(dif = id - lag(id)) %>%
-    mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_cluster_design = rbind(unbal_cluster_unadj, unbal_cluster_adj) %>% 
-  select(id, annual_mean, campaign, version, design, visits, adjusted)
-
-saveRDS(unbal_cluster_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_cluster.rds"))
-```
-
-# Pre-defined site clustering: business hours   
-Randomly pick number of visits per CLUSTER from the lognormal distribution  
-Pick drive days to apply to the entire cluster.
-
-```{r}
-clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
-  select(id, cluster)  
-
-set.seed(21)
-business_hours <- c(9:17)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#GM = median = 6; geometric SD = 2
-#visit_nums = rlnorm(50, log(4), log(2))
-#visit_nums = round(visit_nums, digits=0)
-
-one_sample_avg_unb_cluster_bh = function(df) {
-  one_sample = df %>%
-    filter(dow2 == "weekday", hour %in% business_hours) %>%
-    left_join(clusters) %>% 
-    group_by(cluster) %>% 
-    mutate(weight = sample(visit_nums, 1)) 
- 
-   sample_days = one_sample %>% 
-     select(date, cluster, weight) %>% 
-     distinct() %>% 
-     group_by(cluster, weight) %>% 
-     nest() %>% 
-     mutate(samp = map2(data, weight, sample_n, replace = T)) %>% 
-     select(-data) %>% 
-     unnest(samp)
-   
-   one_sample_final = one_sample %>% 
-     ungroup() %>% 
-     inner_join(sample_days, by=c("date", "cluster", "weight")) %>% 
-     group_by(id) %>% 
-     summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample_final)
-}
-
-
-unbal_cluster_bh_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_cluster_bh(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    #group_by(id) %>%
-    mutate(
-      #campaign = row_number(),
-      version = "business hours",
-      design = "clustered", 
-      visits = "median 4 visits",
-      adjusted = "unadjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-unbal_cluster_bh_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_cluster_bh(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    #group_by(id) %>%
-    mutate(
-      #campaign = row_number(),
-      version = "business hours",
-      design = "clustered", 
-      visits = "median 4 visits",
-      adjusted = "adjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_cluster_bh_design = rbind(unbal_cluster_bh_unadj, unbal_cluster_bh_adj) %>% 
-  select(id, annual_mean, campaign, version, design, visits, adjusted)
-
-saveRDS(unbal_cluster_bh_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_cluster_bh.rds"))
-```
-
-
-# Spatial structure: Model 1  
-Using the pre-defined site clusters, sample from the lognormal distribution to create spatial structure in the #visits per site, using the same drive day algorithm.  
-
-Model 1: High number of visits along chunks/routes where we expect a lot of exposure contrast; fewer where we don't. Assign clusters with high annual averages and high SD to higher number of visits. 
-
-```{r}
-clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
-  select(id, cluster)
-
-set.seed(21)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#GM = median = 6; geometric SD = 2
-#visit_nums = rlnorm(56, log(4), log(2))
-#visit_nums = round(visit_nums, digits=0)
-
-visit_nums_rank = as.data.frame(visit_nums) %>% 
-  arrange(desc(visit_nums)) %>% 
-  mutate(rank = row_number())
-
-cluster_rank_select = cluster_rank %>% 
-  select(cluster, ann_avg_rank) %>% 
-  left_join(visit_nums_rank, by=c("ann_avg_rank" = "rank"))
- 
-
-one_sample_avg_unb_spatial = function(df) {
-  
-  one_sample = df %>%
-    left_join(clusters) %>% 
-    left_join(cluster_rank_select) %>% 
-    ungroup()
- 
-   sample_days = one_sample %>% 
-     select(date, cluster, visit_nums) %>% 
-     distinct() %>% 
-     filter(!is.na(cluster)) %>% 
-     group_by(cluster, visit_nums) %>% 
-     nest() %>% 
-     mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
-     select(-data) %>% 
-     unnest(samp)
-   
-   one_sample_final = one_sample %>% 
-     ungroup() %>% 
-     inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
-     group_by(id) %>% 
-     summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample_final)
-}
-
-
-unbal_spatial_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    #group_by(id) %>%
-    mutate(
-      #campaign = row_number(),
-      version = "all hours",
-      design = "sensible spatial", 
-      visits = "median 4",
-      adjusted = "unadjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_spatial_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    mutate(
-      #campaign = row_number(),
-      version = "all hours",
-      design = "sensible spatial", 
-      visits = "median 4",
-      adjusted = "adjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_spatial_design = rbind(unbal_spatial_unadj, unbal_spatial_adj) %>% 
-  select(id, annual_mean, campaign, version, design, visits, adjusted)
-
-saveRDS(unbal_spatial_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial.rds"))
-
-```
-
-
-# Spatial structure: Model 1, business hours   
-Using the pre-defined site clusters, sample from the lognormal distribution to create spatial structure in the #visits per site, using the same drive day algorithm.  
-
-Model 1: High number of visits along chunks/routes where we expect a lot of exposure contrast; fewer where we don't. Assign clusters (or full routes?) with high annual averages and high SD to higher number of visits. 
-
-```{r}
-clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
-  select(id, cluster)
-
-
-set.seed(21)
-business_hours <- c(9:17)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#visit_nums = rlnorm(56, log(4), log(2))
-#visit_nums = round(visit_nums, digits=0)
-
-#visit_nums_rank = as.data.frame(visit_nums) %>% 
-#  arrange(desc(visit_nums)) %>% 
-#  mutate(rank = row_number())
-
-cluster_rank_select = cluster_rank %>% 
-  select(cluster, ann_avg_rank) %>% 
-  left_join(visit_nums_rank, by=c("ann_avg_rank" = "rank"))
- 
-
-one_sample_avg_unb_spatial_bh = function(df) {
-  
-  one_sample = df %>%
-    filter(dow2 == "weekday", hour %in% business_hours) %>%
-    left_join(clusters) %>% 
-    left_join(cluster_rank_select) %>% 
-    ungroup()
- 
-   sample_days = one_sample %>% 
-     select(date, cluster, visit_nums) %>% 
-     distinct() %>% 
-     filter(!is.na(cluster)) %>% 
-     group_by(cluster, visit_nums) %>% 
-     nest() %>% 
-     mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
-     select(-data) %>% 
-     unnest(samp)
-   
-   one_sample_final = one_sample %>% 
-     ungroup() %>% 
-     inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
-     group_by(id) %>% 
-     summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample_final)
-}
-
-
-unbal_spatial_bh_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial_bh(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    mutate(
-      #campaign = row_number(),
-      version = "business hours",
-      design = "sensible spatial", 
-      visits = "median 4",
-      adjusted = "unadjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-unbal_spatial_bh_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial_bh(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    mutate(
-      #campaign = row_number(),
-      version = "business hours",
-      design = "sensible spatial", 
-      visits = "median 4",
-      adjusted = "adjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_spatial_design_bh = rbind(unbal_spatial_bh_unadj, unbal_spatial_bh_adj) %>% 
-  select(id, annual_mean, campaign, version, design, visits, adjusted)
-
-saveRDS(unbal_spatial_design_bh, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial_bh.rds"))
-
-```
-
-
-# Spatial structure: Model 2  
-Using the pre-defined site clusters, sample from the lognormal distribution to create spatial structure in the #visits per site, using the same drive day algorithm.  
-
-Model 2: High number of visits along chunks/routes where we expect a lot of exposure contrast; fewer where we don't. Assign clusters  with high annual averages and high SD to LOWER number of visits. 
-
-```{r}
-clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
-  select(id, cluster)
-
-set.seed(21)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#GM = median = 6; geometric SD = 2
-visit_nums = rlnorm(63, log(4), log(2))
-visit_nums = round(visit_nums, digits=0)
-
-visit_nums_rank = as.data.frame(visit_nums) %>% 
-  arrange(visit_nums) %>% 
-  mutate(rank = row_number())
-
-cluster_rank_select = cluster_rank %>% 
-  select(cluster, ann_avg_rank) %>% 
-  left_join(visit_nums_rank, by=c("ann_avg_rank" = "rank"))
-
-one_sample_avg_unb_spatial2 = function(df) {
-  
-  one_sample = df %>%
-    left_join(clusters) %>% 
-    left_join(cluster_rank_select) %>% 
-    ungroup()
- 
-   sample_days = one_sample %>% 
-     select(date, cluster, visit_nums) %>% 
-     distinct() %>% 
-     filter(!is.na(cluster)) %>% 
-     group_by(cluster, visit_nums) %>% 
-     nest() %>% 
-     mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
-     select(-data) %>% 
-     unnest(samp)
-   
-   one_sample_final = one_sample %>% 
-     ungroup() %>% 
-     inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
-     group_by(id) %>% 
-     summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample_final)
-}
-
-
-unbal_spatial2_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial2(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-  mutate(
-      #campaign = row_number(),
-      version = "all hours",
-      design = "unsensible spatial", 
-      visits = "median 4",
-      adjusted = "unadjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-unbal_spatial2_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial2(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    mutate(
-      #campaign = row_number(),
-      version = "all hours",
-      design = "unsensible spatial", 
-      visits = "median 4",
-      adjusted = "adjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_spatial2_design = rbind(unbal_spatial2_unadj, unbal_spatial2_adj) %>% 
-  select(id, annual_mean, campaign, version, design, visits, adjusted)
-
-saveRDS(unbal_spatial2_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial2.rds"))
-
-
-```
-
-
-# Spatial structure: Model 2, business hours  
-Using the pre-defined site clusters, sample from the lognormal distribution to create spatial structure in the #visits per site, using the same drive day algorithm.  
-
-Model 2: High number of visits along chunks/routes where we expect a lot of exposure contrast; fewer where we don't. Assign clusters  with high annual averages and high SD to LOWER number of visits. 
-
-```{r}
-clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
-  select(id, cluster)
-
-set.seed(21)
-business_hours <- c(9:17)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#GM = median = 6; geometric SD = 2
-#visit_nums = rlnorm(56, log(4), log(2))
-#visit_nums = round(visit_nums, digits=0)
-
-visit_nums_rank = as.data.frame(visit_nums) %>% 
-  arrange(visit_nums) %>% 
-  mutate(rank = row_number())
-
-cluster_rank_select = cluster_rank %>% 
-  select(cluster, ann_avg_rank) %>% 
-  left_join(visit_nums_rank, by=c("ann_avg_rank" = "rank"))
-
-one_sample_avg_unb_spatial2_bh = function(df) {
-  
-  one_sample = df %>%
-    filter(dow2 == "weekday", hour %in% business_hours) %>%
-    left_join(clusters) %>% 
-    left_join(cluster_rank_select) %>% 
-    ungroup()
- 
-   sample_days = one_sample %>% 
-     select(date, cluster, visit_nums) %>% 
-     distinct() %>% 
-     filter(!is.na(cluster)) %>% 
-     group_by(cluster, visit_nums) %>% 
-     nest() %>% 
-     mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
-     select(-data) %>% 
-     unnest(samp)
-   
-   one_sample_final = one_sample %>% 
-     ungroup() %>% 
-     inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
-     group_by(id) %>% 
-     summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample_final)
-}
-
-
-unbal_spatial2_bh_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial2_bh(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    mutate(
-      #campaign = row_number(),
-      version = "business hours",
-      design = "unsensible spatial", 
-      visits = "median 4",
-      adjusted = "unadjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-unbal_spatial2_bh_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial2_bh(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    mutate(
-      #campaign = row_number(),
-      version = "business hours",
-      design = "unsensible spatial", 
-      visits = "median 4",
-      adjusted = "adjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_spatial2_bh_design = rbind(unbal_spatial2_bh_unadj, unbal_spatial2_bh_adj) %>% 
-  select(id, annual_mean, campaign, version, design, visits, adjusted)
-
-saveRDS(unbal_spatial2_bh_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial2_bh.rds"))
-
-
-```
-
-## Spatial Structure, Model 3: Sample by road type  
-
-Classify clusters by dominant road type and rank order by clusters with highest # of A2s, then A3s, then A4s. Assign lognormal distribution of vistis by this order.  
-
-```{r}
-
-clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
-  select(id, cluster)
-
-set.seed(21)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#GM = median = 6; geometric SD = 2
-#visit_nums = rlnorm(56, log(4), log(2))
-#visit_nums = round(visit_nums, digits=0)
-
-visit_nums_rank = as.data.frame(visit_nums) %>% 
-  arrange(desc(visit_nums)) %>% 
-  mutate(rank = row_number())
-
-cluster_road_rank_select = cluster_road_type_rank %>% 
-  left_join(visit_nums_rank)
-
-one_sample_avg_unb_spatial_road = function(df) {
-  
-  one_sample = df %>%
-    left_join(clusters) %>% 
-    left_join(cluster_road_rank_select) %>% 
-    ungroup()
- 
-   sample_days = one_sample %>% 
-     select(date, cluster, visit_nums) %>% 
-     distinct() %>% 
-     filter(!is.na(cluster)) %>% 
-     group_by(cluster, visit_nums) %>% 
-     nest() %>% 
-     mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
-     select(-data) %>% 
-     unnest(samp)
-   
-   one_sample_final = one_sample %>% 
-     ungroup() %>% 
-     inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
-     group_by(id) %>% 
-     summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample_final)
-}
-
-
-unbal_spatial_road_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial_road(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-     mutate(
-      #campaign = row_number(),
-      version = "all hours",
-      design = "road type", 
-      visits = "median 4",
-      adjusted = "unadjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-unbal_spatial_road_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial_road(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-     mutate(
-      #campaign = row_number(),
-      version = "all hours",
-      design = "road type", 
-      visits = "median 4",
-      adjusted = "adjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_spatial_road_design = rbind(unbal_spatial_road_unadj, unbal_spatial_road_adj) %>% 
-  select(id, annual_mean, campaign, version, design, visits, adjusted)
-
-saveRDS(unbal_spatial_road_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial_road.rds"))
-```
-
-## Spatial Structure, Model 3: Sample by road type, Business hours  
-
-Classify clusters by dominant road type and rank order by clusters with highest # of A2s, then A3s, then A4s. Assign lognormal distribution of vistis by this order.  
-
-```{r}
-
-clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
-  select(id, cluster)
-
-set.seed(21)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#GM = median = 6; geometric SD = 2
-#visit_nums = rlnorm(56, log(4), log(2))
-#visit_nums = round(visit_nums, digits=0)
-
-visit_nums_rank = as.data.frame(visit_nums) %>% 
-  arrange(desc(visit_nums)) %>% 
-  mutate(rank = row_number())
-
-cluster_road_rank_select = cluster_road_type_rank %>% 
-  left_join(visit_nums_rank)
-
-one_sample_avg_unb_spatial_road_bh = function(df) {
-  
-  one_sample = df %>% 
-    filter(dow2 == "weekday", hour %in% business_hours) %>%
-    left_join(clusters) %>% 
-    left_join(cluster_road_rank_select) %>% 
-    ungroup()
- 
-   sample_days = one_sample %>% 
-     select(date, cluster, visit_nums) %>% 
-     distinct() %>% 
-     filter(!is.na(cluster)) %>% 
-     group_by(cluster, visit_nums) %>% 
-     nest() %>% 
-     mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
-     select(-data) %>% 
-     unnest(samp)
-   
-   one_sample_final = one_sample %>% 
-     ungroup() %>% 
-     inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
-     group_by(id) %>% 
-     summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample_final)
-}
-
-
-unbal_spatial_road_bh_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial_road_bh(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    mutate(
-      #campaign = row_number(),
-      version = "business hours",
-      design = "road type", 
-      visits = "median 4",
-      adjusted = "unadjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-unbal_spatial_road_bh_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb_spatial_road_bh(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    mutate(
-      #campaign = row_number(),
-      version = "business hours",
-      design = "road type", 
-      visits = "median 4",
-      adjusted = "adjusted"
-    ) %>%
-    as.data.frame() %>% 
-  mutate(dif = id - lag(id)) %>% 
-  mutate(campaign = accumulate(dif[-1], .init = 1,
-                            ~ if(.y < 0) {
-                              .x + 1
-                            } else {
-                              .x
-                            }))
-
-
-unbal_spatial_road_bh_design = rbind(unbal_spatial_road_bh_unadj, unbal_spatial_road_bh_adj)
-
-saveRDS(unbal_spatial_road_bh_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial_road_bh.rds"))
-```
-
- 
-```{r}
-#combine spatial datasets
-
-save_dir = "//projects/trap/transfer/annie/OnroadAnnAvgs"
-
-PNC_spatial = unbal_cluster_design %>% 
-  bind_rows(unbal_cluster_bh_design, 
-            unbal_spatial_design, 
-            unbal_spatial_design_bh,
-            unbal_spatial2_design, 
-            unbal_spatial2_bh_design, 
-            unbal_spatial_road_design, 
-            unbal_spatial_road_bh_design) %>% 
-  select(-dif)
-
-saveRDS(PNC_spatial, file=file.path(save_dir, "PNC_spatial_annavgs.rds"))
-
-
-```
-
-
-
-**OLD**  
-
-## Design 1: Sample 6 or 12 number of visits per site
-
-```{r}
-#try for 1 campaign
-# one_sample = unadj_pnc_med %>%
+# 
+# visit_nums_rank = as.data.frame(visit_nums) %>% 
+#   arrange(visit_nums) %>% 
+#   mutate(rank = row_number())
+# 
+# cluster_rank_select = cluster_rank %>% 
+#   select(cluster, ann_avg_rank) %>% 
+#   left_join(visit_nums_rank, by=c("ann_avg_rank" = "rank"))
+# 
+# one_sample_avg_unb_spatial2 = function(df) {
+#   
+#   one_sample = df %>%
+#     left_join(clusters) %>% 
+#     left_join(cluster_rank_select) %>% 
+#     ungroup()
+#  
+#    sample_days = one_sample %>% 
+#      select(date, cluster, visit_nums) %>% 
+#      distinct() %>% 
+#      filter(!is.na(cluster)) %>% 
+#      group_by(cluster, visit_nums) %>% 
+#      nest() %>% 
+#      mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
+#      select(-data) %>% 
+#      unnest(samp)
+#    
+#    one_sample_final = one_sample %>% 
+#      ungroup() %>% 
+#      inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
+#      group_by(id) %>% 
+#      summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample_final)
+# }
+# 
+# 
+# unbal_spatial2_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial2(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#   mutate(
+#       #campaign = row_number(),
+#       version = "all hours",
+#       design = "unsensible spatial", 
+#       visits = "median 4",
+#       adjusted = "unadjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# unbal_spatial2_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial2(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "all hours",
+#       design = "unsensible spatial", 
+#       visits = "median 4",
+#       adjusted = "adjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_spatial2_design = rbind(unbal_spatial2_unadj, unbal_spatial2_adj) %>% 
+#   select(id, annual_mean, campaign, version, design, visits, adjusted)
+# 
+# saveRDS(unbal_spatial2_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial2.rds"))
+# 
+# 
+# ```
+# 
+# 
+# # Spatial structure: Model 2, business hours  
+# Using the pre-defined site clusters, sample from the lognormal distribution to create spatial structure in the #visits per site, using the same drive day algorithm.  
+# 
+# Model 2: High number of visits along chunks/routes where we expect a lot of exposure contrast; fewer where we don't. Assign clusters  with high annual averages and high SD to LOWER number of visits. 
+# 
+# ```{r}
+# clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
+#   select(id, cluster)
+# 
+# set.seed(21)
+# business_hours <- c(9:17)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #GM = median = 6; geometric SD = 2
+# #visit_nums = rlnorm(56, log(4), log(2))
+# #visit_nums = round(visit_nums, digits=0)
+# 
+# visit_nums_rank = as.data.frame(visit_nums) %>% 
+#   arrange(visit_nums) %>% 
+#   mutate(rank = row_number())
+# 
+# cluster_rank_select = cluster_rank %>% 
+#   select(cluster, ann_avg_rank) %>% 
+#   left_join(visit_nums_rank, by=c("ann_avg_rank" = "rank"))
+# 
+# one_sample_avg_unb_spatial2_bh = function(df) {
+#   
+#   one_sample = df %>%
+#     filter(dow2 == "weekday", hour %in% business_hours) %>%
+#     left_join(clusters) %>% 
+#     left_join(cluster_rank_select) %>% 
+#     ungroup()
+#  
+#    sample_days = one_sample %>% 
+#      select(date, cluster, visit_nums) %>% 
+#      distinct() %>% 
+#      filter(!is.na(cluster)) %>% 
+#      group_by(cluster, visit_nums) %>% 
+#      nest() %>% 
+#      mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
+#      select(-data) %>% 
+#      unnest(samp)
+#    
+#    one_sample_final = one_sample %>% 
+#      ungroup() %>% 
+#      inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
+#      group_by(id) %>% 
+#      summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample_final)
+# }
+# 
+# 
+# unbal_spatial2_bh_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial2_bh(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "business hours",
+#       design = "unsensible spatial", 
+#       visits = "median 4",
+#       adjusted = "unadjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# unbal_spatial2_bh_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial2_bh(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "business hours",
+#       design = "unsensible spatial", 
+#       visits = "median 4",
+#       adjusted = "adjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_spatial2_bh_design = rbind(unbal_spatial2_bh_unadj, unbal_spatial2_bh_adj) %>% 
+#   select(id, annual_mean, campaign, version, design, visits, adjusted)
+# 
+# saveRDS(unbal_spatial2_bh_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial2_bh.rds"))
+# 
+# 
+# ```
+# 
+# ## Spatial Structure, Model 3: Sample by road type  
+# 
+# Classify clusters by dominant road type and rank order by clusters with highest # of A2s, then A3s, then A4s. Assign lognormal distribution of vistis by this order.  
+# 
+# ```{r}
+# 
+# clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
+#   select(id, cluster)
+# 
+# set.seed(21)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #GM = median = 6; geometric SD = 2
+# #visit_nums = rlnorm(56, log(4), log(2))
+# #visit_nums = round(visit_nums, digits=0)
+# 
+# visit_nums_rank = as.data.frame(visit_nums) %>% 
+#   arrange(desc(visit_nums)) %>% 
+#   mutate(rank = row_number())
+# 
+# cluster_road_rank_select = cluster_road_type_rank %>% 
+#   left_join(visit_nums_rank)
+# 
+# one_sample_avg_unb_spatial_road = function(df) {
+#   
+#   one_sample = df %>%
+#     left_join(clusters) %>% 
+#     left_join(cluster_road_rank_select) %>% 
+#     ungroup()
+#  
+#    sample_days = one_sample %>% 
+#      select(date, cluster, visit_nums) %>% 
+#      distinct() %>% 
+#      filter(!is.na(cluster)) %>% 
+#      group_by(cluster, visit_nums) %>% 
+#      nest() %>% 
+#      mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
+#      select(-data) %>% 
+#      unnest(samp)
+#    
+#    one_sample_final = one_sample %>% 
+#      ungroup() %>% 
+#      inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
+#      group_by(id) %>% 
+#      summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample_final)
+# }
+# 
+# 
+# unbal_spatial_road_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial_road(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#      mutate(
+#       #campaign = row_number(),
+#       version = "all hours",
+#       design = "road type", 
+#       visits = "median 4",
+#       adjusted = "unadjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# unbal_spatial_road_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial_road(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#      mutate(
+#       #campaign = row_number(),
+#       version = "all hours",
+#       design = "road type", 
+#       visits = "median 4",
+#       adjusted = "adjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_spatial_road_design = rbind(unbal_spatial_road_unadj, unbal_spatial_road_adj) %>% 
+#   select(id, annual_mean, campaign, version, design, visits, adjusted)
+# 
+# saveRDS(unbal_spatial_road_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial_road.rds"))
+# ```
+# 
+# ## Spatial Structure, Model 3: Sample by road type, Business hours  
+# 
+# Classify clusters by dominant road type and rank order by clusters with highest # of A2s, then A3s, then A4s. Assign lognormal distribution of vistis by this order.  
+# 
+# ```{r}
+# 
+# clusters = readRDS(file = file.path("TRAP_rotation", "data", "segment_clusters.rds")) %>% 
+#   select(id, cluster)
+# 
+# set.seed(21)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #GM = median = 6; geometric SD = 2
+# #visit_nums = rlnorm(56, log(4), log(2))
+# #visit_nums = round(visit_nums, digits=0)
+# 
+# visit_nums_rank = as.data.frame(visit_nums) %>% 
+#   arrange(desc(visit_nums)) %>% 
+#   mutate(rank = row_number())
+# 
+# cluster_road_rank_select = cluster_road_type_rank %>% 
+#   left_join(visit_nums_rank)
+# 
+# one_sample_avg_unb_spatial_road_bh = function(df) {
+#   
+#   one_sample = df %>% 
+#     filter(dow2 == "weekday", hour %in% business_hours) %>%
+#     left_join(clusters) %>% 
+#     left_join(cluster_road_rank_select) %>% 
+#     ungroup()
+#  
+#    sample_days = one_sample %>% 
+#      select(date, cluster, visit_nums) %>% 
+#      distinct() %>% 
+#      filter(!is.na(cluster)) %>% 
+#      group_by(cluster, visit_nums) %>% 
+#      nest() %>% 
+#      mutate(samp = map2(data, visit_nums, sample_n, replace = T)) %>% 
+#      select(-data) %>% 
+#      unnest(samp)
+#    
+#    one_sample_final = one_sample %>% 
+#      ungroup() %>% 
+#      inner_join(sample_days, by=c("date", "cluster", "visit_nums")) %>% 
+#      group_by(id) %>% 
+#      summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample_final)
+# }
+# 
+# 
+# unbal_spatial_road_bh_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial_road_bh(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "business hours",
+#       design = "road type", 
+#       visits = "median 4",
+#       adjusted = "unadjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# unbal_spatial_road_bh_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb_spatial_road_bh(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     mutate(
+#       #campaign = row_number(),
+#       version = "business hours",
+#       design = "road type", 
+#       visits = "median 4",
+#       adjusted = "adjusted"
+#     ) %>%
+#     as.data.frame() %>% 
+#   mutate(dif = id - lag(id)) %>% 
+#   mutate(campaign = accumulate(dif[-1], .init = 1,
+#                             ~ if(.y < 0) {
+#                               .x + 1
+#                             } else {
+#                               .x
+#                             }))
+# 
+# 
+# unbal_spatial_road_bh_design = rbind(unbal_spatial_road_bh_unadj, unbal_spatial_road_bh_adj)
+# 
+# saveRDS(unbal_spatial_road_bh_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbal_spatial_road_bh.rds"))
+# ```
+# 
+#  
+# ```{r}
+# #combine spatial datasets
+# 
+# save_dir = "//projects/trap/transfer/annie/OnroadAnnAvgs"
+# 
+# PNC_spatial = unbal_cluster_design %>% 
+#   bind_rows(unbal_cluster_bh_design, 
+#             unbal_spatial_design, 
+#             unbal_spatial_design_bh,
+#             unbal_spatial2_design, 
+#             unbal_spatial2_bh_design, 
+#             unbal_spatial_road_design, 
+#             unbal_spatial_road_bh_design) %>% 
+#   select(-dif)
+# 
+# saveRDS(PNC_spatial, file=file.path(save_dir, "PNC_spatial_annavgs.rds"))
+# 
+# 
+# ```
+# 
+# 
+# 
+# **OLD**  
+# 
+# ## Design 1: Sample 6 or 12 number of visits per site
+# 
+# ```{r}
+# #try for 1 campaign
+# # one_sample = unadj_pnc_med %>%
+# #   group_by(id, visit_num) %>% 
+# #   nest() %>%            
+# #   ungroup() %>% 
+# #   mutate(n = round(visit_num/2, 0)) %>%
+# #   mutate(samp = map2(data, n, sample_n)) %>% 
+# #   select(-data) %>%
+# #   unnest(samp) %>% 
+# #   group_by(id) %>% 
+# #   mutate(visits = n()) %>%
+# #     #calculate annual average
+# #   summarise(annual_mean = mean(median_value, na.rm=T))
+# 
+# 
+# one_sample_avg = function(df) {
+#   one_sample = df %>%
 #   group_by(id, visit_num) %>% 
 #   nest() %>%            
 #   ungroup() %>% 
@@ -1301,218 +1421,203 @@ saveRDS(PNC_spatial, file=file.path(save_dir, "PNC_spatial_annavgs.rds"))
 #   mutate(visits = n()) %>%
 #     #calculate annual average
 #   summarise(annual_mean = mean(median_value, na.rm=T))
-
-
-one_sample_avg = function(df) {
-  one_sample = df %>%
-  group_by(id, visit_num) %>% 
-  nest() %>%            
-  ungroup() %>% 
-  mutate(n = round(visit_num/2, 0)) %>%
-  mutate(samp = map2(data, n, sample_n)) %>% 
-  select(-data) %>%
-  unnest(samp) %>% 
-  group_by(id) %>% 
-  mutate(visits = n()) %>%
-    #calculate annual average
-  summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample)
-}
-  
-
-
-
-half_visits_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    group_by(id) %>%
-    mutate(
-      campaign = row_number(),
-      version = "all hours",
-      adjusted = "unadjusted",
-      design = "half visits"
-    ) %>%
-    as.data.frame()
-
-half_visits_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    group_by(id) %>%
-    mutate(
-      campaign = row_number(),
-      version = "all hours",
-      adjusted = "adjusted",
-      design = "half visits"
-    ) %>%
-    as.data.frame()
-
-
-half_visits = rbind(half_visits_unadj, half_visits_adj)
-
-saveRDS(half_visits, file = file.path("TRAP_rotation", "data", "PNC_annavg_halfvisits.rds"))
-  
-```
-
-
-## Unbalanced design 1  
-Sample all segments, where the visits sampled is a skewed distribution, but same number within route  
-
-```{r}
-set.seed(21)
-#visits=12
-#create lognormal distribution of visits to sample from by route
-#median for one is 12, for another is 6
-
-#GM = median = 6; geometric SD = 2
-visit_nums = rlnorm(50, log(6), log(2))
-visit_nums = round(visit_nums, digits=0)
-
-#try for 1 campaign
-# one_sample = unadj_pnc_med %>%
-#   mutate(route = substr(runname,12, 14)) %>% 
-#   group_by(route) %>% 
-#   mutate(weight = sample(visit_nums, 1)) %>% 
-#   group_by(id, weight) %>%
-#   nest() %>%
-#   ungroup() %>%
-#   mutate(samp = map2(data, weight, sample_n, replace=T)) %>%
-#   select(-data) %>%
-#   unnest(samp) %>%
-#   group_by(id) %>%
-#   mutate(visits = n()) %>%
-#     #calculate annual average
-#   summarise(annual_mean = mean(median_value, na.rm=T))
-
-one_sample_avg_unb = function(df) {
-  one_sample = df%>%
-    mutate(route = substr(runname,12, 14)) %>% 
-    group_by(route) %>% 
-    mutate(weight = sample(visit_nums, 1)) %>% 
-    group_by(id, weight) %>%
-    nest() %>%
-    ungroup() %>%
-    mutate(samp = map2(data, weight, sample_n, replace=T)) %>%
-    select(-data) %>%
-    unnest(samp) %>%
-    group_by(id) %>%
-    mutate(visits = n()) %>%
-      #calculate annual average
-    summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample)
-}
-
-
-unbal_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    group_by(id) %>%
-    mutate(
-      campaign = row_number(),
-      version = "all hours",
-      adjusted = "unadjusted",
-      design = "skewed visits"
-    ) %>%
-    as.data.frame()
-
-unbal_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    group_by(id) %>%
-    mutate(
-      campaign = row_number(),
-      version = "all hours",
-      adjusted = "adjusted",
-      design = "skewed visits"
-    ) %>%
-    as.data.frame()
-
-
-unbal_design = rbind(unbal_unadj, unbal_adj)
-
-saveRDS(unbal_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbalanced.rds"))
-```
-
-
-## Unbalanced design 2  
-Sample all segments among only 4 routes, where the visits sampled is a skewed distribution, but same number within route 
-4 routes: 1 (downtown); 4 (Airport and south); 7 (north/residential); 5 (bellevue)
-
-```{r}
-
-visits=12
-#create skewed distribution of visits to sample from by route
-visit_nums = c(1, 2,2,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,6,6,6,7,7,7,7,
-               8,8,8,8,8,9,9,9,10,10,10,11,12,12,12,12,12,13,14,15, 
-               15, 16,17, 17, 18, 19, 20)
-
-
-one_sample_avg_unb2 = function(df) {
-  one_sample = df%>%
-    mutate(route = substr(runname,12, 14)) %>% 
-    filter(route %in% c("R01", "R04", "R05", "R07")) %>% 
-    group_by(route) %>% 
-    mutate(weight = sample(visit_nums, 1)) %>% 
-    group_by(id, weight) %>%
-    nest() %>%
-    ungroup() %>%
-    mutate(samp = map2(data, weight, sample_n, replace=T)) %>%
-    select(-data) %>%
-    unnest(samp) %>%
-    group_by(id) %>%
-    mutate(visits = n()) %>%
-      #calculate annual average
-    summarise(annual_mean = mean(median_value, na.rm=T))
-  
-  return(one_sample)
-}
-
-
-unbal2_unadj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb2(unadj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    group_by(id) %>%
-    mutate(
-      campaign = row_number(),
-      version = "all hours",
-      adjusted = "unadjusted",
-      design = "skewed visits, spatially clustered"
-    ) %>%
-    as.data.frame()
-
-unbal2_adj <- future_replicate(n = sim_n,
-                           simplify = F,
-                           expr = one_sample_avg_unb2(adj_pnc_med), 
-                           mc.cores = 4, 
-                           ) %>%
-    bind_rows() %>%
-    group_by(id) %>%
-    mutate(
-      campaign = row_number(),
-      version = "all hours",
-      adjusted = "adjusted",
-      design = "skewed visits, spatially clustered"
-    ) %>%
-    as.data.frame()
-
-
-unbal2_design = rbind(unbal2_unadj, unbal2_adj)
-
-saveRDS(unbal2_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbalanced_spatial.rds"))
-```
+#   
+#   return(one_sample)
+# }
+#   
+# 
+# 
+# 
+# half_visits_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     group_by(id) %>%
+#     mutate(
+#       campaign = row_number(),
+#       version = "all hours",
+#       adjusted = "unadjusted",
+#       design = "half visits"
+#     ) %>%
+#     as.data.frame()
+# 
+# half_visits_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     group_by(id) %>%
+#     mutate(
+#       campaign = row_number(),
+#       version = "all hours",
+#       adjusted = "adjusted",
+#       design = "half visits"
+#     ) %>%
+#     as.data.frame()
+# 
+# 
+# half_visits = rbind(half_visits_unadj, half_visits_adj)
+# 
+# saveRDS(half_visits, file = file.path("TRAP_rotation", "data", "PNC_annavg_halfvisits.rds"))
+#   
+# ```
+# 
+# 
+# ## Unbalanced design 1  
+# Sample all segments, where the visits sampled is a skewed distribution, but same number within route  
+# 
+# ```{r}
+# set.seed(21)
+# #visits=12
+# #create lognormal distribution of visits to sample from by route
+# #median for one is 12, for another is 6
+# 
+# #GM = median = 6; geometric SD = 2
+# visit_nums = rlnorm(50, log(6), log(2))
+# visit_nums = round(visit_nums, digits=0)
+# 
+# #try for 1 campaign
+# # one_sample = unadj_pnc_med %>%
+# #   mutate(route = substr(runname,12, 14)) %>% 
+# #   group_by(route) %>% 
+# #   mutate(weight = sample(visit_nums, 1)) %>% 
+# #   group_by(id, weight) %>%
+# #   nest() %>%
+# #   ungroup() %>%
+# #   mutate(samp = map2(data, weight, sample_n, replace=T)) %>%
+# #   select(-data) %>%
+# #   unnest(samp) %>%
+# #   group_by(id) %>%
+# #   mutate(visits = n()) %>%
+# #     #calculate annual average
+# #   summarise(annual_mean = mean(median_value, na.rm=T))
+# 
+# one_sample_avg_unb = function(df) {
+#   one_sample = df%>%
+#     mutate(route = substr(runname,12, 14)) %>% 
+#     group_by(route) %>% 
+#     mutate(weight = sample(visit_nums, 1)) %>% 
+#     group_by(id, weight) %>%
+#     nest() %>%
+#     ungroup() %>%
+#     mutate(samp = map2(data, weight, sample_n, replace=T)) %>%
+#     select(-data) %>%
+#     unnest(samp) %>%
+#     group_by(id) %>%
+#     mutate(visits = n()) %>%
+#       #calculate annual average
+#     summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample)
+# }
+# 
+# 
+# unbal_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     group_by(id) %>%
+#     mutate(
+#       campaign = row_number(),
+#       version = "all hours",
+#       adjusted = "unadjusted",
+#       design = "skewed visits"
+#     ) %>%
+#     as.data.frame()
+# 
+# unbal_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     group_by(id) %>%
+#     mutate(
+#       campaign = row_number(),
+#       version = "all hours",
+#       adjusted = "adjusted",
+#       design = "skewed visits"
+#     ) %>%
+#     as.data.frame()
+# 
+# 
+# unbal_design = rbind(unbal_unadj, unbal_adj)
+# 
+# saveRDS(unbal_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbalanced.rds"))
+# ```
+# 
+# 
+# ## Unbalanced design 2  
+# Sample all segments among only 4 routes, where the visits sampled is a skewed distribution, but same number within route 
+# 4 routes: 1 (downtown); 4 (Airport and south); 7 (north/residential); 5 (bellevue)
+# 
+# ```{r}
+# 
+# visits=12
+# #create skewed distribution of visits to sample from by route
+# visit_nums = c(1, 2,2,2,2,3,3,3,4,4,4,5,5,5,5,6,6,6,6,6,6,7,7,7,7,
+#                8,8,8,8,8,9,9,9,10,10,10,11,12,12,12,12,12,13,14,15, 
+#                15, 16,17, 17, 18, 19, 20)
+# 
+# 
+# one_sample_avg_unb2 = function(df) {
+#   one_sample = df%>%
+#     mutate(route = substr(runname,12, 14)) %>% 
+#     filter(route %in% c("R01", "R04", "R05", "R07")) %>% 
+#     group_by(route) %>% 
+#     mutate(weight = sample(visit_nums, 1)) %>% 
+#     group_by(id, weight) %>%
+#     nest() %>%
+#     ungroup() %>%
+#     mutate(samp = map2(data, weight, sample_n, replace=T)) %>%
+#     select(-data) %>%
+#     unnest(samp) %>%
+#     group_by(id) %>%
+#     mutate(visits = n()) %>%
+#       #calculate annual average
+#     summarise(annual_mean = mean(median_value, na.rm=T))
+#   
+#   return(one_sample)
+# }
+# 
+# 
+# unbal2_unadj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb2(unadj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     group_by(id) %>%
+#     mutate(
+#       campaign = row_number(),
+#       version = "all hours",
+#       adjusted = "unadjusted",
+#       design = "skewed visits, spatially clustered"
+#     ) %>%
+#     as.data.frame()
+# 
+# unbal2_adj <- future_replicate(n = sim_n,
+#                            simplify = F,
+#                            expr = one_sample_avg_unb2(adj_pnc_med), 
+#                            mc.cores = 4, 
+#                            ) %>%
+#     bind_rows() %>%
+#     group_by(id) %>%
+#     mutate(
+#       campaign = row_number(),
+#       version = "all hours",
+#       adjusted = "adjusted",
+#       design = "skewed visits, spatially clustered"
+#     ) %>%
+#     as.data.frame()
+# 
+# 
+# unbal2_design = rbind(unbal2_unadj, unbal2_adj)
+# 
+# saveRDS(unbal2_design, file = file.path("TRAP_rotation", "data", "PNC_annavg_unbalanced_spatial.rds"))
+# ```
