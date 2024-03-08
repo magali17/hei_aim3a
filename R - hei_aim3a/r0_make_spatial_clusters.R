@@ -90,3 +90,7 @@ cov_new_clusters %>%
 
 ggsave(file.path(image_path, "SI", "cluster_map_updated.png"), width = 8, height = 8)
 
+########################################################################################################
+# DONE
+########################################################################################################
+message("DONE running r0_make_spatial_clusters.R")

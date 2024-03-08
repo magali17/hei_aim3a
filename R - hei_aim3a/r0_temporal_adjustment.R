@@ -13,147 +13,130 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 }
 
 pacman::p_load(tidyverse,
+               lubridate,
+               splines#, #bs() ns()
                # parallel, #mclapply; detectCores()
                # pls, gstat, 
-               sf # UK-PLS MODEL
+               #sf # UK-PLS MODEL
 )    
 
 source("functions.R")
-dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+#dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+dt_pt <- file.path("data", "onroad", "annie", "v2")
+image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 
 set.seed(1)
 
 ##################################################################################################
 # DATA
 ##################################################################################################
-#all_pollutant_10s <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "all_pollutants_10s_20220125.rds"))
-
-road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
-  distinct(id, road_type) %>%
-  filter(road_type != "A!")
-
-clusters <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
-  rename(id = location)
-# --> on-road segment-level samples; check that it has a 'time' variable 
-
-#road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds"))
-
-adj_visits <- readRDS(file.path("data", "onroad", "annie", "Additional Sampling", "AdjPNCMedian.rds")) %>%
-  mutate(adjusted = "adjusted")
-visits <- readRDS(file.path("data", "onroad", "annie", "Additional Sampling", "UnadjPNCMedian.rds")) %>%
-  mutate(adjusted = "unadjusted") %>%
-  select(names(adj_visits)) %>%
-  bind_rows(adj_visits) %>%
-  # add road types
-  left_join(road_type) %>%
-  left_join(clusters)
-
-
-
-
-# fixed site temporal adjustment (use the winsorized adjusted values, as before)
-# this adjustment comes from 1.1_temporal_adjustment.Rmd
+# using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd
+# using the winsorized adjusted values, as before
 fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
   select(time, ufp_adjustment = diff_adjustment_winsorize)
 
+# all visit medians
+pnc_meds <- readRDS(file.path(dt_pt, "pnc_med.rds"))
 
+# BH samples
+v1 <- readRDS(file.path(dt_pt, "nonspatial_visit_samples.rds"))
+v2 <- readRDS(file.path(dt_pt, "cluster_visit_samples.rds")) %>%
+  select(-cvisit_samples)
 
-
-
-
-##################################################################################################
-# CLUSTERS
-##################################################################################################
-
-
-#rank order clusters by average annual average OR average SD; then rank order lognormal dist and assign that way
-cluster_rank = visits %>% 
-  filter(adjusted == "unadjusted") %>%
-  group_by(id, cluster) %>% 
-  summarise(annual_avg = mean(median_value, na.rm=T), 
-            sd = sd(median_value, na.rm=T)) %>%
-  group_by(cluster) %>% 
-  summarise(avg_ann_avg = mean(annual_avg, na.rm=T),
-            avg_sd = mean(sd, na.rm=T)) %>% 
-  arrange(desc(avg_ann_avg)) %>% 
-  mutate(ann_avg_rank = row_number()) %>% 
-  arrange(desc(avg_sd)) %>% 
-  mutate(sd_avg_rank = row_number())
-
-
-##cluster road type 
-
-id_road_type = all_pollutant_10s %>% 
-  as.data.frame() %>% 
-  select(id, road_type) %>% 
-  distinct()
-
-cluster_road_type = clusters %>% 
-  left_join(id_road_type) %>% 
-  group_by(cluster) %>% 
-  mutate(Total = n()) %>% 
-  ungroup() %>% 
-  group_by(cluster, road_type, Total) %>% 
-  summarise(Freq = n()) %>% 
-  mutate(percent = Freq/Total*100) %>% 
-  pivot_wider(id_cols = cluster, names_from = "road_type", values_from = "percent") 
-
-assign_rank1 = cluster_road_type %>% 
-  filter(!is.na(A2)) %>% 
-  arrange(desc(A2)) %>% 
-  ungroup() %>% 
-  mutate(rank = row_number()) %>% 
-  select(cluster, rank)
-
-assign_rank2 = cluster_road_type %>% 
-  filter(is.na(A2)) %>% 
-  arrange(desc(A3)) %>%  
-  ungroup() %>% 
-  mutate(rank = row_number()) %>% 
-  mutate(rank = rank+20) %>% 
-  select(cluster, rank)
-
-cluster_road_type_rank = assign_rank1 %>% 
-  bind_rows(assign_rank2)
-
-
+visits <- bind_rows(v1, v2) %>%
+  filter(version == "business hours") %>%
+  select(-c(visit_num, runname)) 
 
 ##################################################################################################
-# SAMPLE VISITS 
+# 1. FIXED SITE TEMPORAL ADJUSTMENT
 ##################################################################################################
+visits_adj1 <- visits %>%
+  mutate(time = ymd_h(paste(date, hour))) %>%
+  # add temporal adjustment
+  left_join(fixed_site_temp_adj, by="time") %>%
+  mutate(median_value_adjusted = median_value + ufp_adjustment)
 
+saveRDS(visits_adj1, file.path(dt_pt, "bh_visits_fixed_site_temporal_adj.rds")) 
 
+annual_adj1 <- visits_adj1 %>%
+  group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+  ungroup()
 
-
-
-
-
-
-
-
-##################################################################################################
-# TEMPORAL ADJ 1: FIXED SITE
-##################################################################################################
-
-# --> on-road segment-level samples - check that it has a 'time' variable; merge to fixed_site_temp_adj dt
-# mutate(value = value + ufp_adjustment)
-# calcualte segment annual averages
-
-
-
+saveRDS(annual_adj1, file.path(dt_pt, "bh_site_avgs_fixed_site_temporal_adj.rds"))
 
 ##################################################################################################
-# TEMPORAL ADJ 2: BACKGROUND VALUES
+# 2. BACKGROUND ADJUSTMENT USING THE COLLECTED DATA
 ##################################################################################################
-# --> and weekday vs weekend adjustment? how would a weekday bsh do this?
+# e.g., see Hankey 2015 LUR...:
+# "(1) subtracting instantaneous background concentration
+# estimates (via the underwrite function) from all
+# instrument-reported concentrations, (2) calculating mean
+# reference-site (i.e., background) measurements among all
+# sampling days, and (3) adding the mean reference-site
+# concentrations (from step 2) to the underwrite adjusted
+# concentrations from step 1."
 
-# using the non-stationary, use the 1st percentile of distribution of measurments duing ________ time [the hour?]
+# approach gap: does not adjust for overnight or weekend hours that are never measured in BH/RH designs?  
+
+# using the non-stationary, use the 1st percentile of distribution of measurments during ________ time [the hour?]
 # Then once u have background air; u can estimate background annual avg & then hourly adjustments
 
+# visits %>% filter(adjusted == "unadjusted", #actual_visits==12, 
+#                   !is.na(cluster_type),
+#                   campaign==1, design=="unbalanced", visits=="12 visits", 
+#                   ) %>% View()
+
+low_conc <- 0.01 #0.05
+# x = group_split(visits, adjusted, campaign, design, visits, cluster_type)[[1]]
+visits_adj2 <- lapply(group_split(visits, adjusted, campaign, design, visits, cluster_type), function(x){
+  #lta_bg <- quantile(x$median_value, low_conc)
+  temp <- x %>%
+    mutate(hour = as.numeric(hour)) %>%
+    group_by(hour) %>%
+    mutate(quantile_background = quantile(median_value, low_conc)) %>% 
+    ungroup()
+  
+  # make the hourly adjustments smoother
+  temp_hrs <- distinct(temp, hour, quantile_background)
+  smooth_fit <- lm(quantile_background ~ ns(hour, knots=c(12, 15)), data = temp_hrs)
+  temp_hrs <- temp_hrs %>%
+    mutate(smooth_background = predict(smooth_fit, newdata=.),
+           # long-term average estimate based on background concentrations from the collected campaign data
+           lta_background = mean(smooth_background))
+
+  # # visualize adjustments
+  # temp_hrs %>% 
+  #   pivot_longer(cols = contains("background")) %>%
+  #   ggplot(aes(x=hour, y=value, col=name)) + 
+  #   geom_point() +
+  #   labs(y="background Conc Estimate (pt/cm3)")
+  #   #geom_smooth(method = lm, formula = y ~ splines::bs(x, 1))  +
+     
+  # apply hourly adjustments, add the LTA background back in
+  temp <- left_join(temp, temp_hrs, by=c("hour", "quantile_background")) %>%
+    mutate(local_conc = median_value - smooth_background,
+           median_value_adjusted = local_conc + lta_background)
+  }) %>%
+  bind_rows()
+
+saveRDS(visits_adj2, file.path(dt_pt, "bh_visits_background_temporal_adj.rds")) 
+
+annual_adj2 <- visits_adj2 %>%
+  group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+  ungroup()
+
+saveRDS(annual_adj2, file.path(dt_pt, "bh_site_avgs_background_temporal_adj.rds"))
 
 
-# ????? approach? how do you adjust for overnight hours that are never meaasured in BH/RH designs? 
-# does the Hankey do this w/ their "underwrite"?
+
+
+
+
+
+
+
 
 
 
