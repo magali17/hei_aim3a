@@ -87,7 +87,6 @@ log_normal_sample <- function(med, sd = visit_sd, max_value=28, n=1) {
 ########################################################################################################
 # LOAD DATA
 ########################################################################################################\
-
 cov_mm <- readRDS(file=file.path("/projects/rad/Transfer/Magali/hei_aim3a/R - hei_aim3a/data/onroad/annie/OnRoad Paper Code Data/data/", "cov_onroad_preprocessed.rds")) %>% 
   select(id, latitude, longitude)
 
@@ -117,8 +116,6 @@ pnc_med %>%
   pull(id) %>%
   saveRDS(., file.path(new_dt_pt, "ids_included.rds"))
 
-
-# test <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds"))
 # filter(test, id==534) %>% View()
 road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
   filter(

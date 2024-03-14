@@ -148,7 +148,8 @@ all_data_annual <- stops_w %>%
 
 ```
 
-# check regulatory data
+# ADJUSTMENT 1
+## check regulatory data
 
 ```{r}
 # total number of samples
@@ -190,7 +191,7 @@ table(missing_hours$n)
 
 ```
 
-## Interpolate missing NO2 values
+### Interpolate missing NO2 values
 
 interpolate missing NO2 using a fitted model (vs simple linear interpolation) since 3 days have 16, 22, and 24 missing hourly values
 
@@ -226,7 +227,7 @@ nox <- nox %>%
 
 ```
 
-# summary of overnight UFP data
+## summary of overnight UFP data
 
 ```{r, fig.width=8}
 ## nanoscan
@@ -267,7 +268,7 @@ ggsave(file.path(image_path, "overnight_pnc_beaconhill.png"), width = 9, height 
 
 ```
 
-# NO2 vs UFP
+## NO2 vs UFP
 
 ```{r}
 # using overnight & regulatory data
@@ -324,11 +325,11 @@ calibration_dt %>%
 
  
 
-## UFP-NO2 prediction model
+### UFP-NO2 prediction model
 
 leverage NO2 to capture the monthly/seasonal patterns not otherwise captured by limited UFP data alone
 
-### model 
+#### model 
 
 why does residuals(lm1) %>% exp() produce different results? has to do with residuals being in the log scale initially? 
 
@@ -402,7 +403,7 @@ calibration_dt %>%
 ```
 
 
-### residuals - is the temporal pattern gone? 
+#### residuals - is the temporal pattern gone? 
 
 i.e., does NO2 capture UFP's temporal trend? 
 
@@ -439,13 +440,13 @@ summary(calibration_dt$residual)
 
 ```
 
-### out-of-sample model performance
+#### out-of-sample model performance
 
 ```{r}
 
 ```
 
-### generate synthetic data & temporal adjustments
+#### generate synthetic data & temporal adjustments
 
 ```{r}
 predicted_ufp <- nox %>%
@@ -559,7 +560,7 @@ nox %>%
   
 ```
 
-# temporal adjustment
+## temporal adjustment
 
 ```{r}
 unbalanced_samples <- unbalanced_samples0 %>%
@@ -622,7 +623,7 @@ rbind(dt1, dt2) %>%
 
 
 
-# comparison of annual averages
+## comparison of annual averages
 
 adjustments generally decrease annual average site estimates 
 
@@ -693,12 +694,26 @@ r
 
 ```
 
+# ADJUSTMENT 2
+
+# --> START HERE
+
+```{r}
+
+
+
+
+
+```
+
+
+
 
 
 
 # Appendix
 
-## no2 model fit
+### no2 model fit
 
 how good is an no2 model fit (vs UFP)? 
 

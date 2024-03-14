@@ -2,7 +2,7 @@
 # evaluates each model 
 
 ##################################################################################################
-# setup
+# SETUP
 ##################################################################################################
 
 # Clear workspace of all objects and unload all extra (non-base) packages
@@ -25,12 +25,14 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 load(file.path(dt_path, "uk_workspace.rdata"))
 if(!dir.exists(file.path(dt_path, "UK Predictions"))){dir.create(file.path(dt_path, "UK Predictions"))}
 
+use_cores <- 1
 set.seed(1)
 
 ##################################################################################################
 # DATA
 ##################################################################################################
-onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
+message("loading data")
+onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data_20240313.rda"))
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,
@@ -53,8 +55,8 @@ stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use
                                      }) %>%
   bind_rows()  
 
-message("saving TEMP predictions")
-saveRDS(stationary_predictions, file.path(dt_path, "UK Predictions", "TEMP_onroad_predictions.rda"))
+# message("saving TEMP predictions")
+# saveRDS(stationary_predictions, file.path(dt_path, "UK Predictions", "TEMP_onroad_predictions.rda"))
 ##################################################################################################
 # COMBINE PREDICTIONS; FORMAT DF 
 ##################################################################################################
@@ -75,7 +77,7 @@ predictions <- predictions %>%
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
 
 message("saving predictions")
-saveRDS(predictions, file.path(dt_path, "UK Predictions", "onroad_predictions.rda"))
+saveRDS(predictions, file.path(dt_path, "UK Predictions", "onroad_predictions_20240313.rda"))
 
 ##################################################################################################
 # CV STATS FUNCTION
@@ -119,9 +121,11 @@ model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
 ##################################################################################################
 
 message("saving model evaluation statistics")
-saveRDS(model_perf0, file.path(dt_path, "onroad_model_eval.rda"))
+saveRDS(model_perf0, file.path(dt_path, "onroad_model_eval_20240313.rda"))
 
 
-
-message("done with r2")
+##################################################################################################
+# DONE
+##################################################################################################
+message("DONE WITH R2_ROAD_MODEL_EVAL.R")
 
