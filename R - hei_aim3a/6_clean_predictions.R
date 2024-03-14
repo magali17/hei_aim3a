@@ -17,10 +17,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 pacman::p_load(dplyr, readr, lubridate, sf)    
 
 dt_path <- file.path("Output",
-                     readRDS(file.path("Output", "latest_dt_version.rda"))
-                     # --> TEMP
-                     #"v1_20230131"
-                     )
+                     readRDS(file.path("Output", "latest_dt_version.rda")))
 
 prediction_path <- file.path(dt_path, "UK Predictions", 
                              "cohort"

@@ -52,8 +52,7 @@ cov_names <- readRDS(file.path(dt_path, "cov_names.rda"))
 
 # true annual avg estimates
 true_annual <- readRDS(file.path(dt_path, "all_data_annual_estimates.rda")) %>%
-  select(location, all_of(keep_vars#keep_vars2
-                          )) %>%
+  select(location, all_of(keep_vars)) %>%
   pivot_longer(cols = c(all_of(keep_vars
                                #keep_vars2
                                )), names_to = "variable", values_to = "gs_estimate")
@@ -76,25 +75,20 @@ uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 ##################################################################################################
 message ("creating model crosswalks")
 
-create_new_cw <- FALSE
+create_new_cw <- TRUE
 
 if(create_new_cw == TRUE) {
   
   cw <- dt %>% 
-    distinct(design, version, campaign, 
-             variable #? 
-             ) %>%  
-    arrange(design, version,campaign, 
-            variable #?
-            ) %>%  
+    distinct(design, version, campaign,variable) %>%  
+    arrange(design, version,campaign, variable) %>%  
     mutate(
       var_code = case_when( 
         variable=="ns_total_conc" ~ "nstot",
         variable=="ns_10_100" ~ "ns10100",
         variable=="pnc_noscreen" ~ "pncnoscreen",
         variable=="no2" ~ "no2",
-        TRUE ~variable
-        ),
+        TRUE ~variable),
       var_code = gsub("ns_", "ns", var_code),
       var_code = gsub("\\..", "", var_code),
       
@@ -105,11 +99,12 @@ if(create_new_cw == TRUE) {
         ),
       version_code = case_when(
         version == "business" ~ "bh",
-        version == "business temp adj" ~ "bhadj",
+        version == "business temp adj 1" ~ "bhadj1",
+        version == "business temp adj 2" ~ "bhadj2",
         version == "rush" ~ "rh",
-        version == "rush temp adj" ~ "rhadj",
-        TRUE ~ version
-        ),
+        version == "rush temp adj 1" ~ "rhadj1",
+        version == "rush temp adj 2" ~ "rhadj2",
+        TRUE ~ version),
       version_code = gsub(" ", "", version_code),
       
       model = paste("s",
@@ -120,9 +115,9 @@ if(create_new_cw == TRUE) {
                     sep = "_"),
       model_no = row_number())
   
-  write.csv(cw, file.path(dt_path, "other_designs_model_cw.csv"), row.names = F)
+  write.csv(cw, file.path(dt_path, "other_designs_model_cw_20240313.csv"), row.names = F)
   } else {
-    cw <- read.csv(file.path(dt_path, "other_designs_model_cw.csv"))
+    cw <- read.csv(file.path(dt_path, "other_designs_model_cw_20240313.csv"))
     }
   
 dt <- left_join(dt, cw) %>%
@@ -138,14 +133,6 @@ dt <- left_join(dt, cw) %>%
   
   mutate(value = log(value))
   
-# # summarize visits. # looks OK
-# # lowest no. of total visits remaining is 3704 (vs 3708), so total number of stops for a given campaign are not impacted. so 2 sites are dropped in these models.
-# dt %>%
-#   group_by(model) %>%
-#   summarize(total_visits = sum(visits)) %>% 
-#   pull(total_visits) %>%
-#   summary()
-
 ##################################################################################################
 #  SAVE FILES FOR PREDICTION PROGRAM
 message("saving modeling data")
@@ -229,8 +216,7 @@ predictions <- cv_predictions0 %>%
   left_join(select(cw, model, variable)) %>%
   left_join(true_annual) %>%
   #put back on native scale before evaluating
-  mutate_at(#vars(contains("estimate"),
-                 vars(campaign_estimate, prediction), ~exp(.))
+  mutate_at(vars(campaign_estimate, prediction), ~exp(.))
 
 message("saving predictions")
 saveRDS(predictions, file.path(dt_path, "UK Predictions", "other_design_predictions.rda"))
@@ -263,8 +249,6 @@ validation_stats <- function(dt, prediction, reference){
   return(result)
 }
 
-
-
 model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
                         mc.cores = use_cores,
                         validation_stats, prediction = "prediction", reference = "gs_estimate") %>%
@@ -275,10 +259,7 @@ message("saving model evaluation statistics")
 model_perf0 %>%
   saveRDS(., file.path(dt_path, "other_designs_model_eval.rda"))
 
-
+##################################################################################################
+# DONE
+##################################################################################################
 message("done with other_designs_1.R")
-
-##################################################################################################
-# APPENDIX
-##################################################################################################
-

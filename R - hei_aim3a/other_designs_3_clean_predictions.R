@@ -1,11 +1,65 @@
 # combine multiple prediction files into one
-
-pacman::p_load(dplyr)
-file_date <- "2023-12-20" # Sys.Date()
+##################################################################################################
+# SETUP
+##################################################################################################
+pacman::p_load(tidyverse)
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-
 prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "other designs")
+kp_directory <- file.path(dt_path, "UK Predictions", "cohort", "KP")
+
+source("functions.R")
+##################################################################################################
+# 2024-03-14: fixed the temporal adjustment (main effect), added 2nd temporal adjustment
+##################################################################################################
+
+# save file elsewhere and as a CSV for KP
+fewhrs_predictions <- readRDS(file.path(prediction_directory, "fewhrs", "predictions_2024-03-14.rda"))
+saveRDS(fewhrs_predictions, file.path(kp_directory, paste0("fewhrs_", Sys.Date(), ".rda")))
+write.csv(fewhrs_predictions, file.path(kp_directory, paste0("fewhrs_", Sys.Date(), ".csv")))
+
+
+# # where cohort predictions are saved
+# onrod_dt <- file.path(dt_path, "UK Predictions", "cohort", "onroad")
+# if(!dir.exists(onrod_dt)){dir.create(onrod_dt)}
+# 
+# # --> UPDATE
+# 
+# onraod_cw <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data_20240313.rda")) %>%
+#   distinct(design_code) %>% pull(design_code)
+# 
+# onroad_files <- list.files(onrod_dt) %>%
+#   # don't want old files
+#   str_subset(#"_SP_", negate = T
+#               paste(onraod_cw, collapse="|")
+#              )
+# 
+# lapply(onroad_files, function(x) {
+#   temp <- readRDS(file.path(onrod_dt, x)) %>%
+#     clean_predictions()
+# 
+#   new_file_name <- gsub("onroad_predictions_|.rda|.csv","", x)
+# 
+#   saveRDS(temp, file.path(kp_directory, "onroad", paste0(x,"_", Sys.Date(), ".rda")))
+#   write.csv(temp, file.path(kp_directory, paste0("fewhrs_", Sys.Date(), ".csv")))
+# 
+# })
+
+
+
+
+
+
+
+
+
+
+
+##################################################################################################
+# 2023-12-20: temp adjustment & re-did seasons
+##################################################################################################
+file_date <- "2023-12-20" # Sys.Date()
+
 model_designs <- c("fewhrs", 
                    paste0("sitetype_", c("no2", "ns_10_100", "ns_total_conc", "pnc_noscreen")),
                    paste0("balsea_", 1:4)  

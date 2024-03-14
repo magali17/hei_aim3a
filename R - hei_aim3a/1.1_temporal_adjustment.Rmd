@@ -82,8 +82,7 @@ nox <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox.rda")) %>%
     time = ymd_hm(time, tz=local_tz)) %>%
   filter(date_local >= bdate & date_local <= edate,
     grepl("NO2", parameter),
-     site_name %in% c("Beacon Hill")
-    ) %>%
+     site_name %in% c("Beacon Hill")) %>%
   drop_na(time) %>%
   select(site_name, time, date=date_local, time_local, no2=sample_measurement, units_of_measure) %>%
   
@@ -106,8 +105,7 @@ overnight <- readRDS(file.path("data", "Overnight Collocations", "overnight_data
     variable == "ns_total_conc",
     # most (86.5%) of the data comes from PMSCAN_3 (vs PMSCAN_2)
     # drop PMSCAN_2. It is used less & produces higher readings when collocated in June that would probably need to be calibrated 
-    instrument_id=="PMSCAN_3"
-    ) %>%
+    instrument_id=="PMSCAN_3") %>%
   rename(time=timeint) %>%
   mutate(date = date(time),
          month = month(time, label=TRUE),
@@ -117,25 +115,17 @@ overnight <- readRDS(file.path("data", "Overnight Collocations", "overnight_data
          weekday = ifelse(dow %in% c("Sat", "Sun"), "weekend", "weekday"),
          hour = hour(time),
          hour = factor(hour),
-         #time2=time
          ) %>%
-  #add_season(.date_var = "time") %>%
-  # select(-c(runname, #instrument_id, 
-  #           flags_r, status))
-  
   # hourly averages
   group_by(site, date, hour, month, dow, weekday, variable) %>%
   summarize(value = mean(value, na.rm = T)) %>%
   ungroup()
 
 
-unbalanced_samples0 <- rbind(readRDS(file.path(dt_path, "campaign visit samples", "fewer_hours.rda"))#,
-                             #readRDS(file.path(dt_path, "campaign visit samples", "fewer_seasons.rda"))
-                             ) %>%
+unbalanced_samples0 <- readRDS(file.path(dt_path, "campaign visit samples", "fewer_hours.rda")) %>%
   select(design, version, campaign, location, time, dow=day, hour, season, weekday=tow2, no2, pnc_noscreen, ns_total_conc) %>%
   mutate(hour = factor(hour, levels = levels(overnight$hour)),
-         dow = factor(dow, levels = levels(overnight$dow), ordered = F),
-  )
+         dow = factor(dow, levels = levels(overnight$dow), ordered = F))
 
 
 # all data (e.g., for correlations)
@@ -215,12 +205,11 @@ plot(missing_no2_lm)
 par(mfrow = c(1, 1))
 
 predicted_no2 <- predict(missing_no2_lm, 
-                         newdata = nox %>% mutate(hour = as.numeric(as.character(hour)))
-                         ) %>% exp()
+                         newdata = nox %>% mutate(hour = as.numeric(as.character(hour)))) %>% 
+  exp()
 
 nox <- nox %>%
   mutate(no2_interpolated = ifelse(is.na(no2), TRUE, FALSE),
-         #no2 = zoo::na.approx(no2)
          predicted_no2 = predicted_no2,
          no2 = ifelse(is.na(no2), predicted_no2, no2)) %>% 
   select(-predicted_no2)
@@ -334,23 +323,9 @@ leverage NO2 to capture the monthly/seasonal patterns not otherwise captured by 
 why does residuals(lm1) %>% exp() produce different results? has to do with residuals being in the log scale initially? 
 
 ```{r}
+# for K knots, we fit K+1 cubic polynomials
+# a cubic spline with K nots fits 4+k df [or 6 if no intercept?]
 
-# lm1 <- calibration_dt %>%
-#   mutate(hour = as.numeric(as.character(hour))) %>%
-#   lm(formula=log(ns_total_conc)~log(no2) + 
-#        # dow*hour #r2=0.48, so slightly worse
-#        
-#        # for K knots, we fit K+1 cubic polynomials
-#        # a cubic spline with K nots fits 4+k df [or 6 if no intercept?]
-#        dow*bs(hour, knots = c(5, 11, 17)),  
-#         
-#      # using a smoother on dow generates a worse fit, R2 ~0.51  
-#      #bs(as.numeric(dow), knots = c(4))*bs(hour, knots = c(5, 11, 17)),  #knot at Thur
-#      data=.) 
-# 
-# summary(lm1)
-# 
-# plot(lm1)
 
 #  Documentation says that for factors, a main effect for dow should probably been included (this is automatically generated like with lm()).  
 print("fitting cubic cyclic spline")
@@ -373,9 +348,7 @@ plot(lm1)
 
 calibration_dt <- calibration_dt %>%
   mutate(ufp_prediction = predict(lm1) %>% exp(),
-         #ufp_prediction_alt = predict(lm1_alt) %>% exp(),
          residual = ns_total_conc - ufp_prediction,
-         #residual_alt = ns_total_conc - ufp_prediction_alt,
          time = ymd_h(paste(date, hour))) 
 
 ```
@@ -453,13 +426,6 @@ predicted_ufp <- nox %>%
   mutate(hour = as.numeric(as.character(hour))) %>% 
   predict(lm1, newdata=.) %>% 
   exp()
-
-# predicted_ufp_alt <- nox %>%
-#   mutate(hour = as.numeric(as.character(hour))) %>% 
-#   predict(lm1_alt, newdata=.) %>% 
-#   exp()
-
-# table(is.na(predicted_ufp))
 
 predicted_lta_ufp <- mean(predicted_ufp)
 
@@ -570,6 +536,8 @@ unbalanced_samples <- unbalanced_samples0 %>%
   mutate(ns_total_conc_adj_no2lm = ns_total_conc + diff_adjustment,
          ns_total_conc_adj_no2lm_winsorize = ns_total_conc + diff_adjustment_winsorize)
   
+saveRDS(unbalanced_samples, file.path(dt_path, "campaign visit samples", "bh_visits_fixed_site_temp_adj.rds")) 
+
 # prop.table(table(unbalanced_samples$ns_total_conc_adj_no2lm<=0))
 # prop.table(table(is.na(unbalanced_samples$ns_total_conc_adj_no2lm)))
 
@@ -580,9 +548,6 @@ hist(unbalanced_samples$diff_adjustment)
 summary(unbalanced_samples$diff_adjustment_winsorize)
 hist(unbalanced_samples$diff_adjustment_winsorize)
 
-
-
-  
 # annual averages
 adjusted_annual_avg <- unbalanced_samples %>% 
   group_by(design, version, campaign, location) %>%
@@ -613,11 +578,8 @@ dt1 <- adjusted_annual_avg %>%
 
 dt2 <- adjusted_annual_avg %>%
   select(design, version, campaign, location, ns_total_conc = ns_total_conc_adj_no2lm_winsorize) %>%
-  mutate(version = paste(version, "temp adj"))
+  mutate(version = paste(version, "temp adj 1"))
 
-# save data
-rbind(dt1, dt2) %>% 
-  saveRDS(., file.path(dt_path, "temporal_adjustment.rda"))
 
 ```
 
@@ -636,7 +598,6 @@ adjusted_annual_avg %>%
   ggplot(aes(x=version, y=value, col=name)) +
     facet_wrap(~design, scales="free") +
   # overnight BH estimate
-  #geom_hline(yintercept = overnight_bh) +
       geom_boxplot() +
   labs(title = "Comparison of UFP annual site averages before/after temporal adjustment")
     
@@ -672,35 +633,48 @@ r
 ```
 
 
-
-```{r}
-# compare site-level estimates vs prediction error
-#
-# band <- 0.3
-# 
-# adjusted_annual_avg %>%
-#   left_join(all_data_annual) %>% 
-#   select(design, version, campaign, location, unadjusted_obs=ns_total_conc, adjusted_obs=ns_total_conc_adj_no2lm_winsorize, true_obs=ns_total_conc_all_data) %>%
-#   pivot_longer(cols = c(contains(c("adjusted")))) %>% 
-#   mutate(error = value-true_obs) %>%
-#   
-#   ggplot(aes(x=true_obs, y=value, col=name)) + 
-#   geom_point(alpha=0.3) +
-#   #facet_wrap(~name) +
-#   geom_abline(intercept = 0, slope = c(1-band, 1+band), linetype=3, alpha=0.5) +
-#   geom_abline(intercept = 0,slope = 1, linetype=2)
-  
-
-
-```
-
 # ADJUSTMENT 2
 
-# --> START HERE
+background adjustment based on the collected data
 
 ```{r}
+low_conc <- 0.01 
+# x = group_split(visits, adjusted, campaign, design, visits, cluster_type)[[1]]
+visits_adj2 <- lapply(group_split(unbalanced_samples0, design, version, campaign), function(x){
+  temp <- x %>%
+    mutate(hour = as.numeric(as.character(hour))) %>%
+    group_by(hour) %>%
+    mutate(quantile_background = quantile(ns_total_conc, low_conc)) %>% 
+    ungroup()
+  
+  # make the hourly adjustments smoother
+  temp_hrs <- distinct(temp, hour, quantile_background)
+  smooth_fit <- lm(quantile_background ~ ns(hour, knots=c(12, 15)), data = temp_hrs)
+  temp_hrs <- temp_hrs %>%
+    mutate(smooth_background = predict(smooth_fit, newdata=.),
+           # long-term average estimate based on background concentrations from the collected campaign data
+           lta_background = mean(smooth_background))
+     
+  # apply hourly adjustments, add the LTA background back in
+  temp <- left_join(temp, temp_hrs, by=c("hour", "quantile_background")) %>%
+    mutate(local_conc = ns_total_conc - smooth_background,
+           ns_total_conc_adjusted = local_conc + lta_background)
+  }) %>%
+  bind_rows() %>%
+  mutate(version = paste(version, "temp adj 2"))
 
+saveRDS(visits_adj2, file.path(dt_path, "campaign visit samples", "bh_visits_background_temp_adj.rds")) 
 
+annual_adj2 <- visits_adj2 %>%
+  group_by(design, version, campaign, location) %>%
+  summarize(ns_total_conc = mean(ns_total_conc_adjusted, na.rm=T)) %>%
+  ungroup() 
+
+```
+
+# --> ? compare site annual averages for: unadjusted, temp adj 1, temp adj 2
+
+```{r}
 
 
 
@@ -708,6 +682,15 @@ r
 
 
 
+# Save data
+
+```{r}
+# save data
+rbind(dt1, dt2) %>% 
+  rbind(annual_adj2) %>%
+  saveRDS(., file.path(dt_path, "temporal_adjustment.rda"))
+
+```
 
 
 

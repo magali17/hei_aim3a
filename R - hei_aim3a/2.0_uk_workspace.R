@@ -1,7 +1,6 @@
 ##################################################################################################
 # SETUP
 ##################################################################################################
-
 # Clear workspace of all objects and unload all extra (non-base) packages
 rm(list = ls(all = TRUE))
 if (!is.null(sessionInfo()$otherPkgs)) {
@@ -28,12 +27,9 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 
 var_names <- readRDS(file.path(dt_path, "keep_vars.rda"))
 
-# ## for future.apply::future_replicate()
-# plan(multisession, workers = 6)
 use_cores <- 5
 
 image_path <- file.path("..", "Manuscript", "Images")
-
 
 ##################################################################################################
 # LOAD DATA
@@ -71,25 +67,8 @@ annual <- readRDS(file.path(dt_path, "annual_training_set.rda")) %>%
   drop_na(value) %>% 
   # # 3 largest bins have mostly 0s, which turn to -Inf when you log-transform
   # filter(!value %in% c(Inf, -Inf)) %>%
-  
   st_as_sf()
   
-
-# ## same for test set
-# annual_test_set <- readRDS(file.path("Output", "annual_test_set.rda")) %>%
-#   #add covariates
-#   left_join(readRDS(file.path(hei_aim1a_path, "mm_cov_test_set.rda"))) %>%
-#   #convert to sf
-#   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
-#   st_transform(m_crs) %>%
-#   # log transform annual averages before modeling
-#   mutate(value = ifelse(value==0, 1, value),
-#          value = log(value))  
-#   
-# 
-# saveRDS(annual_test_set, file.path("Output", "annual_test_set2.rda"))
-
-
 ##################################################################################################
 # COMMON VARIABLES
 ##################################################################################################
@@ -100,11 +79,12 @@ cov_names <- st_drop_geometry(annual) %>% ungroup() %>%
 saveRDS(cov_names, file.path(dt_path, "cov_names.rda"))
 ##################################################################################################
 # TEST
-cov_train <- readRDS(file.path(#"..", "..", 
-  "~/OneDrive - UW/Documents/Post Doc/Study Projects/ACT TRAP MM",
-  "ACT HEI Supp", "act_hei_aim1a", "Output", "mm_cov_train_set.rda")) %>%
-  select(log_m_to_a1:last_col()) %>%
-  names()
+# --> DON"T NEED?
+# cov_train <- readRDS(file.path(#"..", "..", 
+#   "~/OneDrive - UW/Documents/Post Doc/Study Projects/ACT TRAP MM",
+#   "ACT HEI Supp", "act_hei_aim1a", "Output", "mm_cov_train_set.rda")) %>%
+#   select(log_m_to_a1:last_col()) %>%
+#   names()
 
 # cov_train[!cov_train %in% cov_names] # "em_CO_s03000" is missing here, but it's mostly 0s anyway
 # may be due to more restrictive hei1a work - e.g., within routes coun't have low variability
@@ -260,8 +240,6 @@ saveRDS(uk_pls, file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 # CV function
 ##################################################################################################
 # function returns cross-valited predictions for a given dataset
-# x = group_split(annual, spatial_temporal, design, version, campaign, variable)[[24]]
-# fold_name = "random_fold"
 do_cv <- function (x, fold_name) {
   
   #code to make sure this fn works even if folds don't have all numbers in a sequence (e.g., if too few sites)
@@ -279,8 +257,6 @@ do_cv <- function (x, fold_name) {
   
   return(df)
 }
-
-
 
 ##################################################################################################
 # COMMON VARIABLES

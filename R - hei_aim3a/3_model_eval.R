@@ -38,18 +38,6 @@ m_crs <- 32148
 predictions <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>% 
   pivot_longer(contains("estimate"), names_to = "reference", values_to = "estimate")  
 
-# # simulation details
-# sims <- readRDS(file.path(dt_path, "annual_training_set.rda")) %>%  
-#   distinct(location, visits, campaign, design, version, spatial_temporal)
-# 
-# 
-# #location lat/long 
-# loc_lat_long <- readRDS(file.path(
-#   "data",
-#   "location_lat_long.rda")) %>%
-#   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
-#   st_transform(m_crs)  
-
 ##################################################################################################
 # CV STATS FUNCTION
 ##################################################################################################

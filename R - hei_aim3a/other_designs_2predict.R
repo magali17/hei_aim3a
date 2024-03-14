@@ -25,6 +25,7 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 
 set.seed(1)
 
+use_cores <- 1
 ################################################################################
 # DATA
 ################################################################################
@@ -65,7 +66,7 @@ message("Generating predictions at new locations")
 tot_models <- length(unique(modeling_data$model_no))
 
 predictions0 <- mclapply(group_split(modeling_data, model), #[1:2]
-                         mc.cores = 6, #4
+                         mc.cores = use_cores, #6 
                          function(x) {
                            message(paste0("model " , first(x$model_no), " of ", tot_models, ": ", first(x$model)))
                            
@@ -94,14 +95,11 @@ predictions <- predictions0 %>%
   select(location_id, start_date, end_date, model, variable, prediction) 
 
 message("saving predictions here:")
-#message(file.path(prediction_directory, paste0("other_design_predictions_", Sys.Date(),".csv")))
 message(prediction_directory)
 
 # save as RDS & CSV file
 saveRDS(predictions, file.path(prediction_directory, paste0("predictions_", Sys.Date(),".rda")))
-# predictions %>%
-#   select(-variable) %>%
-#   write.csv(., file.path(prediction_directory, paste0("predictions_", Sys.Date(),".csv")), row.names = F)
+write.csv(predictions, file.path(prediction_directory, paste0("predictions_", Sys.Date(),".csv")), row.names = F)
 
 ###########################################################################################
 # QC CHECKS

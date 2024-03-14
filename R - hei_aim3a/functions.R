@@ -565,6 +565,7 @@ summary_table <- function(df, var){
   return(df) 
   
 }
+
 ################################################################################################
 # fn returns coordinates for a different transformation. it convertes the dataset into a spatial object, calculates coordinates for a diff refernce system, converts these to a df, and attaches these to the original coordinates
 # tutorial: https://ryanpeek.org/2017-08-03-converting-XY-data-with-sf-package/ 
@@ -596,6 +597,26 @@ add_crs <- function(
   
   
   return(dt2)
+  
+}
+
+
+################################################################################################
+# CLEAN PREDICTIONS FOR KP
+################################################################################################
+
+clean_predictions <- function(dt) {
+  predictions <- dt %>%
+    # only predict at locations in the monitoring area w/o NAs
+    filter(in_monitoring_area) %>%
+    mutate(
+      # The start and end date is the valid period during which the model can be applied to homes. These dates match PM2.5 and NO2
+      start_date = ymd("1988-01-01 "),
+      end_date = ymd("2021-07-09 ")) %>%
+    select(location_id, start_date, end_date, model, 
+           variable,
+           prediction) 
+  
   
 }
 

@@ -16,9 +16,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 if (!require("pacman")) {install.packages("pacman")}
 pacman::p_load(tidyverse, pls, tools, parallel,
                gstat, sf,
-               lubridate
-               #ggpubr, #ggspatial, 
-)
+               lubridate)
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
@@ -30,9 +28,6 @@ set.seed(1)
 #allow R to take input from the command line
 user_arguments <- commandArgs(trailingOnly = TRUE)
 # user_arguments <- "onroad_modeling_data_SP_FALSE_ADJ_FALSE.rda" 
-# onroad_modeling_data_SP_FALSE_ADJ_TRUE.rda
-# onroad_modeling_data_SP_TRUE_ADJ_FALSE.rda
-# onroad_modeling_data_SP_TRUE_ADJ_TRUE.rda
 
 modeling_dt <- user_arguments[1]
 
@@ -44,7 +39,6 @@ modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", modeling_dt))
 
 
 dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda")) 
-#cov_ext <- tools::file_ext(covariate_file_path)
 
 #where predictions should be saved
 prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "onroad_pnc_noscreen")
@@ -77,13 +71,6 @@ predictions0 <- lapply(group_split(modeling_data, model), #[1:2], #mc.cores = 1,
       uk_pls(new_data = ., modeling_data = x)
   }) %>%
   bind_rows()  
-
-# save the location and prediction information
-# predictions <- predictions0 %>%
-#   select(location_id, latitude, longitude, model, variable, prediction) %>%
-#   mutate(prediction = exp(prediction))
-#    
-# saveRDS(predictions, file.path(prediction_directory, "onroad_predictions.rda"))
 
 p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
 message("saving TEMPORARY predictions")

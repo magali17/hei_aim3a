@@ -25,7 +25,7 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 load(file.path(dt_path, "uk_workspace.rdata"))
 if(!dir.exists(file.path(dt_path, "UK Predictions"))){dir.create(file.path(dt_path, "UK Predictions"))}
 
-use_cores <- 1
+use_cores <- 2#1
 set.seed(1)
 
 ##################################################################################################
@@ -44,7 +44,7 @@ stationary <- filter(annual,
 ##################################################################################################
 message("Generating predictions at stop locations")
 
-stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = 1,#use_cores, 
+stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = use_cores, 
                                    function(x) {
   
   uk_pls(modeling_data = x, new_data = stationary) %>%
@@ -109,20 +109,14 @@ validation_stats <- function(dt, prediction, reference){
   return(result)
 }
 
-
-#validation_stats(dt=group_split(predictions, model, out_of_sample)[[1]], prediction = "prediction", reference = "gs_estimate")
-
-
 model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 
                         mc.cores = use_cores,
                         validation_stats, prediction = "prediction", reference = "gs_estimate") %>%
   bind_rows()
 
 ##################################################################################################
-
 message("saving model evaluation statistics")
 saveRDS(model_perf0, file.path(dt_path, "onroad_model_eval_20240313.rda"))
-
 
 ##################################################################################################
 # DONE
