@@ -49,7 +49,7 @@ if(!dir.exists(prediction_directory)) {dir.create(prediction_directory, recursiv
 # Universal Kriging - Partial Least Squares Model function
 cov_names <- readRDS(file.path(dt_path, "cov_names.rda"))
 
-# desired PLS components to use (from a different script): 3
+# desired PLS components to use (from a different script):  
 pls_comp_n <- read_rds(file.path(dt_path, "pls_comp_n.rda")) 
 
 #prediction model

@@ -71,7 +71,7 @@ onroad0 <- bind_rows(onroad_ns, onroad_s) %>%
 ##################################################################################################
 #  MODEL CROSSWALK 
 ##################################################################################################
-message ("creating model crosswalks")
+message("creating model crosswalks")
 
 cw <- onroad0 %>% 
   distinct(spatial_code, design, version, visits, campaign, adjusted, cluster_type) %>%  
@@ -153,6 +153,8 @@ saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data_2
 #     }
 #   }
 ##################################################################################################
+message("saving smaller onroad files")
+
 # onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data_20240313.rda"))
 
 # --> ERROR IN FILE.... EMPTY STRING??
