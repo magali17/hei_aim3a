@@ -195,28 +195,28 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 
-if(!file.exists(file.path(dt_pt, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
-  message("running fixed site temporal adjustment from predicted UFP based on NO2")
-
-  visits_adj1 <- visits %>%
-    mutate(time = ymd_h(paste(date, hour))) %>%
-    # add temporal adjustment
-    left_join(fixed_site_temp_adj, by="time") %>%
-    mutate(median_value_adjusted = median_value + ufp_adjustment,
-           version = paste(version, "temp adj 1"))
-
-  saveRDS(visits_adj1, file.path(dt_pt, "bh_visits_fixed_site_temporal_adj.rds"))
-
-  annual_adj1 <- visits_adj1 %>%
-    group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-    summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-    ungroup()
-
-  # temp file
-  saveRDS(annual_adj1, file.path(dt_pt, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-} else {
-  annual_adj1 <- readRDS(file.path(dt_pt, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-}
+# if(!file.exists(file.path(dt_pt, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
+#   message("running fixed site temporal adjustment from predicted UFP based on NO2")
+# 
+#   visits_adj1 <- visits %>%
+#     mutate(time = ymd_h(paste(date, hour))) %>%
+#     # add temporal adjustment
+#     left_join(fixed_site_temp_adj, by="time") %>%
+#     mutate(median_value_adjusted = median_value + ufp_adjustment,
+#            version = paste(version, "temp adj 1"))
+# 
+#   saveRDS(visits_adj1, file.path(dt_pt, "bh_visits_fixed_site_temporal_adj.rds"))
+# 
+#   annual_adj1 <- visits_adj1 %>%
+#     group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+#     summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+#     ungroup()
+# 
+#   # temp file
+#   saveRDS(annual_adj1, file.path(dt_pt, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+# } else {
+#   annual_adj1 <- readRDS(file.path(dt_pt, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+# }
 
 ##################################################################################################
 # # QC - check that few annual averages are <=0
@@ -288,19 +288,42 @@ annual_adj2 <- visits_adj2 %>%
   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
   ungroup()  
 
-# temp file
 saveRDS(annual_adj2, file.path(dt_pt, "TEMP_bh_site_avgs_uw_adj.rds"))
 
-# --> TO DO: select 1 background adjustment; compare distributions
 
-annual_adj2 <- filter(annual_adj2, background_adj == "hr1_pct10")
-saveRDS(annual_adj2, file.path(dt_pt, "bh_site_avgs_uw_adj.rds"))
+visits_adj2_no_hwy <- visits %>%
+  mutate(time = ymd_h(paste(date, hour))) %>%
+  # add temporal adjustment
+  left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj), by="time") %>% 
+  #group_by(background_adj) %>%
+  mutate(median_value_adjusted = median_value + avg_hourly_adj,
+         version = paste(version, "temp adj 2"))
+
+saveRDS(visits_adj2_no_hwy, file.path(dt_pt, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
+
+annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
+  group_by(background_adj,
+           id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+  ungroup()  
+
+saveRDS(annual_adj2_no_hwy, file.path(dt_pt, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds"))
+
+
+
+
+# # --> UPDATE/TO DO: select 1 background adjustment; compare distributions
+
+# selected_pct <- "hr1_pct10"
+# annual_adj2 <- filter(annual_adj2, background_adj == selected_pct)
+# annual_adj2_no_hwy <- filter(annual_adj2_no_hwy, background_adj == selected_pct)
+# saveRDS(annual_adj2, file.path(dt_pt, "bh_site_avgs_uw_adj.rds"))
 
 ##################################################################################################
 # --> QC: check that no or few annual averages are < 0
 
-summary(annual_adj2$annual_mean)
-prop.table(table(annual_adj2$annual_mean<=0))
+# summary(annual_adj2$annual_mean)
+# prop.table(table(annual_adj2$annual_mean<=0))
 
 
 
