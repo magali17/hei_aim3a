@@ -43,13 +43,12 @@ count_missingness <- function(dt, notes) {
 ##################################################################################################
 message("loading data")
 
-# using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd
-# using the winsorized adjusted values, as before
-fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
-  select(time, ufp_adjustment = diff_adjustment_winsorize)
+# # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
+# fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
+#   select(time, ufp_adjustment = diff_adjustment_winsorize)
 
 # BH samples
-if(!file.exists(file.path(dt_out, "TEMP_bh_visits.rda"))) {
+if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
   v1 <- readRDS(file.path(dt_pt, "nonspatial_visit_samples.rds")) %>%
     filter(version == "business hours") 
   v2 <- readRDS(file.path(dt_pt, "cluster_visit_samples.rds")) %>%
