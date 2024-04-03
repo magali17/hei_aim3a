@@ -27,7 +27,7 @@ set.seed(1)
 
 use_cores <- 4
 ##################################################################################################
-# FUNCTION
+# FUNCTIONS
 ##################################################################################################
 # COUNT REMAINING ROWS
 missingness_table <- data.frame(n = integer(),
@@ -39,6 +39,29 @@ count_missingness <- function(dt, notes) {
   rbind(missingness_table, temp)
 }
 
+##################################################################################################
+calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles) {
+  
+  adj_lvls <- apply(expand.grid(paste0("hr", sort(windows)/3600), 
+                                paste0("_pct", sort(quantiles)*100)), 
+                    1, paste, collapse="")
+  
+  dt <- lapply(windows., function(w) {
+    mclapply(quantiles., mc.cores=use_cores, function(p) {
+      
+      bg_label <- paste0("hr", w/3600, "_pct", p*100)
+      
+      dt %>%
+        group_by(runname) %>%
+        mutate(
+          background_adj = bg_label,
+          # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
+          background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
+    })
+  }) %>%
+    bind_rows() %>%
+    mutate(background_adj = factor(background_adj, levels=adj_lvls))
+}
 ##################################################################################################
 # DATA
 ##################################################################################################
@@ -71,7 +94,7 @@ if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
 ## note some measurements are repeated for same time, e.g. 2019-02-25 18:55:23 for I405 and I5 (UFP is the same)
 ## n= 3,688,353 (not what was reported by Annie: 3,769,325 1s measures)
 
-if(!file.exists(file.path(dt_pt, "TEMP_road_dt.rda") | !file.exists(file.path(dt_pt, "TEMP_road_dt_no_hwy.rda")))) {
+if(!file.exists(file.path(dt_pt, "TEMP_road_dt.rda")) | !file.exists(file.path(dt_pt, "TEMP_road_dt_no_hwy.rda"))) {
   road_dt0 <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
     arrange(time) %>%
     mutate(
@@ -161,35 +184,7 @@ if(!file.exists(file.path(dt_pt, "TEMP_road_dt.rda") | !file.exists(file.path(dt
 # quantiles <- 0.10 #c(0.01, 0.05, 0.10, 0.20)
 windows <- c(1,3)*60*60
 # --> could drop 0.20
-quantiles <- c(0.01, 0.05#, 0.10#, 0.20
-               )
-
-##################################################################################################
-# FUNCTIONS
-##################################################################################################
-
-calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles) {
-  
-  adj_lvls <- apply(expand.grid(paste0("hr", sort(windows)/3600), 
-                                paste0("_pct", sort(quantiles)*100)), 
-                    1, paste, collapse="")
-  
-  dt <- lapply(windows., function(w) {
-    mclapply(quantiles., mc.cores=use_cores, function(p) {
-      
-      bg_label <- paste0("hr", w/3600, "_pct", p*100)
-      
-      dt %>%
-        group_by(runname) %>%
-        mutate(
-          background_adj = bg_label,
-          # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
-          background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
-    })
-  }) %>%
-    bind_rows() %>%
-    mutate(background_adj = factor(background_adj, levels=adj_lvls))
-}
+quantiles <- c(0.01, 0.3, 0.05, 0.10)
 
 ##################################################################################################
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
