@@ -121,6 +121,7 @@ overnight <- readRDS(file.path("data", "Overnight Collocations", "overnight_data
   summarize(value = mean(value, na.rm = T)) %>%
   ungroup()
 
+saveRDS(overnight, file.path("data", "Overnight Collocations", "overnight_data_2023-09-11_modified.rda"))
 
 unbalanced_samples0 <- readRDS(file.path(dt_path, "campaign visit samples", "fewer_hours.rda")) %>%
   select(design, version, campaign, location, time, dow=day, hour, season, weekday=tow2, no2, pnc_noscreen, ns_total_conc) %>%
