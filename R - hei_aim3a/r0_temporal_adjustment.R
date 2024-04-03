@@ -11,9 +11,9 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(tidyverse, lubridate, zoo, 
-               
-               splines #, #bs() ns()
+pacman::p_load(tidyverse, lubridate, zoo,
+               parallel #mclapply()
+               #splines #, #bs() ns()
                )    
 
 source("functions.R")
@@ -25,6 +25,7 @@ if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
 
 set.seed(1)
 
+use_cores <- 4
 ##################################################################################################
 # FUNCTION
 ##################################################################################################
@@ -100,7 +101,7 @@ if(!file.exists(file.path(dt_pt, "TEMP_road_dt.rda") | !file.exists(file.path(dt
   
   write.csv(missingness_table, file.path(dt_pt, "missing_counts_second_dt.csv"), row.names = F)
   
-  time_series <- lapply(unique(road_dt0$runname), function(x){
+  time_series <- mclapply(unique(road_dt0$runname), mc.cores=use_cores, function(x){
     a_run <- filter(road_dt0, runname==x)
     data.frame(runname = x,
                time= seq(min(a_run$time), max(a_run$time), by=1))
@@ -174,7 +175,7 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
                     1, paste, collapse="")
   
   dt <- lapply(windows., function(w) {
-    lapply(quantiles., function(p) {
+    mclapply(quantiles., mc.cores=use_cores, function(p) {
       
       bg_label <- paste0("hr", w/3600, "_pct", p*100)
       
