@@ -69,9 +69,9 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
 ##################################################################################################
 message("loading data")
 
-# # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
-fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
-  select(time, ufp_adjustment = diff_adjustment_winsorize)
+# # # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
+# fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
+#   select(time, ufp_adjustment = diff_adjustment_winsorize)
 
 # BH samples
 if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
@@ -193,28 +193,28 @@ quantiles <- 0.01
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 
-if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
-  message("running fixed site temporal adjustment from predicted UFP based on NO2")
-
-  visits_adj1 <- visits %>%
-    mutate(time = ymd_h(paste(date, hour))) %>%
-    # add temporal adjustment
-    left_join(fixed_site_temp_adj, by="time") %>%
-    mutate(median_value_adjusted = median_value + ufp_adjustment,
-           version = paste(version, "temp adj 1"))
-
-  saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
-
-  annual_adj1 <- visits_adj1 %>%
-    group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-    summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-    ungroup()
-
-  # temp file
-  saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-} else {
-  annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-}
+# if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
+#   message("running fixed site temporal adjustment from predicted UFP based on NO2")
+# 
+#   visits_adj1 <- visits %>%
+#     mutate(time = ymd_h(paste(date, hour))) %>%
+#     # add temporal adjustment
+#     left_join(fixed_site_temp_adj, by="time") %>%
+#     mutate(median_value_adjusted = median_value + ufp_adjustment,
+#            version = paste(version, "temp adj 1"))
+# 
+#   saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
+# 
+#   annual_adj1 <- visits_adj1 %>%
+#     group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+#     summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+#     ungroup()
+# 
+#   # temp file
+#   saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+# } else {
+#   annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+# }
 
 ##################################################################################################
 # # QC - check that few annual averages are <=0
@@ -249,7 +249,10 @@ get_hourly_adjustment <- function(dt) {
   dt %>%
     group_by(background_adj) %>%
     mutate(bg_lta = mean(background, na.rm = T),
-           date= as.Date(time)) %>%
+           date = date(time)
+           # important!! as.Date() automatically sets date to UTC
+           #date= as.Date(time, tz=tz(.$time))
+           ) %>%
     group_by(runname, date, hour, background_adj, bg_lta) %>%
     summarize(bg_hour_avg = mean(background, na.rm = T),
               bg_hour_median = median(background, na.rm = T)) %>%
@@ -280,11 +283,7 @@ visits_adj2 <- visits %>%
             # --> NEED here & below?
             relationship="many-to-many"
             ) %>% 
-  
-  # --> TO DO: check that no avg_hourly_adj or median_value_adjusted values are NA or NaN
-  
-  mutate(avg_hourly_adj = ifelse(is.na(avg_hourly_adj), 0, avg_hourly_adj), # shouldn't make a difference
-         median_value_adjusted = median_value + avg_hourly_adj,
+  mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(version, "temp adj 2"))
 
 saveRDS(visits_adj2, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
@@ -305,8 +304,7 @@ visits_adj2_no_hwy <- visits %>%
             # --> NEED?
             relationship="many-to-many"
             ) %>% 
-  mutate(avg_hourly_adj = ifelse(is.na(avg_hourly_adj), 0, avg_hourly_adj), # shouldn't make a difference
-         median_value_adjusted = median_value + avg_hourly_adj,
+  mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(version, "temp adj 2"))
 
 saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 

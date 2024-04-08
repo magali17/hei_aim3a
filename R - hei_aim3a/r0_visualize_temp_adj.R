@@ -75,7 +75,7 @@ summarize_values <- function(dt, val) {
 }
 
 ##################################################################################################
-# INVESTIGATE NEGATIVE ANNUAL AVERAGES
+# INVESTIGATE ANNUAL AVERAGES: NEGATIVE, NA, NaN
 ##################################################################################################
 # --> missing adjustments?
 # underwrite_adj 
@@ -83,8 +83,6 @@ summarize_values <- function(dt, val) {
 # negative & missing annual averages
 test <- annual_adj2 %>%
   filter(is.na(annual_mean) | annual_mean <=0) 
-
-unique(test$id)
 
 
 
