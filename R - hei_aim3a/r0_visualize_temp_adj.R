@@ -30,22 +30,85 @@ road_dt <- readRDS(file.path(dt_pt, "underwrite_temp_adj_all_1s_data.rda"))
 road_dt_no_hwy <- readRDS(file.path(dt_pt, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
 
 # hourly adjustments
-underwrite_adj <- readRDS(file.path(dt_pt, "underwrite_temp_adj.rda"))
+underwrite_adj <- readRDS(file.path(dt_pt, "underwrite_temp_adj.rda")) %>%
+
+  # --> TEMP
+  filter(background_adj == "hr1_pct1")
+
 underwrite_adj_no_hwy <- readRDS(file.path(dt_pt, "underwrite_temp_adj_no_hwy.rda"))
 
-# --> ADD no_hwy files
-
 # adjusted visits
-visits_adj2 <- readRDS(file.path(dt_pt, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
+visits_adj2 <- readRDS(file.path(dt_pt, "bh_visits_fixed_site_temporal_adj_uw.rds"))
+visits_adj2_no_hwy <- readRDS(file.path(dt_pt, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
 # adjusted annual averages
-annual_adj2 <- readRDS(file.path(dt_pt, "TEMP_bh_site_avgs_uw_adj.rds")) 
+annual_adj2 <- readRDS(file.path(dt_pt, "TEMP_bh_site_avgs_uw_adj.rds")) %>%
+  
+  # --> TEMP
+  filter(background_adj == "hr1_pct1")
+
+annual_adj2_no_hwy <- readRDS(file.path(dt_pt, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds")) 
+
+##################################################################################################
+# FUNCTIONS
+##################################################################################################
+summarize_values <- function(dt, val) {
+  temp <- dt %>%
+    rename(val=all_of(val)) %>%
+    summarize(
+      n = n(),
+      campaigns = length(unique(campaign)),
+      segments = length(unique(id)),
+      min=min(val, na.rm = T),
+      Q25=quantile(val, 0.25, na.rm = T),
+      Q50=quantile(val, 0.50, na.rm = T),
+      Q75=quantile(val, 0.75, na.rm = T),
+      max=max(val, na.rm = T),
+      less0 = sum(val<=0, na.rm = T),
+      prop_less0 = less0/n,
+      missing = sum(is.na(val)),
+      prop_missing = missing/n
+      )
+  
+  names(temp)[names(temp)=="val"] <- val
+  
+  return(temp)
+}
 
 ##################################################################################################
 # INVESTIGATE NEGATIVE ANNUAL AVERAGES
 ##################################################################################################
-# --> QC: check that no or few annual averages are < 0
-summary(annual_adj2$annual_mean)
-prop.table(table(annual_adj2$annual_mean<=0))
+# --> missing adjustments?
+# underwrite_adj 
+
+# negative & missing annual averages
+test <- annual_adj2 %>%
+  filter(is.na(annual_mean) | annual_mean <=0) 
+
+unique(test$id)
+
+
+
+
+
+# annual averages are < 0
+annual_adj2 %>%
+  group_by(design, background_adj, visits, cluster_type) %>%
+  summarize_values(., val= "annual_mean") %>% View()
+
+annual_adj2 %>%
+  filter(adjusted == "adjusted", 
+         cluster_type %in% c("cluster2", NA),
+         !grepl("pct30", background_adj)
+         ) %>%
+  
+  ggplot(aes(x=design, col=background_adj, y=annual_mean)) + 
+  facet_wrap(~visits+cluster_type) + 
+  geom_hline(yintercept = 0, linetype=2) +
+  geom_boxplot() + 
+  labs()
+  
+
+
 
 
 # --> COMPARE CONC VISITS VS ADJUSTMENTS
