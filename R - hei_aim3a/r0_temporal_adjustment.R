@@ -279,9 +279,9 @@ saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda
 visits_adj2 <- visits %>%
   mutate(time = ymd_h(paste(date, hour))) %>%
   # add temporal adjustment
-  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time",
-            # --> NEED here & below?
-            relationship="many-to-many"
+  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time"#,
+            # # --> NEED here & below?
+            # relationship="many-to-many"
             ) %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(version, "temp adj 2"))
@@ -300,9 +300,9 @@ saveRDS(annual_adj2, file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds"))
 visits_adj2_no_hwy <- visits %>%
   mutate(time = ymd_h(paste(date, hour))) %>%
   # add temporal adjustment
-  left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj), by="time",
-            # --> NEED?
-            relationship="many-to-many"
+  left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj), by="time"#,
+            # # --> NEED?
+            # relationship="many-to-many"
             ) %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(version, "temp adj 2"))
