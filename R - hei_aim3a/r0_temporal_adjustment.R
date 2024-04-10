@@ -13,7 +13,6 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 pacman::p_load(tidyverse, lubridate, zoo,
                parallel #mclapply()
-               #splines #, #bs() ns()
                )    
 
 source("functions.R")
