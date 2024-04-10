@@ -15,7 +15,7 @@ pacman::p_load(tidyverse, lubridate#, zoo,
                )    
 
 source("functions.R")
-dt_pt <- file.path("data", "onroad", "annie", "v2", "20240408")
+dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240408")
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
 if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
@@ -25,28 +25,30 @@ set.seed(1)
 ##################################################################################################
 # DATA
 ##################################################################################################
+# --> TO DO: COMBINE SMALLER HWY/NO HWY DATASETS?
+
 # 1sec data with rolling quantiles
-road_dt <- readRDS(file.path(dt_pt, "underwrite_temp_adj_all_1s_data.rda"))
-road_dt_no_hwy <- readRDS(file.path(dt_pt, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
+road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
+road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
 
 # hourly adjustments
-underwrite_adj <- readRDS(file.path(dt_pt, "underwrite_temp_adj.rda")) #%>%
+underwrite_adj <- readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) #%>%
 
   # --> TEMP
   #filter(background_adj == "hr1_pct1")
 
-underwrite_adj_no_hwy <- readRDS(file.path(dt_pt, "underwrite_temp_adj_no_hwy.rda"))
+underwrite_adj_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda"))
 
 # adjusted visits
-visits_adj2 <- readRDS(file.path(dt_pt, "bh_visits_fixed_site_temporal_adj_uw.rds"))
-visits_adj2_no_hwy <- readRDS(file.path(dt_pt, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
+visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds"))
+visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
 # adjusted annual averages
-annual_adj2 <- readRDS(file.path(dt_pt, "TEMP_bh_site_avgs_uw_adj.rds")) #%>%
+annual_adj2 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds")) #%>%
   
   # # --> TEMP
   # filter(background_adj == "hr1_pct1")
 
-annual_adj2_no_hwy <- readRDS(file.path(dt_pt, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds")) 
+annual_adj2_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds")) 
 
 ##################################################################################################
 # FUNCTIONS
@@ -77,39 +79,27 @@ summarize_values <- function(dt, val) {
 ##################################################################################################
 # INVESTIGATE ANNUAL AVERAGES: NEGATIVE, NA, NaN
 ##################################################################################################
-# --> missing adjustments?
-# underwrite_adj 
-
-# negative & missing annual averages
-test <- annual_adj2 %>%
-  filter(is.na(annual_mean) | annual_mean <=0) 
-
-
-
-
-
-# annual averages are < 0
+ 
+# tend to have more extremely high & negative annual averages, especially when collect few visits
+# more common w/ 4 visit designs b/c there are more total annual averages on the low end (more common to only have 1 visit)
+print("distribution of estimated annual averages after background adjustments during BH following various clustering & non-clustered sampling approahces (collapses plume adjusted & unadjusted)")
 annual_adj2 %>%
-  group_by(design, background_adj, visits, cluster_type) %>%
-  summarize_values(., val= "annual_mean") %>% View()
-
-annual_adj2 %>%
-  filter(adjusted == "adjusted", 
-         cluster_type %in% c("cluster2", NA),
-         !grepl("pct30", background_adj)
-         ) %>%
+  mutate(actual_visits = factor(actual_visits),
+         visits = relevel(factor(visits), ref= "4 visits")) %>%
+  group_by(visits, actual_visits) %>%
+  mutate(no_annual_avgs=n()) %>%
   
-  ggplot(aes(x=design, col=background_adj, y=annual_mean)) + 
-  facet_wrap(~visits+cluster_type) + 
-  geom_hline(yintercept = 0, linetype=2) +
-  geom_boxplot() + 
-  labs()
+  ggplot(aes(x=actual_visits, y=annual_mean#, col= design #adjusted #cluster_type #background_adj
+             )) + 
+  facet_wrap(~visits) +
+  geom_hline(yintercept = 0, linetype=2, col="red") +
+  geom_hline(yintercept = 20e3, linetype=2) +
+  geom_boxplot(aes(col=no_annual_avgs))  
+
   
-
-
-
 
 # --> COMPARE CONC VISITS VS ADJUSTMENTS
+
 
 
 
@@ -119,45 +109,10 @@ annual_adj2 %>%
 ##################################################################################################
 # VISUALIZE TEMPORAL ADJUSTMENT PATTERNS 
 ##################################################################################################
-# --> TIME SERIES: ONROAD MEASURES VS 'BACKGROUND' (E.G., Brantley Fig 5)
-
-
-
-
-##################################################################################################
-# --> plot percentiles: dots w/ smoother
-# --> add example of ~1 wk period
-# --> LS: consider overlaying same route driven on same time…driving same structure
-
-
-
-
-##################################################################################################
-# hourly adjustments
-# adj_lvls <- apply(expand.grid(paste0("hr", windows/3600), 
-#                               paste0("_pct", quantiles*100)), 
-#                   1, paste, collapse="")
-
-
-underwrite_adj %>%
-  drop_na(hour) %>%
-  mutate(background_adj = factor(background_adj, levels=adj_lvls)) %>%
-  # couple of day examples
-  filter(runname %in% unique(underwrite_adj$runname)[31:36]) %>%  
-  
-  ggplot(aes(x=hour, y=avg_hourly_adj, group=background_adj, col=background_adj)) + 
-  facet_wrap(facets = vars(runname)) +
-  geom_hline(yintercept = 0, linetype=2, alpha=0.5) +
-  geom_point() + 
-  geom_line() + 
-  scale_color_ordinal()
-
-ggsave(file.path(dt_out, "temp_adj2_example.png"), width = 10, height = 6)
-
 # time series
 underwrite_adj %>%
-  drop_na(hour) %>%
-  mutate(background_adj = factor(background_adj, levels=adj_lvls)) %>%
+  #drop_na(hour) %>%
+  #mutate(background_adj = factor(background_adj, levels=adj_lvls)) %>%
   
   ggplot(aes(x=time, y=avg_hourly_adj)) + 
   facet_wrap(facets = vars(background_adj)) +
@@ -166,6 +121,99 @@ underwrite_adj %>%
   geom_smooth()
 
 ggsave(file.path(dt_out, "temp_adj2_time_series.png"), width = 14, height = 8)
+
+# by DOW
+underwrite_adj %>%
+  mutate(dow = wday(date, label=T, week_start = "Monday")) %>%
+  ggplot(aes(x=dow, y=avg_hourly_adj, col=background_adj, group=dow)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.5) 
+
+ggsave(file.path(dt_out, "temp_adj2_dow.png"), width = 14, height = 8)
+ 
+# --> why isn't there anything 5-8 AM? 
+
+# by hour
+underwrite_adj %>%
+  mutate(hour = factor(hour, levels=c(1:23, 0))) %>%
+  ggplot(aes(x=hour, y=avg_hourly_adj, col=background_adj, group=hour)) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.5) 
+
+ggsave(file.path(dt_out, "temp_adj2_hour.png"), width = 14, height = 8)
+
+
+
+##################################################################################################
+# 1-sec DATA 
+##################################################################################################
+# --> color by road vs hwy?
+
+road_dt %>%
+  ggplot(aes(y=ufp)) +
+  geom_boxplot() + 
+  geom_hline(yintercept = c(0, 100, 100e3), linetype=2, col="red") + 
+  scale_y_log10() + 
+  labs(y="1-sec PNC (pt/cm3) measurement on-road")
+
+
+
+##################################################################################################
+# time series fn
+
+# --> update 'UFP' col labels
+# --> linetype hwy vs non-hwy?
+
+time_series_plot <- function(runs) {
+  road_dt %>%
+    filter(runname %in% runs) %>%
+    drop_na() %>%
+    left_join(select(underwrite_adj, runname, hour, hr_avg =bg_hour_avg)) %>%  
+    pivot_wider(names_from = background_adj, values_from = background) %>% 
+    pivot_longer(cols = c(ufp, contains("pct"), hr_avg), names_to = "UFP") %>%
+    mutate(UFP = ifelse(UFP == "ufp", "measurement", paste("background", UFP))) %>%
+    
+    ggplot(aes(x=time)) +
+    facet_wrap(~runname, scales="free_x") +
+    geom_line(aes(y=value, col=UFP))  
+  }
+
+##################################################################################################
+
+# TIME SERIES: ONROAD MEASURES VS 'BACKGROUND' (E.G., Brantley Fig 5)
+# --> some EXTREME HOUR-LONG PERIODS? is this fixed w/ a wider ~3hr window?
+
+set.seed(1)
+time_series_plot(runs = sample(unique(underwrite_adj$runname), 4))
+ggsave(file.path(dt_out, "time_series_sample.png"), width = 12, height = 8)
+
+
+# --> TEMP. day w/ super high readings 500e3
+high_runs <- road_dt %>% filter(ufp >450e3) %>% distinct(runname) %>% pull()
+time_series_plot(high_runs)
+ggsave(file.path(dt_out, "time_series_high_runs.png"), width = 12, height = 8)
+
+
+
+
+
+
+
+# --> add time series plot of visits vs hourly adjustments (like above) 
+
+
+
+
+##################################################################################################
+# --> ?add example of ~1 wk period
+# --> LS: consider overlaying same route driven on same time…driving same structure
+
+
+
+
+
+
+
 
 
 

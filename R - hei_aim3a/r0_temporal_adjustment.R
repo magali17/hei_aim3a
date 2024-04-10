@@ -17,7 +17,6 @@ pacman::p_load(tidyverse, lubridate, zoo,
                )    
 
 source("functions.R")
-#dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 dt_pt <- file.path("data", "onroad", "annie", "v2")
 dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240408")
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
@@ -69,9 +68,9 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
 ##################################################################################################
 message("loading data")
 
-# # # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
-# fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
-#   select(time, ufp_adjustment = diff_adjustment_winsorize)
+# # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
+fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
+  select(time, ufp_adjustment = diff_adjustment_winsorize)
 
 # BH samples
 if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
@@ -184,45 +183,37 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
 # VARIABLES
 ##################################################################################################
 # e.g., 3 hr * 60 min/hr * 60 sec/min
-windows <- 60*60*1
-quantiles <- 0.01
-# windows <- c(1,3)*60*60
-# quantiles <- c(0.01, 0.03, 0.05, 0.10)
+# windows <- 60*60*1
+# quantiles <- 0.01
+windows <- c(1,3)*60*60
+quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
 ##################################################################################################
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 
-# if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
-#   message("running fixed site temporal adjustment from predicted UFP based on NO2")
-# 
-#   visits_adj1 <- visits %>%
-#     mutate(time = ymd_h(paste(date, hour))) %>%
-#     # add temporal adjustment
-#     left_join(fixed_site_temp_adj, by="time") %>%
-#     mutate(median_value_adjusted = median_value + ufp_adjustment,
-#            version = paste(version, "temp adj 1"))
-# 
-#   saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
-# 
-#   annual_adj1 <- visits_adj1 %>%
-#     group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-#     summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-#     ungroup()
-# 
-#   # temp file
-#   saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-# } else {
-#   annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-# }
+if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
+  message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
-##################################################################################################
-# # QC - check that few annual averages are <=0
-# message("temp adj 1 - predicted UFP from NO2")
-# summary(annual_adj1$annual_mean)
-# table(annual_adj1$annual_mean<=0)
-# prop.table(table(annual_adj1$annual_mean<=0))
+  visits_adj1 <- visits %>%
+    mutate(time = ymd_h(paste(date, hour))) %>%
+    # add temporal adjustment
+    left_join(fixed_site_temp_adj, by="time") %>%
+    mutate(median_value_adjusted = median_value + ufp_adjustment,
+           version = paste(version, "temp adj 1"))
 
+  saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
+
+  annual_adj1 <- visits_adj1 %>%
+    group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+    summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+    ungroup()
+
+  # temp file
+  saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+} else {
+  annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+}
 
 ##################################################################################################
 # 2. UNDERWRITE FN: PSEUDO FIXED SITE FROM COLLECTED UFP MEASURES
