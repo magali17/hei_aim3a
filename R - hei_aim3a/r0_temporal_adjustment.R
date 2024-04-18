@@ -94,6 +94,10 @@ if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
 ## note some measurements are repeated for same time, e.g. 2019-02-25 18:55:23 for I405 and I5 (UFP is the same)
 ## n= 3,688,353 (not what was reported by Annie: 3,769,325 1s measures)
 
+# --> TO DO. CLEAN UP 1 SEC ROAD DATA
+
+## --> TEMP FROM ANNIE'S WORK: We excluded A1 roads (interstates and highways with restricted access) since these are not representative of residential exposures, segments with fewer than a median of 5 1-second measurements per visit, and segments with less than 23 repeat visits. We also excluded road segments immediately before (approaching) or after (departing) a stop location were excluded since these were not fully on-road measures. We averaged the PNC measurements to 10s periods, calculated the median PNC across all 10s measures within segment and visit; winsorized these across visits at the segment level (set values below the 2.5th and above the 97.5th quantile to those thresholds to reduce the influence of extreme values); and calculated mean visit concentrations per road segment. 
+
 if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))) {
   road_dt0 <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
     arrange(time) %>%

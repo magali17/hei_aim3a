@@ -150,11 +150,21 @@ ggsave(file.path(dt_out, "temp_adj2_hour.png"), width = 14, height = 8)
 # --> color by road vs hwy?
 
 road_dt %>%
+  drop_na(ufp) %>%
   ggplot(aes(y=ufp)) +
   geom_boxplot() + 
   geom_hline(yintercept = c(0, 100, 100e3), linetype=2, col="red") + 
   scale_y_log10() + 
   labs(y="1-sec PNC (pt/cm3) measurement on-road")
+
+ggsave(file.path(dt_out, "1sec_data.png"), width = 8, height = 8)
+
+summary(road_dt$ufp)
+
+
+# --> segment-level boxplots (winsorize?)
+
+
 
 
 
@@ -228,6 +238,12 @@ ggsave(file.path(dt_out, "time_series_high_runs.png"), width = 12, height = 8)
 
 
 
+
+
+##################################################################################################
+# OVERNIGHT DATA
+##################################################################################################
+# --> BOXPLOTS W/ X AXIS TIME: START AT  5AM, GO THROUGH 12 AM?
 
 
 
