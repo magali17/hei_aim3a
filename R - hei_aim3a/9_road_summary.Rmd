@@ -158,6 +158,15 @@ stationary_model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
   filter(reference == "gs_estimate",
          model %in% stationary_cw$model)  
 
+#ref health estimates from stationary models
+ref_model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
+  filter(design=="full",
+         variable == "pnc_noscreen") %>%
+  left_join(select(stationary_model_eval, model, reg_based_R2))
+ 
+tot_pnc <- filter(ref_model_coefs, model=="s_pncnoscreen_all_01") %>% pull(est)
+
+
 # person-level exposures 
 stationary_cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%  
@@ -174,7 +183,9 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.
 # health effect estimates & CW
 model_coefs <- readRDS(file.path(output_data_path, "model_coefs_road.rda")) %>%
   filter(model %in% cw$model) %>%
-  mutate(variable="pnc_noscreen") %>%
+  mutate(variable="pnc_noscreen",
+         pct_difference = (est-tot_pnc)/-tot_pnc*100
+         ) %>%
   recode_onroad_dt() %>%
   label_pollutants()
 
@@ -212,12 +223,6 @@ stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
 ##################################################################################################
 spatial_names <- unique(model_eval$spatial)
 
-#ref health estimates from stationary models
-ref_model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
-  filter(design=="full",
-         variable == "pnc_noscreen") %>%
-  left_join(select(stationary_model_eval, model, reg_based_R2))
- 
 
 ```
 
@@ -419,6 +424,8 @@ results
 * BH unadjusted R2 are all 0     
 * All hours unadju are all 0 except for 1 value
 
+# --> ADD pct difference variable
+
 ```{r, fig.height=8, fig.with=8}
 # # OLD
 # # x = spatial_names[2]
@@ -564,58 +571,12 @@ ref_model_coefs %>%
 ```
 
 ```{r, fig.height=10, fig.with=10}
-# # proportion of campaigns producing non-sign results
-# prop_sign <-model_coefs %>%
-#   group_by(spatial, version, design, visits, adjusted) %>%
-#   summarize(
-#     n = n(),
-#     prop_sign = mean(significant) %>% round(2),
-#     prop_not_sign = mean(!significant) %>% round(2),
-#     ) %>%
-#   mutate( prop_sign = paste0(round(prop_sign*100), "%"),
-#          prop_not_sign = paste0(round(prop_not_sign*100), "%"),
-#          text_label = "Campaign CI crosses 0:",
-#          visits = paste(visits, "visits")
-#          )
-# 
-# print("adjustd association between P-TRAK UFP (1900 pt/cm3) and CASI-IRT")
-# print("horizontal line is the health effect estimate from the stationary all data campign")
-# 
-# # x=spatial_names[1]
-# lapply(spatial_names, function (x) {
-#   prop_sign_temp <- filter(prop_sign, spatial==x)
-#   
-#   p <- model_coefs %>%
-#     filter(spatial==x) %>%  
-#     mutate(visits = paste(visits, "visits")) %>%  
-#    ggplot(aes(x=version, y=est, fill=design)) +
-#     geom_boxplot(position = "dodge")  +
-#     geom_hline(yintercept = ref_model_coefs$est, linetype=1, alpha=0.5) +
-#   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-#   geom_text(data=prop_sign_temp,  aes(y=0.001,label=prop_not_sign, col=design),
-#             position = position_dodge(width = .9), size=2.5, show.legend = F) +
-#   geom_text(data=prop_sign_temp, aes(x=-Inf, y=0.01, label = text_label), 
-#             hjust=0, vjust=1, #nudge_x = 1,
-#             size=3) +
-#     geom_text(aes(x=Inf, y=-0.018, label = "Reference Health Estimate"),
-#               hjust=1, vjust=1, size=3
-#               ) +
-#   
-#   labs(y = "Health Effect Estimate",
-#        fill="Design")
-# 
-#   if(grepl("non-spatial", x, ignore.case = T)) {
-#     p <- p+ labs(fill = "Visits are") +
-#       facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
-#     
-#     print(p)
-#     
-#   } else {
-#     p <- p + labs(fill = "Unbalanced Sampling") +
-#       facet_grid(rows = vars(visits), cols = vars(spatial),  switch = "both")
-#     }
-#   }) %>%
-#   ggarrange(plotlist = ., ncol = 1, heights = c(1.7,1))
+ temp <- data.frame(version=2.5,
+                   label = c("Reference", "No Association"),
+                   est=c(tot_pnc, 0),
+                   design = NA,
+                   visits = "4 visits")  #%>%
+ # mutate(version = factor(version, levels = levels(model_coefs$version)))
 
 
  model_coefs %>%
@@ -626,21 +587,19 @@ ref_model_coefs %>%
   ggplot(aes(x=version, fill=design)) +
   facet_grid(rows = vars(visits), switch = "both") +
   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  
-  # ggplot(aes(x=version, y=est, fill=design)) +
-  # geom_boxplot(position = "dodge")  +
-  # facet_grid(rows = vars(visits),  switch = "both") +
   geom_hline(yintercept = ref_model_coefs$est, linetype=2, alpha=0.5) +
   geom_hline(yintercept = 0, linetype=4, alpha=0.2) +
-  geom_text(aes(x=Inf, y=-0.019, label = "Reference Health Estimate"), hjust=1, vjust=1, size=3) +
-  scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_model_coefs$est)/-ref_model_coefs$est, name="% Difference", labels = scales::percent) ) +
-  labs(y = "Health Effect Estimate",
+  #geom_text(aes(x=Inf, y=-0.019, label = "Reference Health Estimate"), hjust=1, vjust=1, size=3) +
+  scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_model_coefs$est)/-ref_model_coefs$est, name="Health Point Estimate % Difference", labels = scales::percent),
+                     # switch axes for visualization
+                     position="right") +
+   geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F, size=5) +
+
+  labs(y = "Health Point Estimate",
        fill="Location Visit\nSelection",  
        x = "Version"
        )
  
-    
-    
 ggsave(file.path(image_path, "ufp_health_estimate.png"), width = 8, height = 6)
 
 ```
@@ -648,18 +607,18 @@ ggsave(file.path(image_path, "ufp_health_estimate.png"), width = 8, height = 6)
 same as above, reduced for presentation
 
 ```{r}
-temp <- data.frame(version=c("All Data Stationary\nExposure Model"),
-                   label = c("Reference", "No Effect"),
+# ref is stationary P-TRAK data
+temp <- data.frame(version=2.5,#c("All Data Stationary\nExposure Model"),
+                   label = c("Reference", "No Association"),
                    est=c(ref_model_coefs$est, 0),
                    design = NA,
-                   visits = "4 visits per location") #%>% mutate(design = factor(design, levels = c(design_levels, NA)))
+                   visits = "~4 visits per location")  
 
+##################################################################
 model_coefs %>%
   filter(visits==4,
          design != "Unbalanced") %>%  
-  mutate(visits = paste(visits, "visits per location"),
-         #design = factor(design, levels = design_levels)
-         ) %>%
+  mutate(visits = paste0("~", visits, " visits per location")) %>%
   
   group_by(version, design, visits) %>%
   summary_table(var = "est") %>%
@@ -673,11 +632,60 @@ model_coefs %>%
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
   #geom_boxplot(data=filter(temp, label=="Reference")) + 
   geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F) +
-  labs(y = "Health Effect Estimate",
+  scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="Health Point Estimate (% Difference)", labels = scales::percent),
+                     position="right") +
+  labs(y = "Health Point Estimate",
        fill="Location Visit\nSelection")
 
  ggsave(file.path(image_path, "presentations", "ufp_health_estimate_sample1.png"), width = 8, height = 5)
-    
+  
+##################################################################
+temp <- data.frame(version=c("All Hr"),
+                   label = c("Reference", "No Association"),
+                   est=c(ref_model_coefs$est, 0),
+                   design = 2.5, 
+                   visits = "~4 visits per location")  
+ 
+#design_levels <- levels(model_coefs$design) %>% gsub(" ", "\n", .)
+design_levels <- c("Balanced", "Sensible\nClusters", "Road\nType", "Random\nClusters")
+ 
+print("showing results for non-plume adjusted")
+# version 2
+model_coefs %>%
+  filter(visits==4,
+         !design %in% c("Random Segments", "Unsensible Clusters"),
+         #adjusted == "Unadjusted"
+         #adjusted == "Adjusted"
+         ) %>%  
+  mutate(visits = paste0("~", visits, " visits per location"),
+         version = gsub(" Plume Adj", "", version),
+         adjusted = ifelse(adjusted == "Adjusted", "Plume Adjusted Air Measurements", "Unadjusted"),
+         design = gsub(" ", "\n", design),
+         design = factor(design, design_levels)
+         ) %>%  
+  
+  group_by(version, design, visits,
+           adjusted, 
+           ) %>%
+  summary_table(var = "est") %>%
+  
+  ggplot(aes(fill=adjusted, x=design)) +
+  facet_grid(rows = vars(visits),
+             cols = vars(version),
+             switch = "both") +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  geom_hline(yintercept = ref_model_coefs$est, linetype=1, alpha=0.5) +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+  geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F, size=5) +
+  poster_theme +
+scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="Health Point Estimate\n % Difference", labels = scales::percent),
+                     position="right") +
+  labs(y = "Health Point Estimate",
+       x = "Visit Frequency Assignment",
+       fill=NULL)  
+
+ ggsave(file.path(image_path, "presentations", "ufp_health_estimate_sample1_alt.png"), width = 12, height = 6)
+
 ```
 
 
