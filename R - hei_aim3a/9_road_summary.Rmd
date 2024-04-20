@@ -223,6 +223,10 @@ stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
 ##################################################################################################
 spatial_names <- unique(model_eval$spatial)
 
+# UW colors
+uw_purple <- "#4b2e83"
+uw_gold1 <- "#b7a57a" # web: e8e3d3
+uw_gold2 <- "#85754d"
 
 ```
 
@@ -604,12 +608,12 @@ ggsave(file.path(image_path, "ufp_health_estimate.png"), width = 8, height = 6)
 
 ```
 
-same as above, reduced for presentation
+## presentation
 
 ```{r}
 # ref is stationary P-TRAK data
-temp <- data.frame(version=2.5,#c("All Data Stationary\nExposure Model"),
-                   label = c("Reference", "No Association"),
+temp <- data.frame(version=2.5, 
+                   label = c("All-Data Reference", "No Association"),
                    est=c(ref_model_coefs$est, 0),
                    design = NA,
                    visits = "~4 visits per location")  
@@ -641,7 +645,7 @@ model_coefs %>%
   
 ##################################################################
 temp <- data.frame(version=c("All Hr"),
-                   label = c("Reference", "No Association"),
+                   label = c("All-Data Reference", "No Association"),
                    est=c(ref_model_coefs$est, 0),
                    design = 2.5, 
                    visits = "~4 visits per location")  
@@ -674,9 +678,11 @@ model_coefs %>%
              cols = vars(version),
              switch = "both") +
   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  geom_hline(yintercept = ref_model_coefs$est, linetype=1, alpha=0.5) +
+  geom_hline(yintercept = ref_model_coefs$est, linetype=1, alpha=0.5, col=uw_purple) +
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
   geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F, size=5) +
+  geom_label(data=filter(temp, grepl("Reference", label, ignore.case = T)), aes(y=est, label=label), fill= "white",col=uw_purple, show.legend = F, size=5) +
+
   poster_theme +
 scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="Health Point Estimate\n % Difference", labels = scales::percent),
                      position="right") +

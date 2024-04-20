@@ -76,7 +76,7 @@ campaign_descriptions <- readRDS(file.path( dt_path, "Selected Campaigns", "sele
   mutate(
     ref = ifelse((design == "Fewer Visits" & version == "12") |
                    (design == "Fewer Seasons" & version == "4") |
-                   (design == "Unbalanced Visits" & version == "H12 L12"), "Design Reference", "More Restrictive or Less Balanced")) 
+                   (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
 
 all_pollutants <- readRDS(file.path(output_data_path, "main_pollutants.rda"))
 all_pollutants_labels <- unique(campaign_descriptions$variable)
@@ -95,7 +95,7 @@ model_coefs <- model_coefs0 %>%
    mutate(
     ref = ifelse((design == "Fewer Visits" & version == "12") |
                    (design == "Fewer Seasons" & version == "4") |
-                   (design == "Unbalanced Visits" & version == "H12 L12"), "Design Reference", "More Restrictive or Less Balanced")) 
+                   (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
 
 exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table.csv"))
 
@@ -169,6 +169,20 @@ one_to_one_band <- 0.2
 uw_purple <- "#4b2e83"
 uw_gold1 <- "#b7a57a" # web: e8e3d3
 uw_gold2 <- "#85754d"
+
+# x-axis labels for posters
+version_levels2 <- setdiff(levels(campaign_descriptions$version), c("Business", "Rush")) %>%
+  append(c("Business",
+         "Business \nTemporally\nAdjusted",
+         "Rush",
+         "Rush \nTemporally\nAdjusted"#,
+         
+         ))
+
+# balanced_versions2 <- grep("^H\\d", levels(campaign_descriptions$version), value = T) %>%
+#   gsub(" ", "\n", .) %>%
+#   gsub("H", "High ", .) %>%
+#   gsub("L", "Low ", .)  
 
 
 ```
@@ -395,20 +409,27 @@ campaign_descriptions %>%
          design != "All Data") %>%
     mutate(variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
            variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")),
-           analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity")) %>%
+           analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity"),
+           version = gsub("Bus", "Business", version),
+           version = gsub("Adj", "\nTemporally\nAdjusted", version),
+           #version = gsub(" ", "\n", version)
+           version = factor(version, levels=version_levels2)
+           ) %>%
   group_by(version, design, ref) %>%
   summary_table(var = "MSE_based_R2") %>%
   ggplot(aes(x=version, fill=ref)) +
   geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
   #ggplot(aes(x=version, y=MSE_based_R2)) + 
-  geom_hline(data=filter(refs1, grepl("10-420", variable)), aes(yintercept = MSE_based_R2), linetype=2, alpha=0.5, ) + 
+  geom_hline(data=filter(refs1, grepl("10-420", variable)), aes(yintercept = MSE_based_R2), linetype=2, alpha=0.5, col=uw_purple) + 
   #geom_boxplot(aes(fill=ref))+
   facet_wrap(~design, scales = "free_x", switch = "x") +
-  geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F, size=5) +
+  geom_label(data=temp, aes(y=est, label=label), fill= "white",
+             col=uw_purple,
+             show.legend = F, size=5) +
   poster_theme +
   labs(y = "Exposure Model R2", x = "Design", fill=NULL)
   
-ggsave(file.path(image_path, "other", "presentation", "r2_large_text.png"), width = 12, height = 8)
+ggsave(file.path(image_path, "other", "presentation", "r2_large_text.png"), width = 13, height = 9)
 
 
 ```
@@ -771,7 +792,7 @@ corr_table <- comp %>%
   mutate(
     ref = ifelse((design == "Fewer Visits" & version == "12") |
                    (design == "Fewer Seasons" & version == "4") |
-                   (design == "Unbalanced Visits" & version == "H12 L12"), "Design Reference", "More Restrictive or Less Balanced")) 
+                   (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
 
 corr_table %>%
   group_by(variable, design, version) %>%
@@ -1260,8 +1281,8 @@ ggsave(file.path(image_path, "SI", "beta_boxplots.png"), width = 10, height = 10
 
 ### for poster
 ```{r}
-temp <- data.frame(version= 2.5,# c("Bus Adj"),
-                   label = c("Reference", "No Association"),
+temp <- data.frame(version= 2.5, 
+                   label = c("All-Data Reference", "No Association"),
                    est=c(tot_pnc, 0),
                    design = c("Fewer Hours")  
                     
@@ -1274,20 +1295,23 @@ model_coefs %>%
          ) %>%
   group_by(version, design, variable, ref) %>%
   summary_table(var = "est") %>%
+  mutate(version = gsub("Bus", "Business", version),
+         version = gsub("Adj", "\nTemporally\nAdjusted", version),
+         version = factor(version, levels=version_levels2)) %>%
   ggplot(aes(x=version, fill=ref)) +
   geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
   facet_wrap(~design, scales="free_x", switch="x") +
-  geom_hline(yintercept = tot_pnc, linetype=1, alpha=0.5) +
+  geom_hline(yintercept = tot_pnc, linetype=1, alpha=0.5, col=uw_purple) +
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
   scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="Health Point Estimate\n% Difference", labels = scales::percent),
                      position="right") +
     geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F, size=5) +
-
+  geom_label(data=filter(temp, grepl("Reference", label, ignore.case = T)), aes(y=est, label=label), fill= "white",col=uw_purple, show.legend = F, size=5) +
   poster_theme +
   labs(y = "Health Point Estimate        ", x = "Design",
        fill= NULL)
 
-ggsave(file.path(image_path, "other", "presentation", "beta_boxplots_main_large_text.png"), width = 12, height = 8)
+ggsave(file.path(image_path, "other", "presentation", "beta_boxplots_main_large_text.png"), width = 13, height = 8)
 
 
 #ggsave(file.path(image_path, "other", "poster", "beta_summary.png"), width = 5, height = 2.5)

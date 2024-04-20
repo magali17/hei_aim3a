@@ -1,5 +1,5 @@
 #######################################################################################################################
-# add poster theme - larger text
+# add poster ggplot theme - larger text
 #######################################################################################################################
 # # --> error - doesn't work
 # poster_theme2 <- function(plot, axis=16, title=20, strip=16, legend=20#,...
@@ -13,10 +13,10 @@
 #           )
 #   }
 
-poster_theme <- theme(axis.text=element_text(size=16),
-                      axis.title=element_text(size=20,face="bold"),
-                      strip.text = element_text(size = 16),
-                      legend.text = element_text(size=20))
+poster_theme <- theme(axis.text=element_text(size=18),
+                      axis.title=element_text(size=22,face="bold"),
+                      strip.text = element_text(size = 18),
+                      legend.text = element_text(size=22))
   
   
   
