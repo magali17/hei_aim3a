@@ -119,7 +119,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
   road_dt0 <- road_dt0 %>%
     group_by(id) %>%
     mutate(#ufp = Winsorize(ufp, minval=quantile(ufp, 0.05), maxval=quantile(ufp, 0.95), na.rm=T),
-           ufp = winsorize(ufp, minval=quantile(ufp, 0.05, na.rm=T), maxval=quantile(ufp, 0.95), na.rm=T),
+           ufp = winsorize(ufp, minval=quantile(ufp, 0.05, na.rm=T), maxval=quantile(ufp, 0.95, na.rm=T)),
            ) %>%
     ungroup()
     
