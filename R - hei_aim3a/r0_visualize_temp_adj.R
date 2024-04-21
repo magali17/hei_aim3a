@@ -15,7 +15,8 @@ pacman::p_load(tidyverse, lubridate#, zoo,
                )    
 
 source("functions.R")
-dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240408")
+# dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240408")
+dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
 if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
@@ -33,7 +34,6 @@ road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_
 
 # hourly adjustments
 underwrite_adj <- readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) #%>%
-
   # --> TEMP
   #filter(background_adj == "hr1_pct1")
 
@@ -44,37 +44,39 @@ visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.r
 visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
 # adjusted annual averages
 annual_adj2 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds")) #%>%
-  
   # # --> TEMP
   # filter(background_adj == "hr1_pct1")
 
 annual_adj2_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds")) 
 
+# segment lat/long/road type
+segment_info <- file.path(dt_pt, "segment_lat_long.rda")
+
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
-summarize_values <- function(dt, val) {
-  temp <- dt %>%
-    rename(val=all_of(val)) %>%
-    summarize(
-      n = n(),
-      campaigns = length(unique(campaign)),
-      segments = length(unique(id)),
-      min=min(val, na.rm = T),
-      Q25=quantile(val, 0.25, na.rm = T),
-      Q50=quantile(val, 0.50, na.rm = T),
-      Q75=quantile(val, 0.75, na.rm = T),
-      max=max(val, na.rm = T),
-      less0 = sum(val<=0, na.rm = T),
-      prop_less0 = less0/n,
-      missing = sum(is.na(val)),
-      prop_missing = missing/n
-      )
-  
-  names(temp)[names(temp)=="val"] <- val
-  
-  return(temp)
-}
+# summarize_values <- function(dt, val) {
+#   temp <- dt %>%
+#     rename(val=all_of(val)) %>%
+#     summarize(
+#       n = n(),
+#       campaigns = length(unique(campaign)),
+#       segments = length(unique(id)),
+#       min=min(val, na.rm = T),
+#       Q25=quantile(val, 0.25, na.rm = T),
+#       Q50=quantile(val, 0.50, na.rm = T),
+#       Q75=quantile(val, 0.75, na.rm = T),
+#       max=max(val, na.rm = T),
+#       less0 = sum(val<=0, na.rm = T),
+#       prop_less0 = less0/n,
+#       missing = sum(is.na(val)),
+#       prop_missing = missing/n
+#       )
+#   
+#   names(temp)[names(temp)=="val"] <- val
+#   
+#   return(temp)
+# }
 
 ##################################################################################################
 # INVESTIGATE ANNUAL AVERAGES: NEGATIVE, NA, NaN
