@@ -13,14 +13,31 @@
 #           )
 #   }
 
-poster_theme <- theme(axis.text=element_text(size=18),
-                      axis.title=element_text(size=22,face="bold"),
-                      strip.text = element_text(size = 18),
-                      legend.text = element_text(size=22))
+poster_theme <- theme(axis.text.x=element_text(size=22),
+                      axis.text.y=element_text(size=26),
+                      axis.title=element_text(size=32,face="bold"),
+                      strip.text = element_text(size = 28),
+                      legend.text = element_text(size=32),
+                      
+                      panel.grid.major = element_blank(), 
+                      panel.grid.minor = element_blank()
+                      )
   
   
-  
+label_size <- 8  
 
+#######################################################################################################################
+# UW colors
+#######################################################################################################################
+uw_spirit_purple <- "#4b2e83"
+uw_husky_purple <-"#32006e"
+uw_husky_gold <- "#b7a57a" # web: e8e3d3
+uw_heritage_gold <- "#85754d"
+uw_spirit_gold <- "#ffc700"
+uw_accent_green <- "#aadb1e"
+uw_accent_lavender <- "#c5b4e3"
+uw_accent_pink <- "#e93cac"
+uw_accent_teal <-"#2ad2c9"
 
 #######################################################################################################################
 # label designs

@@ -401,6 +401,7 @@ ggsave(file.path(image_path, "SI", "r2_sensitivity.png"), width = 10, height = 1
 
 ```
 
+### poster
 ```{r}
 # poster
 # main analyses
@@ -418,15 +419,15 @@ campaign_descriptions %>%
   group_by(version, design, ref) %>%
   summary_table(var = "MSE_based_R2") %>%
   ggplot(aes(x=version, fill=ref)) +
-  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  #ggplot(aes(x=version, y=MSE_based_R2)) + 
+  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90), 
+               #col="gray"
+               ) +
   geom_hline(data=filter(refs1, grepl("10-420", variable)), aes(yintercept = MSE_based_R2), linetype=2, alpha=0.5, col=uw_purple) + 
-  #geom_boxplot(aes(fill=ref))+
   facet_wrap(~design, scales = "free_x", switch = "x") +
-  geom_label(data=temp, aes(y=est, label=label), fill= "white",
-             col=uw_purple,
-             show.legend = F, size=5) +
+  geom_label(data=temp, aes(y=est+0.02, label=label), fill= "white", col=uw_purple, show.legend = F, size=(label_size)) +
   poster_theme +
+  scale_fill_manual(values = c(uw_spirit_gold, uw_husky_gold)) +
+  ylim(0, 0.7) +
   labs(y = "Exposure Model R2", x = "Design", fill=NULL)
   
 ggsave(file.path(image_path, "other", "presentation", "r2_large_text.png"), width = 13, height = 9)
@@ -1172,6 +1173,11 @@ ggsave(file.path(image_path, "other", "poster", paste0("betas.png")), width = 6,
 ## Beta Summary
 
 ```{r}
+# keep this even though code below is the same to not show facet label for main analysis figure
+# true Coefficient estimate
+tot_pnc <- filter(true_betas, grepl("Total|10-420", variable)) %>%
+  pull(est)
+
 y_lims <- c(-0.018, 0.0005)
 
 model_coefs %>%
@@ -1181,10 +1187,6 @@ model_coefs %>%
   kable(caption = "distribution of Coefficient estimates for fewer visits & seasons", digits = 3) %>%
   kable_styling()
 
-# keep this even though code below is the same to not show facet label for main analysis figure
-# true Coefficient estimate
-tot_pnc <- filter(true_betas, grepl("Total|10-420", variable)) %>%
-  pull(est)
 
 model_coefs %>%
   filter(grepl("Total", variable)) %>%  
@@ -1305,16 +1307,15 @@ model_coefs %>%
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
   scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="Health Point Estimate\n% Difference", labels = scales::percent),
                      position="right") +
-    geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F, size=5) +
-  geom_label(data=filter(temp, grepl("Reference", label, ignore.case = T)), aes(y=est, label=label), fill= "white",col=uw_purple, show.legend = F, size=5) +
+    geom_label(data=temp, aes(y=est, label=label), fill= "white",show.legend = F, size=label_size) +
+  geom_label(data=filter(temp, grepl("Reference", label, ignore.case = T)), aes(y=est, label=label), fill= "white",col=uw_purple, show.legend = F, size=label_size) +
   poster_theme +
+  scale_fill_manual(values = c(uw_spirit_gold, uw_husky_gold)) +
   labs(y = "Health Point Estimate        ", x = "Design",
        fill= NULL)
 
-ggsave(file.path(image_path, "other", "presentation", "beta_boxplots_main_large_text.png"), width = 13, height = 8)
+ggsave(file.path(image_path, "other", "presentation", "beta_boxplots_main_large_text.png"), width = 15, height = 10)
 
-
-#ggsave(file.path(image_path, "other", "poster", "beta_summary.png"), width = 5, height = 2.5)
 ```
 
 
