@@ -39,6 +39,22 @@ uw_accent_lavender <- "#c5b4e3"
 uw_accent_pink <- "#e93cac"
 uw_accent_teal <-"#2ad2c9"
 
+
+#######################################################################################################################
+# winsorize
+#######################################################################################################################
+# variable = road_dt$ufp
+# min_value = quantile(road_dt$ufp, 0.05, na.rm = T) 
+# max_value = quantile(road_dt$ufp, 0.95, na.rm = T) 
+
+# returns a new variable, 'win_value', which winsorizes an original variable, 'value', based on a quantile from the original variable
+winsorize <- function(variable, minval, maxval) {
+
+  ifelse(variable > maxval, maxval,
+         ifelse(variable < minval, minval, variable)) %>%
+    unlist()  
+}
+
 #######################################################################################################################
 # label designs
 #######################################################################################################################

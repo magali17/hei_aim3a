@@ -11,10 +11,14 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
+# if (!require("remotes")) install.packages("remotes")
+# remotes::install_github("AndriSignorell/DescTools")
+
 pacman::p_load(tidyverse, lubridate, zoo,
-               DescTools, # Winsorize()
+               #DescTools, # Winsorize()
                parallel #mclapply()
                )    
+
 
 source("functions.R")
 dt_pt <- file.path("data", "onroad", "annie", "v2")
@@ -114,7 +118,9 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
   # winsorize at the segment level (drop extremes)
   road_dt0 <- road_dt0 %>%
     group_by(id) %>%
-    mutate(ufp = Winsorize(ufp, minval=quantile(ufp, 0.05), maxval=quantile(ufp, 0.95), na.rm=T)) %>%
+    mutate(#ufp = Winsorize(ufp, minval=quantile(ufp, 0.05), maxval=quantile(ufp, 0.95), na.rm=T),
+           ufp = winsorize(ufp, minval=quantile(ufp, 0.05, na.rm=T), maxval=quantile(ufp, 0.95), na.rm=T),
+           ) %>%
     ungroup()
     
   # drop hwy for some of these
