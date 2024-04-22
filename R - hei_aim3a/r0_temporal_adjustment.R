@@ -1,5 +1,7 @@
 # script temporally adjusts onroad data
 
+# --> TO DO: SEARCH FOR 'TEMP/TO DO' (E.G., remove things that helped run code faster)
+
 ##################################################################################################
 # SETUP
 ##################################################################################################
@@ -44,7 +46,6 @@ count_missingness <- function(dt, notes) {
 # NOTSE FILE TO TRACK PROGRESS
 note_file <- file.path(dt_pt2, "progress_notes_r0_temporal_adjustment.R.csv")
 write.table(data.frame(date = POSIXct(),
-                       duration = character(),
                        comment = character()),
             file=note_file, sep=",", row.names = F)
 
@@ -72,13 +73,23 @@ if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
     select(-visit_samples)
 
   visits <- bind_rows(v1, v2) %>%
-    select(-c(visit_num, runname))
+    select(-c(visit_num, runname, dow, dow2))
 
   saveRDS(visits, file.path(dt_pt, "TEMP_bh_visits.rda"))
   rm(list=c("v1", "v2"))
 } else {
-    visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda"))
+    visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda")) %>%
+      #visits %>%
+
+      # --> TEMP TO MAKE THINGS GO FASTER 
+      
+      filter(!cluster_type %in% c("cluster2", "cluster3"),
+             !design %in% c("unbalanced", "unsensible", "road_type"))
   }
+
+bh_version <- unique(visits$version) %>% as.character()
+
+visits <- select(visits, -version)
 
 ##################################################################################################
 
@@ -174,9 +185,9 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
 # --> TEMP
 
 windows <- 60*60*1
-# quantiles <- 0.01
+quantiles <- c(0.01, 0.05)
 # windows <- c(1,3)*60*60
-quantiles <- c(0.01, 0.03, 0.05, 0.10)
+# quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
 ##################################################################################################
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
@@ -190,7 +201,7 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 #     # add temporal adjustment
 #     left_join(fixed_site_temp_adj, by="time") %>%
 #     mutate(median_value_adjusted = median_value + ufp_adjustment,
-#            version = paste(version, "temp adj 1"))
+#            version = paste(bh_version, "temp adj 1"))
 # 
 #   saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
 # 
@@ -255,9 +266,6 @@ road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy)
  
 ##################################################################################################
 # note: some hours don't have UFP but still have hourly adjustments b/c rm.na=T for rolling window calculations
-message("estimating hourly adjustments")
-add_progress_notes("estimating hourly adjustments")
-
 get_hourly_adjustment <- function(dt) {
   dt %>%
     group_by(background_adj) %>%
@@ -280,6 +288,9 @@ get_hourly_adjustment <- function(dt) {
 }
 
 ##################################################################################################
+message("estimating hourly adjustments")
+add_progress_notes("estimating hourly adjustments")
+
 underwrite_adj <- get_hourly_adjustment(road_dt)
 underwrite_adj_no_hwy <- get_hourly_adjustment(road_dt_no_hwy)
 
@@ -287,7 +298,7 @@ saveRDS(underwrite_adj, file.path(dt_pt2, "underwrite_temp_adj.rda"))
 saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda"))
 
 ##################################################################################################
-message("applying temporal adjustment to using all segments")
+message("applying temporal adjustment using all segments")
 add_progress_notes("applying temporal adjustment using all segments")
 
 visits_adj2 <- visits %>%
@@ -297,7 +308,7 @@ visits_adj2 <- visits %>%
             #multiple = "all" #receive warning message w/o this 
             ) %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
-         version = paste(version, "temp adj 2"))
+         version = paste(bh_version, "temp adj 2"))
 
 saveRDS(visits_adj2, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
 
@@ -312,7 +323,7 @@ annual_adj2 <- visits_adj2 %>%
 saveRDS(annual_adj2, file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds"))
 
 ##################################################################################################
-message("applying temporal adjustment to using non-hwy segments")
+message("applying temporal adjustment to non-hwy segments")
 add_progress_notes("applying temporal adjustment using non-hwy segments")
 
 visits_adj2_no_hwy <- visits %>%
@@ -320,7 +331,7 @@ visits_adj2_no_hwy <- visits %>%
   # add temporal adjustment
   left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj), by="time") %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
-         version = paste(version, "temp adj 2"))
+         version = paste(bh_version, "temp adj 2"))
 
 saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
 
@@ -413,7 +424,7 @@ add_progress_notes("DONE RUNNING R0_TEMPORAL_ADJUSTMENT.R")
 #            median_value_adjusted = local_conc + lta_background)
 #   }) %>%
 #   bind_rows() %>%
-#   mutate(version = paste(version, "temp adj 2"))
+#   mutate(version = paste(bh_version, "temp adj 2"))
 # 
 # saveRDS(visits_adj2, file.path(dt_pt, "bh_visits_background_temporal_adj.rds")) 
 # 
