@@ -22,7 +22,6 @@ pacman::p_load(tidyverse, lubridate, zoo,
 
 source("functions.R")
 dt_pt <- file.path("data", "onroad", "annie", "v2")
-#dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240408")
 dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
@@ -31,7 +30,7 @@ if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 
 set.seed(1)
 
-use_cores <- 2
+use_cores <- 1
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
@@ -138,6 +137,8 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
     a_run <- filter(road_dt0, runname==x)
     data.frame(runname = x,
                time= seq(min(a_run$time), max(a_run$time), by=1)) %>%
+      
+      # --> TO DO: drop hour here and don't add it until do hourly adjustment function?
       mutate(hour = hour(time) %>% as.character())
   }) %>%
     bind_rows()
@@ -237,8 +238,7 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
 }
 ##################################################################################################
 
-message("running underwrite temporal adjustment for all the data")
-
+message("running underwrite temporal adjustment for all road data")
 #if(!file.exists(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))) {
   road_dt <- calculate_rolling_quantile(dt=road_dt)
   #saveRDS(road_dt, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
@@ -265,6 +265,9 @@ get_hourly_adjustment <- function(dt) {
            date = date(time)
            # important!! as.Date() automatically sets date to UTC
            #date= as.Date(time, tz=tz(.$time))
+           
+           # --> DO DO: add hour here
+           #hour = hour(time) #%>% as.character()
            ) %>%
     group_by(runname, date, hour, background_adj, bg_lta) %>%
     summarize(bg_hour_avg = mean(background, na.rm = T),
@@ -328,12 +331,10 @@ saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.r
 ##################################################################################################
 # DONE
 ##################################################################################################
+data.frame() %>%
+  write.csv(., file.path(dt_pt2, "finished_script.csv"))
+
 message("DONE RUNNING R0_TEMPORAL_ADJUSTMENT.R")
-
-
-
-
-
 
 ##################################################################################################
 # APPENDIX
