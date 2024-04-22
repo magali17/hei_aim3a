@@ -44,38 +44,50 @@ count_missingness <- function(dt, notes) {
   rbind(missingness_table, temp)
 }
 
+# NOTSE FILE TO TRACK PROGRESS
+note_file <- file.path(dt_pt2, "progress_notes_r0_temporal_adjustment.R.csv")
+write.table(data.frame(date = POSIXct(),
+                       comment = character()),
+            file=note_file, sep=",", row.names = F)
+
+add_progress_notes <- function(note) {
+  write.table(data.frame(Sys.time(), note), 
+              file=note_file, sep=",", append=T, col.names = F, row.names = F)
+}
+
 ##################################################################################################
 # DATA
 ##################################################################################################
 message("loading data")
+add_progress_notes("loading data")
 
-# # # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
+# # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
 # fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
 #   select(time, ufp_adjustment = diff_adjustment_winsorize)
-# 
-# # BH samples
-# if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
-#   v1 <- readRDS(file.path(dt_pt, "nonspatial_visit_samples.rds")) %>%
-#     filter(version == "business hours") 
-#   v2 <- readRDS(file.path(dt_pt, "cluster_visit_samples.rds")) %>%
-#     filter(version == "business hours") %>%
-#     select(-visit_samples)
-#   
-#   visits <- bind_rows(v1, v2) %>%
-#     select(-c(visit_num, runname)) 
-#   
-#   saveRDS(visits, file.path(dt_pt, "TEMP_bh_visits.rda"))
-#   rm(list=c("v1", "v2"))
-# } else {
-#     visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda"))
-#   }
+
+# BH samples
+if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
+  v1 <- readRDS(file.path(dt_pt, "nonspatial_visit_samples.rds")) %>%
+    filter(version == "business hours")
+  v2 <- readRDS(file.path(dt_pt, "cluster_visit_samples.rds")) %>%
+    filter(version == "business hours") %>%
+    select(-visit_samples)
+
+  visits <- bind_rows(v1, v2) %>%
+    select(-c(visit_num, runname))
+
+  saveRDS(visits, file.path(dt_pt, "TEMP_bh_visits.rda"))
+  rm(list=c("v1", "v2"))
+} else {
+    visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda"))
+  }
 
 ##################################################################################################
 
 ## note, we do things slightly different from what Doubleday et al. did since the purpose here is to use as much (good) data as possible to try to characterize background concentrations. 
 # from Doubleday: "We excluded A1 roads (interstates and highways with restricted access) since these are not representative of residential exposures, segments with fewer than a median of 5 1-second measurements per visit, and segments with less than 23 repeat visits. We also excluded road segments immediately before (approaching) or after (departing) a stop location were excluded since these were not fully on-road measures. We averaged the PNC measurements to 10s periods, calculated the median PNC across all 10s measures within segment and visit; winsorized these across visits at the segment level (set values below the 2.5th and above the 97.5th quantile [this should actually be 5 & 95th like Blanco & how Doubleday actually coded this] to those thresholds to reduce the influence of extreme values); and calculated mean visit concentrations per road segment."
 
-if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))) {
+# if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))) {
   road_dt0 <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
     select(-c(native_id, contains("gps_"), LABEL, num_visit, median_measurement,exclude_flag,update_exclude_flag, speed, ufp_median_5min, A1_flag, hour, minute, second)) %>%
     arrange(time) #%>%
@@ -117,9 +129,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
   # winsorize at the segment level (drop extremes)
   road_dt0 <- road_dt0 %>%
     group_by(id) %>%
-    mutate(#ufp = Winsorize(ufp, minval=quantile(ufp, 0.05), maxval=quantile(ufp, 0.95), na.rm=T),
-           ufp = winsorize(ufp, minval=quantile(ufp, 0.05, na.rm=T), maxval=quantile(ufp, 0.95, na.rm=T)),
-           ) %>%
+    mutate(ufp = winsorize(ufp, minval=quantile(ufp, 0.05, na.rm=T), maxval=quantile(ufp, 0.95, na.rm=T))) %>%
     ungroup()
     
   # drop hwy for some of these
@@ -136,38 +146,41 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
   time_series <- mclapply(unique(road_dt0$runname), mc.cores=use_cores, function(x){
     a_run <- filter(road_dt0, runname==x)
     data.frame(runname = x,
-               time= seq(min(a_run$time), max(a_run$time), by=1)) %>%
+               time= seq(min(a_run$time), max(a_run$time), by=1)) #%>%
       
       # --> TO DO: drop hour here and don't add it until do hourly adjustment function?
-      mutate(hour = hour(time) %>% as.character())
+      #mutate(hour = hour(time) %>% as.character())
   }) %>%
     bind_rows()
   
   # NAs in hour start here b/c of missing readings
-  road_dt <- left_join(time_series, road_dt0, by=c("runname", "time"#, "hour"
-                                                   )) %>%
-    select(runname, time, hour, id, ufp)
+  road_dt <- left_join(time_series, road_dt0, by=c("runname", "time")) %>%
+    select(runname, time, #hour, 
+           id, ufp)
   
-  road_dt_no_hwy <- left_join(time_series, road_dt0_no_hwy, by=c("runname", "time"#, "hour"
-                                                                 )) %>%
-    select(runname, time, hour, id, ufp)
+  road_dt_no_hwy <- left_join(time_series, road_dt0_no_hwy, by=c("runname", "time")) %>%
+    select(runname, time, #hour, 
+           id, ufp)
   
   saveRDS(road_dt, file.path(dt_pt2, "TEMP_road_dt.rda"))
   saveRDS(road_dt_no_hwy, file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))
   
   rm(list=c("time_series", "road_dt0", "road_dt0_no_hwy"))
-} else {
-  road_dt <- readRDS(file.path(dt_pt2, "TEMP_road_dt.rda"))
-  road_dt_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))
-  }
+# } else {
+#   road_dt <- readRDS(file.path(dt_pt2, "TEMP_road_dt.rda"))
+#   road_dt_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))
+#   }
 
 ##################################################################################################
 # VARIABLES
 ##################################################################################################
 # e.g., 3 hr * 60 min/hr * 60 sec/min
-# windows <- 60*60*1
+
+# --> TEMP
+
+windows <- 60*60*1
 # quantiles <- 0.01
-windows <- c(1,3)*60*60
+# windows <- c(1,3)*60*60
 quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
 ##################################################################################################
@@ -215,7 +228,7 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
     mclapply(quantiles., mc.cores=use_cores, function(p) {
       
       bg_label <- paste0("hr", w/3600, "_pct", p*100)
-      print(bg_label)
+      print(paste(Sys.time(), bg_label))
       
       file_name <- file.path(dt_pt2, paste0("uw_temp_adj_1s_", bg_label, ".rda"))
       
@@ -237,27 +250,19 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
     mutate(background_adj = factor(background_adj, levels=adj_lvls))
 }
 ##################################################################################################
-
 message("running underwrite temporal adjustment for all road data")
-#if(!file.exists(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))) {
-  road_dt <- calculate_rolling_quantile(dt=road_dt)
-  #saveRDS(road_dt, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
-  # } else {
-  #   road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
-  #   }
+add_progress_notes("running underwrite tmeporal adjustment for all data")
+road_dt <- calculate_rolling_quantile(dt=road_dt)
 
 message("running underwrite temporal adjustment for non-highway data")
-#if(!file.exists(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))) {
-  road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy)
-  # saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
-  # } else {
-  #   road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
-  #   }
-
+add_progress_notes("running underwrite tmeporal adjustment for non-highway data")
+road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy)
+ 
 ##################################################################################################
 # note: some hours don't have UFP but still have hourly adjustments b/c rm.na=T for rolling window calculations
 message("estimating hourly adjustments")
-  
+add_progress_notes("estimating hourly adjustments")
+
 get_hourly_adjustment <- function(dt) {
   dt %>%
     group_by(background_adj) %>%
@@ -267,7 +272,7 @@ get_hourly_adjustment <- function(dt) {
            #date= as.Date(time, tz=tz(.$time))
            
            # --> DO DO: add hour here
-           #hour = hour(time) #%>% as.character()
+           hour = hour(time) #%>% as.character()
            ) %>%
     group_by(runname, date, hour, background_adj, bg_lta) %>%
     summarize(bg_hour_avg = mean(background, na.rm = T),
@@ -292,6 +297,7 @@ saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda
 
 ##################################################################################################
 message("applying temporal adjustment to visits")
+add_progress_notes("applying temporal adjustment to visits")
 
 visits_adj2 <- visits %>%
   mutate(time = ymd_h(paste(date, hour))) %>%
@@ -303,6 +309,7 @@ visits_adj2 <- visits %>%
 saveRDS(visits_adj2, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
 
 message("estimating location annual averages")
+add_progress_notes("estimating location annual averages")
 
 annual_adj2 <- visits_adj2 %>%
   group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
@@ -311,7 +318,7 @@ annual_adj2 <- visits_adj2 %>%
 
 saveRDS(annual_adj2, file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds"))
 
-
+##################################################################################################
 visits_adj2_no_hwy <- visits %>%
   mutate(time = ymd_h(paste(date, hour))) %>%
   # add temporal adjustment
@@ -331,10 +338,8 @@ saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.r
 ##################################################################################################
 # DONE
 ##################################################################################################
-data.frame() %>%
-  write.csv(., file.path(dt_pt2, "finished_script.csv"))
-
 message("DONE RUNNING R0_TEMPORAL_ADJUSTMENT.R")
+add_progress_notes("DONE RUNNING R0_TEMPORAL_ADJUSTMENT.R")
 
 ##################################################################################################
 # APPENDIX
