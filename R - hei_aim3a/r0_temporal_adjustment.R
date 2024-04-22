@@ -31,7 +31,7 @@ if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 
 set.seed(1)
 
-use_cores <- 4
+use_cores <- 2
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
@@ -199,7 +199,9 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 ##################################################################################################
 # 2. UNDERWRITE FN: PSEUDO FIXED SITE FROM COLLECTED UFP MEASURES
 ##################################################################################################
-# dt=road_dt
+ #dt=road_dt_no_hwy %>% filter(runname == first(runname))
+# windows.=windows 
+# quantiles.=quantiles 
 calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles) {
   
   adj_lvls <- apply(expand.grid(paste0("hr", sort(windows)/3600), 
@@ -212,6 +214,8 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
     mclapply(quantiles., mc.cores=use_cores, function(p) {
       
       bg_label <- paste0("hr", w/3600, "_pct", p*100)
+      print(bg_label)
+      
       file_name <- file.path(dt_pt2, paste0("uw_temp_adj_1s_", bg_label, ".rda"))
       
       if(!file.exists(file_name)) {
@@ -233,7 +237,7 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
 }
 ##################################################################################################
 
-message("running fixed site temporal adjustment from the collected UFP measures")
+message("running underwrite temporal adjustment for all the data")
 
 #if(!file.exists(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))) {
   road_dt <- calculate_rolling_quantile(dt=road_dt)
@@ -242,6 +246,7 @@ message("running fixed site temporal adjustment from the collected UFP measures"
   #   road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
   #   }
 
+message("running underwrite temporal adjustment for non-highway data")
 #if(!file.exists(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))) {
   road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy)
   # saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
@@ -251,6 +256,8 @@ message("running fixed site temporal adjustment from the collected UFP measures"
 
 ##################################################################################################
 # note: some hours don't have UFP but still have hourly adjustments b/c rm.na=T for rolling window calculations
+message("estimating hourly adjustments")
+  
 get_hourly_adjustment <- function(dt) {
   dt %>%
     group_by(background_adj) %>%
@@ -281,6 +288,8 @@ saveRDS(underwrite_adj, file.path(dt_pt2, "underwrite_temp_adj.rda"))
 saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda"))
 
 ##################################################################################################
+message("applying temporal adjustment to visits")
+
 visits_adj2 <- visits %>%
   mutate(time = ymd_h(paste(date, hour))) %>%
   # add temporal adjustment
@@ -289,6 +298,8 @@ visits_adj2 <- visits %>%
          version = paste(version, "temp adj 2"))
 
 saveRDS(visits_adj2, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
+
+message("estimating location annual averages")
 
 annual_adj2 <- visits_adj2 %>%
   group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
