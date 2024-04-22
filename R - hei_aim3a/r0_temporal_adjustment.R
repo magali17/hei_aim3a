@@ -11,14 +11,10 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-# if (!require("remotes")) install.packages("remotes")
-# remotes::install_github("AndriSignorell/DescTools")
-
 pacman::p_load(tidyverse, lubridate, zoo,
-               #DescTools, # Winsorize()
+               #DescTools, # Winsorize() #has issues downloading in the cluster
                parallel #mclapply()
                )    
-
 
 source("functions.R")
 dt_pt <- file.path("data", "onroad", "annie", "v2")
@@ -30,6 +26,7 @@ if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 
 set.seed(1)
 
+# have issues if increase this w/ the rolling quantiles function
 use_cores <- 1
 ##################################################################################################
 # FUNCTIONS
@@ -87,14 +84,11 @@ if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
 ## note, we do things slightly different from what Doubleday et al. did since the purpose here is to use as much (good) data as possible to try to characterize background concentrations. 
 # from Doubleday: "We excluded A1 roads (interstates and highways with restricted access) since these are not representative of residential exposures, segments with fewer than a median of 5 1-second measurements per visit, and segments with less than 23 repeat visits. We also excluded road segments immediately before (approaching) or after (departing) a stop location were excluded since these were not fully on-road measures. We averaged the PNC measurements to 10s periods, calculated the median PNC across all 10s measures within segment and visit; winsorized these across visits at the segment level (set values below the 2.5th and above the 97.5th quantile [this should actually be 5 & 95th like Blanco & how Doubleday actually coded this] to those thresholds to reduce the influence of extreme values); and calculated mean visit concentrations per road segment."
 
-# if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))) {
+if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))) {
   road_dt0 <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
     select(-c(native_id, contains("gps_"), LABEL, num_visit, median_measurement,exclude_flag,update_exclude_flag, speed, ufp_median_5min, A1_flag, hour, minute, second)) %>%
-    arrange(time) #%>%
-    # mutate(
-    #   dow = wday(time, label=T, week_start = "Monday"),
-    #   dow = factor(dow, ordered = F),
-    #   weekday = ifelse(dow %in% c("Sat", "Sun"), "weekend", "weekday"))
+    arrange(time)  
+
   missingness_table <- count_missingness(road_dt0, notes="all data")
   
   segment_lat_long <- distinct(road_dt0, id, mx, my, road_type)
@@ -166,10 +160,10 @@ if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
   saveRDS(road_dt_no_hwy, file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))
   
   rm(list=c("time_series", "road_dt0", "road_dt0_no_hwy"))
-# } else {
-#   road_dt <- readRDS(file.path(dt_pt2, "TEMP_road_dt.rda"))
-#   road_dt_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))
-#   }
+} else {
+  road_dt <- readRDS(file.path(dt_pt2, "TEMP_road_dt.rda"))
+  road_dt_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))
+  }
 
 ##################################################################################################
 # VARIABLES
@@ -267,11 +261,8 @@ get_hourly_adjustment <- function(dt) {
   dt %>%
     group_by(background_adj) %>%
     mutate(bg_lta = mean(background, na.rm = T),
-           date = date(time)
-           # important!! as.Date() automatically sets date to UTC
-           #date= as.Date(time, tz=tz(.$time))
-           
-           # --> DO DO: add hour here
+           date = date(time),
+           # important!! don't use as.Date() - automatically sets date to UTC
            hour = hour(time) #%>% as.character()
            ) %>%
     group_by(runname, date, hour, background_adj, bg_lta) %>%
