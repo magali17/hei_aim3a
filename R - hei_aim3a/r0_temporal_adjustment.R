@@ -44,6 +44,7 @@ count_missingness <- function(dt, notes) {
 # NOTSE FILE TO TRACK PROGRESS
 note_file <- file.path(dt_pt2, "progress_notes_r0_temporal_adjustment.R.csv")
 write.table(data.frame(date = POSIXct(),
+                       duration = character(),
                        comment = character()),
             file=note_file, sep=",", row.names = F)
 
@@ -261,8 +262,7 @@ get_hourly_adjustment <- function(dt) {
   dt %>%
     group_by(background_adj) %>%
     mutate(bg_lta = mean(background, na.rm = T),
-           date = date(time),
-           # important!! don't use as.Date() - automatically sets date to UTC
+           date = date(time), # important!! don't use as.Date() - automatically sets date to UTC
            hour = hour(time) #%>% as.character()
            ) %>%
     group_by(runname, date, hour, background_adj, bg_lta) %>%
@@ -287,20 +287,22 @@ saveRDS(underwrite_adj, file.path(dt_pt2, "underwrite_temp_adj.rda"))
 saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda"))
 
 ##################################################################################################
-message("applying temporal adjustment to visits")
-add_progress_notes("applying temporal adjustment to visits")
+message("applying temporal adjustment to using all segments")
+add_progress_notes("applying temporal adjustment using all segments")
 
 visits_adj2 <- visits %>%
   mutate(time = ymd_h(paste(date, hour))) %>%
   # add temporal adjustment
-  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time") %>% 
+  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time"
+            #multiple = "all" #receive warning message w/o this 
+            ) %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(version, "temp adj 2"))
 
 saveRDS(visits_adj2, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
 
-message("estimating location annual averages")
-add_progress_notes("estimating location annual averages")
+message("estimating location annual averages using all segments")
+add_progress_notes("estimating location annual averages using all segments")
 
 annual_adj2 <- visits_adj2 %>%
   group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
@@ -310,6 +312,9 @@ annual_adj2 <- visits_adj2 %>%
 saveRDS(annual_adj2, file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds"))
 
 ##################################################################################################
+message("applying temporal adjustment to using non-hwy segments")
+add_progress_notes("applying temporal adjustment using non-hwy segments")
+
 visits_adj2_no_hwy <- visits %>%
   mutate(time = ymd_h(paste(date, hour))) %>%
   # add temporal adjustment
@@ -319,6 +324,8 @@ visits_adj2_no_hwy <- visits %>%
 
 saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
 
+message("estimating location annual averages using non-hwy segments")
+add_progress_notes("estimating location annual averages using non-hwy segments")
 annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
   group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
