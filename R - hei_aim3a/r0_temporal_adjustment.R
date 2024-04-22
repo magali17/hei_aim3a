@@ -57,8 +57,8 @@ add_progress_notes <- function(note) {
 ##################################################################################################
 # DATA
 ##################################################################################################
-message("loading data")
-add_progress_notes("loading data")
+message("loading visit data")
+add_progress_notes("loading visit data")
 
 # # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
 # fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
@@ -95,6 +95,9 @@ visits <- select(visits, -version)
 
 ## note, we do things slightly different from what Doubleday et al. did since the purpose here is to use as much (good) data as possible to try to characterize background concentrations. 
 # from Doubleday: "We excluded A1 roads (interstates and highways with restricted access) since these are not representative of residential exposures, segments with fewer than a median of 5 1-second measurements per visit, and segments with less than 23 repeat visits. We also excluded road segments immediately before (approaching) or after (departing) a stop location were excluded since these were not fully on-road measures. We averaged the PNC measurements to 10s periods, calculated the median PNC across all 10s measures within segment and visit; winsorized these across visits at the segment level (set values below the 2.5th and above the 97.5th quantile [this should actually be 5 & 95th like Blanco & how Doubleday actually coded this] to those thresholds to reduce the influence of extreme values); and calculated mean visit concentrations per road segment."
+
+message("loading 1s onroad data")
+add_progress_notes("loading 1s onroad data")
 
 if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))) {
   road_dt0 <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
@@ -259,11 +262,13 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
 message("running underwrite temporal adjustment for all road data")
 add_progress_notes("running underwrite tmeporal adjustment for all data")
 road_dt <- calculate_rolling_quantile(dt=road_dt)
+saveRDS(road_dt, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
 
 message("running underwrite temporal adjustment for non-highway data")
 add_progress_notes("running underwrite tmeporal adjustment for non-highway data")
 road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy)
- 
+saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda")) 
+
 ##################################################################################################
 # note: some hours don't have UFP but still have hourly adjustments b/c rm.na=T for rolling window calculations
 get_hourly_adjustment <- function(dt) {
@@ -292,9 +297,9 @@ message("estimating hourly adjustments")
 add_progress_notes("estimating hourly adjustments")
 
 underwrite_adj <- get_hourly_adjustment(road_dt)
-underwrite_adj_no_hwy <- get_hourly_adjustment(road_dt_no_hwy)
-
 saveRDS(underwrite_adj, file.path(dt_pt2, "underwrite_temp_adj.rda"))
+
+underwrite_adj_no_hwy <- get_hourly_adjustment(road_dt_no_hwy)
 saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda"))
 
 ##################################################################################################

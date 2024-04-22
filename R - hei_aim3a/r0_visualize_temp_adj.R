@@ -35,19 +35,22 @@ road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_
 # hourly adjustments
 underwrite_adj <- readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) #%>%
   # --> TEMP
-  #filter(background_adj == "hr1_pct1")
+  #filter(background_adj == "hr1_pct5")
 
 underwrite_adj_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda"))
 
 # adjusted visits
 visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds"))
 visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
-# adjusted annual averages
-annual_adj2 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds")) #%>%
-  # # --> TEMP
-  # filter(background_adj == "hr1_pct1")
 
-annual_adj2_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds")) 
+# adjusted annual averages (n=30 campaigns per design-version)
+annual_adj2 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds")) %>%
+  # # --> TEMP
+  filter(background_adj == "hr1_pct5") #%>% select(-c(background_adj))
+
+annual_adj2_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds")) %>%
+  # # --> TEMP
+  filter(background_adj == "hr1_pct5") #%>% select(-c(background_adj))
 
 # segment lat/long/road type
 segment_info <- file.path(dt_pt, "segment_lat_long.rda")
@@ -55,28 +58,28 @@ segment_info <- file.path(dt_pt, "segment_lat_long.rda")
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
-# summarize_values <- function(dt, val) {
-#   temp <- dt %>%
-#     rename(val=all_of(val)) %>%
-#     summarize(
-#       n = n(),
-#       campaigns = length(unique(campaign)),
-#       segments = length(unique(id)),
-#       min=min(val, na.rm = T),
-#       Q25=quantile(val, 0.25, na.rm = T),
-#       Q50=quantile(val, 0.50, na.rm = T),
-#       Q75=quantile(val, 0.75, na.rm = T),
-#       max=max(val, na.rm = T),
-#       less0 = sum(val<=0, na.rm = T),
-#       prop_less0 = less0/n,
-#       missing = sum(is.na(val)),
-#       prop_missing = missing/n
-#       )
-#   
-#   names(temp)[names(temp)=="val"] <- val
-#   
-#   return(temp)
-# }
+summarize_values <- function(dt, val) {
+  temp <- dt %>%
+    rename(val=all_of(val)) %>%
+    summarize(
+      n = n(),
+      campaigns = length(unique(campaign)),
+      segments = length(unique(id)),
+      min=min(val, na.rm = T),
+      Q25=quantile(val, 0.25, na.rm = T),
+      Q50=quantile(val, 0.50, na.rm = T),
+      Q75=quantile(val, 0.75, na.rm = T),
+      max=max(val, na.rm = T),
+      less0 = sum(val<=0, na.rm = T),
+      prop_less0 = less0/n,
+      missing = sum(is.na(val)),
+      prop_missing = missing/n
+      )
+
+  names(temp)[names(temp)=="val"] <- val
+
+  return(temp)
+}
 
 ##################################################################################################
 # INVESTIGATE ANNUAL AVERAGES: NEGATIVE, NA, NaN
@@ -85,20 +88,28 @@ segment_info <- file.path(dt_pt, "segment_lat_long.rda")
 # tend to have more extremely high & negative annual averages, especially when collect few visits
 # more common w/ 4 visit designs b/c there are more total annual averages on the low end (more common to only have 1 visit)
 print("distribution of estimated annual averages after background adjustments during BH following various clustering & non-clustered sampling approahces (collapses plume adjusted & unadjusted)")
+# plot
 annual_adj2 %>%
   mutate(actual_visits = factor(actual_visits),
          visits = relevel(factor(visits), ref= "4 visits")) %>%
   group_by(visits, actual_visits) %>%
   mutate(no_annual_avgs=n()) %>%
   
-  ggplot(aes(x=actual_visits, y=annual_mean#, col= design #adjusted #cluster_type #background_adj
+  ggplot(aes(x=actual_visits, y=annual_mean, col= background_adj, #design #adjusted #cluster_type #background_adj
              )) + 
   facet_wrap(~visits) +
   geom_hline(yintercept = 0, linetype=2, col="red") +
   geom_hline(yintercept = 20e3, linetype=2) +
   geom_boxplot(aes(col=no_annual_avgs))  
 
-  
+ggsave(file.path(dt_out, "annual_conc_vs_visit_num.png"), width = 14, height = 8)
+
+# #table  
+#annual_adj2 %>%
+annual_adj2_no_hwy %>%  
+  group_by(actual_visits, #background_adj
+           ) %>%
+  summarize_values(val="annual_mean") %>% View()
 
 # --> COMPARE CONC VISITS VS ADJUSTMENTS
 
@@ -143,6 +154,10 @@ underwrite_adj %>%
   geom_hline(yintercept = 0, linetype=2, alpha=0.5) 
 
 ggsave(file.path(dt_out, "temp_adj2_hour.png"), width = 14, height = 8)
+
+
+# --> by hour in a time series: date, hour (show that temp adj doesn't make sense b/c conc collected vary a Lot...but is this a space issue??)
+
 
 
 
