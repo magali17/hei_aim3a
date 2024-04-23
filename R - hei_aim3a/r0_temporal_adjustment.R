@@ -237,10 +237,11 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
   dt <- lapply(windows., function(w) {
     lapply(quantiles., function(p) {
       
-      bg_label <- paste0("hr", w/3600, "_pct", p*100, file_label)
-      print(paste(Sys.time(), bg_label))
+      bg_label <- paste0("hr", w/3600, "_pct", p*100)
+      file_label. <- paste0(bg_label, file_label)
+      print(paste(Sys.time(), file_label.))
       
-      file_name <- file.path(dt_pt2, paste0("uw_temp_adj_1s_", bg_label, ".rda"))
+      file_name <- file.path(dt_pt2, paste0("uw_temp_adj_1s_", file_label., ".rda"))
       
       if(!file.exists(file_name)) {
         # rolling quantiles for each runname & underwrite approach
@@ -251,15 +252,6 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
                    background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
           }) %>%
           bind_rows()
-        
-        # result <- dt %>%
-        #   group_by(runname) %>%
-        #   mutate(
-        #     background_adj = bg_label,
-        #     # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
-        #     background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
-        # 
-        
         # save individual window-quantile combinations
         saveRDS(result, file_name)
         

@@ -65,18 +65,22 @@ make_dt_smaller <- function(dt) {
 # --> TO DO: COMBINE SMALLER HWY/NO HWY DATASETS?
 
 # adjusted annual averages (n=30 campaigns per design-version)
-annual_adj2 <- bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no highways"),
-                         readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% mutate(road_types = "all road types")) %>%
-  
-  # --> TEMP
-  make_dt_smaller()
-  # filter(!cluster_type %in% c("cluster2", "cluster3"),
-  #        !design %in% c("unbalanced", "unsensible", "road_type"),
-  #        background_adj == "hr1_pct5") 
 
+# --> ERROR
+annual_adj2_no_hwy <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% 
+  mutate(road_types = "no highways")
+
+annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% 
+  mutate(road_types = "all road types") %>%
+  # bind_rows(annual_adj2_no_hwy) %>%
+
+  # #--> TEMP
+  # make_dt_smaller()
+  
 # hourly adjustments
 underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) %>% mutate(road_types = "all road types"),
-                            readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda") %>% mutate(road_types = "no highways"))) %>%
+                            readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda")) %>% mutate(road_types = "no highways")
+                            ) %>%
   
   # --> TEMP
   filter(background_adj == "hr1_pct5")
