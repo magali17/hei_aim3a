@@ -164,12 +164,10 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
   
   # NAs in hour start here b/c of missing readings
   road_dt <- left_join(time_series, road_dt0, by=c("runname", "time")) %>%
-    select(runname, time, #hour, 
-           id, ufp)
+    select(runname, time, id, ufp)
   
   road_dt_no_hwy <- left_join(time_series, road_dt0_no_hwy, by=c("runname", "time")) %>%
-    select(runname, time, #hour, 
-           id, ufp)
+    select(runname, time, id, ufp)
   
   saveRDS(road_dt, file.path(dt_pt2, "TEMP_road_dt.rda"))
   saveRDS(road_dt_no_hwy, file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))
