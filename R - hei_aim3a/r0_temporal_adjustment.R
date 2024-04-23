@@ -157,7 +157,6 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
   missingness_table <- count_missingness(road_dt0_no_hwy, notes="drop A1 segments")
   write.csv(missingness_table, file.path(dt_pt2, "missing_counts_second_dt.csv"), row.names = F)
   
-  # x=unique(road_dt0$runname)[1]
   time_series <- mclapply(unique(road_dt0$runname), mc.cores=use_cores, function(x){
     a_run <- filter(road_dt0, runname==x)
     data.frame(runname = x,
@@ -236,7 +235,7 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
                     1, paste, collapse="")
   
   dt <- lapply(windows., function(w) {
-    mclapply(quantiles., mc.cores=use_cores, function(p) {
+    lapply(quantiles., function(p) {
       
       bg_label <- paste0("hr", w/3600, "_pct", p*100, file_label)
       print(paste(Sys.time(), bg_label))
@@ -244,12 +243,22 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
       file_name <- file.path(dt_pt2, paste0("uw_temp_adj_1s_", bg_label, ".rda"))
       
       if(!file.exists(file_name)) {
-        result <- dt %>%
-          group_by(runname) %>%
-          mutate(
-            background_adj = bg_label,
-            # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
-            background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
+        # rolling quantiles for each runname & underwrite approach
+        # mclapply() faster than group_by()?
+        result <- mclapply(group_split(dt, runname), mc.cores=use_cores, function(x) {
+          mutate(x, background_adj = bg_label,
+                   # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
+                   background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
+          }) %>%
+          bind_rows()
+        
+        # result <- dt %>%
+        #   group_by(runname) %>%
+        #   mutate(
+        #     background_adj = bg_label,
+        #     # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
+        #     background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
+        # 
         
         # save individual window-quantile combinations
         saveRDS(result, file_name)
@@ -278,8 +287,7 @@ get_hourly_adjustment <- function(dt) {
     group_by(background_adj) %>%
     mutate(bg_lta = mean(background, na.rm = T),
            date = date(time), # important!! don't use as.Date() - automatically sets date to UTC
-           hour = hour(time) #%>% as.character()
-           ) %>%
+           hour = hour(time)) %>%
     group_by(runname, date, hour, background_adj, bg_lta) %>%
     summarize(bg_hour_avg = mean(background, na.rm = T),
               #bg_hour_median = median(background, na.rm = T)
@@ -327,7 +335,7 @@ annual_adj2 <- visits_adj2 %>%
   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
   ungroup()  
 
-saveRDS(annual_adj2, file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds"))
+saveRDS(annual_adj2, file.path(dt_pt2, "site_avgs_uw_adj.rds"))
 
 ##################################################################################################
 message("applying temporal adjustment to non-hwy segments")
@@ -349,7 +357,7 @@ annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
   ungroup()  
 
-saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds"))
+saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds"))
 
 ##################################################################################################
 # DONE
