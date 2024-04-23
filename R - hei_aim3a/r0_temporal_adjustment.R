@@ -29,7 +29,7 @@ if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 set.seed(1)
 
 # have issues if increase this w/ the rolling quantiles function
-use_cores <- 1
+use_cores <- 4
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
