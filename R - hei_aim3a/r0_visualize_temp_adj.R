@@ -25,43 +25,6 @@ if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
 set.seed(1)
 
 ##################################################################################################
-# DATA
-##################################################################################################
-# --> TO DO: COMBINE SMALLER HWY/NO HWY DATASETS?
-
-# 1sec data with rolling quantiles
-road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
-road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
-
-# hourly adjustments
-underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) %>% mutate(road_types = "all road types"),
-                            readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda") %>% mutate(road_types = "no highways"))) %>%
-                              
-                              # --> TEMP
-                              filter(background_adj == "hr1_pct5")
-
-# adjusted visits
-visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds"))
-visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
-
-# adjusted annual averages (n=30 campaigns per design-version)
-# annual_adj <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds")) %>%
-#   mutate(road_types = "all road types")
-
-annual_adj2 <- bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no highways"),
-                         readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% mutate(road_types = "all road types")) %>%
-
-  # --> TEMP
-  filter(!cluster_type %in% c("cluster2", "cluster3"),
-         !design %in% c("unbalanced", "unsensible", "road_type"),
-         background_adj == "hr1_pct5"
-         ) 
-   
-
-# segment lat/long/road type
-segment_info <- file.path(dt_pt, "segment_lat_long.rda")
-
-##################################################################################################
 # FUNCTIONS
 ##################################################################################################
 summarize_values <- function(dt, val) {
@@ -80,12 +43,61 @@ summarize_values <- function(dt, val) {
       prop_less0 = less0/n,
       missing = sum(is.na(val)),
       prop_missing = missing/n
-      )
-
+    )
+  
   names(temp)[names(temp)=="val"] <- val
-
+  
   return(temp)
 }
+##################################################################################################
+# TEMP to reduce file sizes
+make_dt_smaller <- function(dt) {
+  dt %>%
+    filter(!cluster_type %in% c("cluster2", "cluster3"),
+           !design %in% c("unbalanced", "unsensible", "road_type"),
+           background_adj == "hr1_pct5")
+  }
+
+
+##################################################################################################
+# DATA
+##################################################################################################
+# --> TO DO: COMBINE SMALLER HWY/NO HWY DATASETS?
+
+# adjusted annual averages (n=30 campaigns per design-version)
+annual_adj2 <- bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no highways"),
+                         readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% mutate(road_types = "all road types")) %>%
+  
+  # --> TEMP
+  make_dt_smaller()
+  # filter(!cluster_type %in% c("cluster2", "cluster3"),
+  #        !design %in% c("unbalanced", "unsensible", "road_type"),
+  #        background_adj == "hr1_pct5") 
+
+# hourly adjustments
+underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) %>% mutate(road_types = "all road types"),
+                            readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda") %>% mutate(road_types = "no highways"))) %>%
+  
+  # --> TEMP
+  filter(background_adj == "hr1_pct5")
+
+
+# adjusted visits
+visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) %>%
+  # --> TEMP
+  make_dt_smaller()
+
+visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) %>%
+  # --> TEMP
+  make_dt_smaller()
+
+# 1sec data with rolling quantiles
+road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
+road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
+
+# segment lat/long/road type
+segment_info <- file.path(dt_pt, "segment_lat_long.rda")
+
 
 ##################################################################################################
 # INVESTIGATE ANNUAL AVERAGES & NEGATIVE VALUES

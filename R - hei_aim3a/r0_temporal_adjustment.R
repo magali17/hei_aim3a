@@ -28,8 +28,8 @@ if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 
 set.seed(1)
 
-# have issues if increase this w/ the rolling quantiles function
-use_cores <- 4
+# rolling quantiles function is the bottleneck here
+use_cores <- 6# 4 works
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
@@ -44,7 +44,7 @@ count_missingness <- function(dt, notes) {
 }
 
 # NOTSE FILE TO TRACK PROGRESS
-note_file <- file.path(dt_pt2, "progress_notes_r0_temporal_adjustment.R.csv")
+note_file <- file.path(dt_pt2, paste0("notes_r0_temporal_adjustment_", Sys.Date(),".csv"))
 write.table(data.frame(date = POSIXct(),
                        comment = character()),
             file=note_file, sep=",", row.names = F)
@@ -319,8 +319,7 @@ add_progress_notes("applying temporal adjustment using all segments")
 visits_adj2 <- visits %>%
   mutate(time = ymd_h(paste(date, hour))) %>%
   # add temporal adjustment
-  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time"
-            #multiple = "all" #receive warning message w/o this 
+  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time" #multiple = "all" #receive warning message w/o this 
             ) %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(bh_version, "temp adj 2"))
