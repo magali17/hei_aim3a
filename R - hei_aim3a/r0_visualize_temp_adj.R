@@ -1,4 +1,5 @@
 
+# --> TO DO: SEARCH FOR 'TEMP/TO DO' (E.G., remove things that helped run code faster)
 
 ##################################################################################################
 # SETUP
@@ -33,26 +34,25 @@ road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
 road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
 
 # hourly adjustments
-underwrite_adj <- readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) %>%
-  # --> TEMP
-  filter(background_adj == "hr1_pct5")
-
-underwrite_adj_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda")) %>%
-  # --> TEMP
-  filter(background_adj == "hr1_pct5")
+underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) %>% mutate(road_types = "all road types"),
+                            readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda") %>% mutate(road_types = "no highways")) %>%
+                              
+                              # --> TEMP
+                              filter(background_adj == "hr1_pct5")
 
 # adjusted visits
 visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds"))
 visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
 
 # adjusted annual averages (n=30 campaigns per design-version)
-annual_adj2 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds")) %>%
-  # # --> TEMP
-  filter(background_adj == "hr1_pct5") #%>% select(-c(background_adj))
+# annual_adj <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds")) %>%
+#   mutate(road_types = "all road types")
 
-annual_adj2_no_hwy <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds")) %>%
+annual_adj2 <- bind_rows(readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no highways"),
+                         readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_uw_adj.rds")) %>% mutate(road_types = "all road types")) %>%
+
   # # --> TEMP
-  filter(background_adj == "hr1_pct5") #%>% select(-c(background_adj))
+  filter(background_adj == "hr1_pct5") 
 
 # segment lat/long/road type
 segment_info <- file.path(dt_pt, "segment_lat_long.rda")
@@ -86,16 +86,7 @@ summarize_values <- function(dt, val) {
 ##################################################################################################
 # INVESTIGATE ANNUAL AVERAGES: NEGATIVE, NA, NaN
 ##################################################################################################
- 
-# more liely to have negative, more variable site averages results when collect few visits
-# and for plume adjusted approaches that slightly reduce concentrations
-# more common w/ 4 visit designs b/c there are more total annual averages on the low end (more common to only have 1 visit)
-
-print("distribution of estimated annual averages after background adjustments during BH following various clustering & non-clustered sampling approahces (collapses plume adjusted & unadjusted)")
-print("dashed black line is at 1e3")
-# plot
-
-annual_avg_by_visits_plot <- function(dt) {
+ annual_avg_by_visits_plot <- function(dt) {
   set.seed(1)
   dt %>%
     
@@ -107,11 +98,10 @@ annual_avg_by_visits_plot <- function(dt) {
     group_by(visits, actual_visits) %>%
     mutate(no_annual_avgs=n()) %>%
     
-    ggplot(aes(x=actual_visits, y=annual_mean, #col=  #design #adjusted #cluster_type #background_adj
+    ggplot(aes(x=actual_visits, y=annual_mean, #col=  #design  #cluster_type #background_adj
     )) + 
-    facet_wrap(#~design+background_adj
-      ~background_adj
-    ) +
+    facet_wrap(~background_adj+road_types #~design+background_adj
+               ) +
     geom_hline(yintercept = 0, linetype=2, col="red") +
     geom_hline(yintercept = 1e3, linetype=2) +
     geom_boxplot(aes(col=adjusted)) +
@@ -120,25 +110,34 @@ annual_avg_by_visits_plot <- function(dt) {
          col = "Plume")
   
 }
+##################################################################################################
+# more liely to have negative, more variable site averages results when collect few visits
+# and for plume adjusted approaches that slightly reduce concentrations
+# more common w/ 4 visit designs b/c there are more total annual averages on the low end (more common to only have 1 visit)
 
-annual_avg_by_visits_plot(annual_adj2)
+print("distribution of estimated annual averages after background adjustments during BH following various clustering & non-clustered sampling approahces (collapses plume adjusted & unadjusted)")
+print("dashed black line is at 1e3")
+
+annual_adj2 %>%
+  filter(!cluster_type %in% c("cluster2", "cluster3"),
+         !design %in% c("unbalanced", "unsensible", "road_type")) %>%
+  annual_avg_by_visits_plot()
+
 ggsave(file.path(dt_out, "annual_conc_vs_visit_num.png"), width = 14, height = 8)
-
-print("negatives occur even without highway readings but less frequently")
-annual_avg_by_visits_plot(annual_adj2_no_hwy)
-ggsave(file.path(dt_out, "annual_conc_vs_visit_num_no_hwy.png"), width = 14, height = 8)
 
 # #table  
 #annual_adj2 %>%
-annual_adj2_no_hwy %>%  
-  group_by(actual_visits, adjusted, background_adj
+annual_adj2 %>%  
+  group_by(road_types, actual_visits, adjusted, background_adj, #design, cluster_type
            ) %>%
-  summarize_values(val="annual_mean") %>% View()
-
-# --> COMPARE CONC VISITS VS ADJUSTMENTS
+  summarize_values(val="annual_mean")  
 
 
-
+# --> what are the sites with negative annual averages? sites with large negative hourly adjustments & low visit concentrations?
+negative_sites <- filter(annual_adj2, annual_mean<=0) %>%
+  # --> 
+  select() %>%
+  left_join(select(visits_adj2_no_hwy, ))
 
 
 

@@ -161,10 +161,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
   time_series <- mclapply(unique(road_dt0$runname), mc.cores=use_cores, function(x){
     a_run <- filter(road_dt0, runname==x)
     data.frame(runname = x,
-               time= seq(min(a_run$time), max(a_run$time), by=1)) #%>%
-      
-      # --> TO DO: drop hour here and don't add it until do hourly adjustment function?
-      #mutate(hour = hour(time) %>% as.character())
+               time= seq(min(a_run$time), max(a_run$time), by=1))  
   }) %>%
     bind_rows()
   
