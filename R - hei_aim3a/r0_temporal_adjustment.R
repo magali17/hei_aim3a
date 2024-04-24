@@ -37,7 +37,7 @@ use_cores <- 1#6 works
 # should existing files be regenerated (e.g., due to code changes) or to speed things up?
 clean_road_files <- TRUE #TRUE when make updates to the 1sec road file
 recreate_time_series <- TRUE #TRUE when make updates to the 1sec road file
-override_existing_background_file = TRUE #TRUE when 1sec file is updated
+override_existing_background_file = TRUE #TRUE when 1sec files are updated
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
@@ -175,12 +175,12 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
   missingness_table <- count_missingness(road_dt0_no_hwy, notes="drop A1 segments")
   write.csv(missingness_table, file.path(dt_pt2, "missing_counts_second_dt_pt2.csv"), row.names = F)
   
-  # when there are multiple "runs" in a day, give them the same name (for running averages coding below)
-  road_dt0 <- road_dt0 %>%
-    mutate(date=date(time)) %>%
-    group_by(date) %>%
-    mutate(runname = first(runname)) %>%
-    ungroup()
+  # # when there are multiple "runs" in a day, give them the same name (for running averages coding below)
+  # road_dt0 <- road_dt0 %>%
+  #   mutate(date=date(time)) %>%
+  #   group_by(date) %>%
+  #   mutate(runname = first(runname)) %>%
+  #   ungroup()
     
   ############################
   time_series <- mclapply(unique(road_dt0$runname), mc.cores=use_cores, function(x){
@@ -248,9 +248,9 @@ if(testing_mode==TRUE) {
 ##################################################################################################
 # 2. UNDERWRITE FN: PSEUDO FIXED SITE FROM COLLECTED UFP MEASURES
 ##################################################################################################
- #dt=road_dt_no_hwy %>% filter(runname == first(runname))
-# windows.=windows 
-# quantiles.=quantiles 
+# dt=road_dt_no_hwy %>% filter(runname == first(runname))
+# windows.=windows
+# quantiles.=quantiles
 # file_label="_no_hwy"
 # w=windows.[1]
 # p=quantiles.[1]
@@ -278,7 +278,11 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
         result <- mclapply(group_split(dt, runname), mc.cores=use_cores, function(x) {
           mutate(x, background_adj = bg_label,
                    # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
-                   background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
+                   background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", 
+                                          partial = TRUE, 
+                                          na.rm=T
+                                          #fill=NA
+                                          ))
           }) %>%
           bind_rows()
         # save individual window-quantile combinations
@@ -290,6 +294,7 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
     bind_rows() %>%
     mutate(background_adj = factor(background_adj, levels=adj_lvls))
 }
+
 ##################################################################################################
 message("running underwrite temporal adjustment for all road data")
 add_progress_notes("running underwrite tmeporal adjustment for all data")
@@ -302,10 +307,12 @@ road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy, file_label="_no_
 saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda")) 
 
 ##################################################################################################
+
 # note: some hours don't have UFP but still have hourly adjustments b/c rm.na=T for rolling window calculations
 get_hourly_adjustment <- function(dt) {
   dt %>%
     group_by(background_adj) %>%
+    # note: this uses 'background' 1sec rolling quantiles even in places where there were no readings if there were readings some time before/after
     mutate(bg_lta = mean(background, na.rm = T),
            date = date(time), # important!! don't use as.Date() - automatically sets date to UTC
            hour = hour(time)) %>%
@@ -321,6 +328,11 @@ get_hourly_adjustment <- function(dt) {
            ) %>%
     # drop NA & NaN caused from no MM data for entire hours early on in the day (why was this start time here to begin with?)
     drop_na()
+  
+  
+  # --> TO DO: average duplicate hours here??
+  
+  
 }
 
 ##################################################################################################
