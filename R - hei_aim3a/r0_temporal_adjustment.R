@@ -29,7 +29,15 @@ if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 set.seed(1)
 
 # rolling quantiles function is the bottleneck here
-use_cores <- 6# 4 works
+use_cores <- 1#6 works
+
+##################################################################################################
+# VARIABLES
+##################################################################################################
+# should existing files be regenerated (e.g., due to code changes)?
+clean_road_files <- TRUE
+recreate_time_series <- TRUE
+override_existing_background_file = TRUE
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
@@ -83,7 +91,7 @@ if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
       # --> TEMP TO MAKE THINGS GO FASTER 
       
       filter(!cluster_type %in% c("cluster2", "cluster3"),
-             !design %in% c("unbalanced", "unsensible", "road_type"))
+             !design %in% c("unbalanced", "unsensible", "road_type", "random"))
   }
 
 bh_version <- unique(visits$version) %>% as.character()
@@ -98,9 +106,15 @@ visits <- select(visits, -version)
 message("loading 1s onroad data")
 add_progress_notes("loading 1s onroad data")
 
-if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda"))) {
+if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | 
+   !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda")) | 
+   recreate_time_series==TRUE) {
   
-  if(!file.exists(file.path(dt_pt2, "TEMP_road_dt0.rda"))) {
+  if(!file.exists(file.path(dt_pt, "TEMP_road_dt0.rda")) |
+     clean_road_files==TRUE) {
+  
+    message("cleaning road file from scratch")
+    
     road_dt0 <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
       select(-c(native_id, contains("gps_"), LABEL, num_visit, median_measurement,exclude_flag,update_exclude_flag, speed, ufp_median_5min, A1_flag, hour, minute, second)) %>%
       arrange(time)  
@@ -133,11 +147,13 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
       filter(!(id %in% c(6796, 534, 3064, 867)))
     missingness_table <- count_missingness(road_dt0, notes="drop Roosevelt Garage")
     
-    write.csv(missingness_table, file.path(dt_pt2, "missing_counts_second_dt_cleanup.csv"), row.names = F)
+    write.csv(missingness_table, file.path(dt_pt, "missing_counts_second_dt_cleanup.csv"), row.names = F)
     
-    saveRDS(road_dt0, file.path(dt_pt2, "TEMP_road_dt0.rda"))
+    saveRDS(road_dt0, file.path(dt_pt, "TEMP_road_dt0.rda"))
     
-    } else {road_dt0 <- readRDS(file.path(dt_pt2, "TEMP_road_dt0.rda"))}
+    } else {road_dt0 <- readRDS(file.path(dt_pt, "TEMP_road_dt0.rda"))}
+  
+  message("cleaning road file & regenerating time series")
   
   # winsorize at the segment level (drop extremes)
   road_dt0 <- road_dt0 %>%
@@ -145,8 +161,8 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
     mutate(ufp = winsorize(ufp, minval=quantile(ufp, 0.05, na.rm=T), maxval=quantile(ufp, 0.95, na.rm=T))) %>%
     ungroup()
     
-  saveRDS(road_dt0, file.path(dt_pt2, "TEMP_road_dt0_winsorized.rda"))
-  # road_dt0 <- readRDS(file.path(dt_pt2, "TEMP_road_dt0_winsorized.rda"))
+  saveRDS(road_dt0, file.path(dt_pt, "TEMP_road_dt0_winsorized.rda"))
+  # road_dt0 <- readRDS(file.path(dt_pt, "TEMP_road_dt0_winsorized.rda"))
   
   # drop hwy for some of these
   road_dt0_no_hwy <- filter(road_dt0, road_type != "A1") %>%
@@ -157,6 +173,15 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
   missingness_table <- count_missingness(road_dt0_no_hwy, notes="drop A1 segments")
   write.csv(missingness_table, file.path(dt_pt2, "missing_counts_second_dt.csv"), row.names = F)
   
+  # when there are multiple "runs" in a day, give them the same name (for running averages coding below)
+  road_dt0 <- road_dt0 %>%
+    mutate(date=date(time)) %>%
+    group_by(date) %>%
+    mutate(runname = first(runname))  
+    
+  #road_dt0 %>% group_by(date) %>% summarize(n = length(unique(runname))) %>% filter(n>1)
+  
+  ############################
   time_series <- mclapply(unique(road_dt0$runname), mc.cores=use_cores, function(x){
     a_run <- filter(road_dt0, runname==x)
     data.frame(runname = x,
@@ -188,7 +213,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
 # --> TEMP
 
 windows <- 60*60*1
-quantiles <- c(0.01, 0.05)
+quantiles <- c(0.05)
 # windows <- c(1,3)*60*60
 # quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
@@ -228,7 +253,7 @@ quantiles <- c(0.01, 0.05)
 # file_label="_no_hwy"
 # w=windows.[1]
 # p=quantiles.[1]
-calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles, file_label="") {
+calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles, file_label="", override_existing_file=FALSE) {
   
   adj_lvls <- apply(expand.grid(paste0("hr", sort(windows)/3600), 
                                 paste0("_pct", sort(quantiles)*100)), 
@@ -243,9 +268,10 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
       
       file_name <- file.path(dt_pt2, paste0("uw_temp_adj_1s_", file_label., ".rda"))
       
-      if(!file.exists(file_name)) {
+      if(!file.exists(file_name) | override_existing_file==TRUE) {
+        message("generating new rolling quantiles")
+        
         # rolling quantiles for each runname & underwrite approach
-        # mclapply() faster than group_by()?
         result <- mclapply(group_split(dt, runname), mc.cores=use_cores, function(x) {
           mutate(x, background_adj = bg_label,
                    # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
@@ -264,12 +290,12 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
 ##################################################################################################
 message("running underwrite temporal adjustment for all road data")
 add_progress_notes("running underwrite tmeporal adjustment for all data")
-road_dt <- calculate_rolling_quantile(dt=road_dt)
+road_dt <- calculate_rolling_quantile(dt=road_dt, override_existing_file = override_existing_background_file)
 saveRDS(road_dt, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
 
 message("running underwrite temporal adjustment for non-highway data")
 add_progress_notes("running underwrite tmeporal adjustment for non-highway data")
-road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy, file_label="_no_hwy")
+road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy, file_label="_no_hwy", override_existing_file = override_existing_background_file)
 saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda")) 
 
 ##################################################################################################
