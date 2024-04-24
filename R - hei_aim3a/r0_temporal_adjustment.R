@@ -34,10 +34,12 @@ use_cores <- 1#6 works
 ##################################################################################################
 # VARIABLES
 ##################################################################################################
-# should existing files be regenerated (e.g., due to code changes)?
-clean_road_files <- TRUE
-recreate_time_series <- TRUE
-override_existing_background_file = TRUE
+# should existing files be regenerated (e.g., due to code changes) or to speed things up?
+clean_road_files <- TRUE #TRUE when make updates to the 1sec road file
+recreate_time_series <- TRUE #TRUE when make updates to the 1sec road file
+override_existing_background_file = TRUE #TRUE when 1sec file is updated
+# speed thigns up
+testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
 ##################################################################################################
 # FUNCTIONS
@@ -86,14 +88,13 @@ if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
 
   saveRDS(visits, file.path(dt_pt, "TEMP_bh_visits.rda"))
   rm(list=c("v1", "v2"))
-} else {
-    visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda")) %>%
+} else {visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda"))}
 
-      # --> TEMP TO MAKE THINGS GO FASTER 
-      
-      filter(!cluster_type %in% c("cluster2", "cluster3"),
-             !design %in% c("unbalanced", "unsensible", "road_type", "random"))
-  }
+if(testing_mode==TRUE) {
+  visits <- visits %>%
+    filter(!cluster_type %in% c("cluster2", "cluster3"),
+           !design %in% c("unbalanced", "unsensible", "road_type", "random"))
+}
 
 bh_version <- unique(visits$version) %>% as.character()
 
@@ -209,13 +210,13 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
 # VARIABLES
 ##################################################################################################
 # e.g., 3 hr * 60 min/hr * 60 sec/min
+windows <- c(1,3)*60*60
+quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
-# --> TEMP
-
-windows <- 60*60*1
-quantiles <- c(0.05)
-# windows <- c(1,3)*60*60
-# quantiles <- c(0.01, 0.03, 0.05, 0.10)
+if(testing_mode==TRUE) {
+  windows <- 60*60*1
+  quantiles <- c(0.05)
+  }
 
 ##################################################################################################
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
@@ -253,7 +254,8 @@ quantiles <- c(0.05)
 # file_label="_no_hwy"
 # w=windows.[1]
 # p=quantiles.[1]
-calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles, file_label="", override_existing_file=FALSE) {
+calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles, file_label="", 
+                                       override_existing_file = override_existing_background_file) {
   
   adj_lvls <- apply(expand.grid(paste0("hr", sort(windows)/3600), 
                                 paste0("_pct", sort(quantiles)*100)), 
@@ -291,12 +293,12 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
 ##################################################################################################
 message("running underwrite temporal adjustment for all road data")
 add_progress_notes("running underwrite tmeporal adjustment for all data")
-road_dt <- calculate_rolling_quantile(dt=road_dt, override_existing_file = override_existing_background_file)
+road_dt <- calculate_rolling_quantile(dt=road_dt)
 saveRDS(road_dt, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
 
 message("running underwrite temporal adjustment for non-highway data")
 add_progress_notes("running underwrite tmeporal adjustment for non-highway data")
-road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy, file_label="_no_hwy", override_existing_file = override_existing_background_file)
+road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy, file_label="_no_hwy")
 saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda")) 
 
 ##################################################################################################
