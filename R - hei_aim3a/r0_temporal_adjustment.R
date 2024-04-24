@@ -3,19 +3,6 @@
 # --> TO DO: SEARCH FOR 'TEMP/TO DO' (E.G., remove things that helped run code faster)
 
 ##################################################################################################
-# FILE GENERATION
-##################################################################################################
-# should existing files be regenerated (e.g., due to code changes) or to speed things up?
-clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
-recreate_time_series <- FALSE #TRUE when make updates to the 1sec road file
-override_existing_background_file = TRUE #TRUE when 1sec file is updated
-# speed thigns up
-testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
-
-# rolling quantiles function is the bottleneck here
-use_cores <- 6 #works
-
-##################################################################################################
 # SETUP
 ##################################################################################################
 # Clear workspace of all objects and unload all extra (non-base) packages
@@ -40,6 +27,20 @@ if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
 if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 
 set.seed(1)
+
+##################################################################################################
+# FILE GENERATION & TESTING MODE
+##################################################################################################
+# should existing files be regenerated (e.g., due to code changes) or to speed things up?
+clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
+recreate_time_series <- FALSE #TRUE when make updates to the 1sec road file
+override_existing_background_file = TRUE #TRUE when 1sec file is updated
+# speed thigns up
+testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
+
+# rolling quantiles function is the bottleneck here
+use_cores <- 6 #works
+
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
