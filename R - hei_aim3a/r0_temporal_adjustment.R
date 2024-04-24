@@ -32,15 +32,10 @@ set.seed(1)
 # FILE GENERATION & TESTING MODE
 ##################################################################################################
 # should existing files be regenerated (e.g., due to code changes) or to speed things up?
-<<<<<<< HEAD
-clean_road_files <- TRUE #TRUE when make updates to the 1sec road file
-recreate_time_series <- TRUE #TRUE when make updates to the 1sec road file
-override_existing_background_file = TRUE #TRUE when 1sec files are updated
-=======
+
 clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
 recreate_time_series <- FALSE #TRUE when make updates to the 1sec road file
 override_existing_background_file = TRUE #TRUE when 1sec file is updated
->>>>>>> d24952f1c1d85069dd707a89d2aefba18ca72007
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
