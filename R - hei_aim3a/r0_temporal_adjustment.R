@@ -38,6 +38,7 @@ use_cores <- 1#6 works
 clean_road_files <- TRUE
 recreate_time_series <- TRUE
 override_existing_background_file = TRUE
+
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
@@ -268,7 +269,8 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
       
       file_name <- file.path(dt_pt2, paste0("uw_temp_adj_1s_", file_label., ".rda"))
       
-      if(!file.exists(file_name) | override_existing_file==TRUE) {
+      if(!file.exists(file_name) | 
+         override_existing_file==TRUE) {
         message("generating new rolling quantiles")
         
         # rolling quantiles for each runname & underwrite approach
