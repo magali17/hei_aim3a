@@ -34,7 +34,7 @@ set.seed(1)
 # should existing files be regenerated (e.g., due to code changes) or to speed things up?
 
 clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
-recreate_time_series <- FALSE #TRUE when make updates to the 1sec road file
+recreate_time_series <- TRUE #TRUE when make updates to the 1sec road file
 override_existing_background_file = TRUE #TRUE when 1sec file is updated
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
@@ -167,6 +167,32 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
   saveRDS(road_dt0, file.path(dt_pt, "TEMP_road_dt0_winsorized.rda"))
   # road_dt0 <- readRDS(file.path(dt_pt, "TEMP_road_dt0_winsorized.rda"))
   
+  # one runname per day - if during the same day, give them the same "runname" - this seems to have happened on accident? there are several files with different runnames intertwined 
+  road_dt0 <- road_dt0 %>%
+    mutate(date=date(time),
+           hour = hour(time)) %>%
+    group_by(date) %>%
+    # ## e.g., 2019-06-13 has 6 runnames?!
+    # mutate(n=n()) %>% 
+    # filter(n>1) %>%
+    # group_by(runname) %>%
+    # summarize(
+    #   start = min(time),
+    #   stop = max(time)
+    # ) %>% View()
+    
+    # "route 00 are makeup routes or weird file names". drops 275 runnames to 254
+    mutate(runname = ifelse(hour>=4 & hour <=23 & length(unique(runname))>1, paste0(date, "_R00"), runname)) %>% 
+    ungroup() %>%
+    select(-c(date, hour))
+  
+  # # QC: check 4-29/30; 6-13 #looks good
+  # test %>% group_by(runname) %>%
+  #   summarise(start = min(time),
+  #             end = max(time),
+  #             duration = difftime(end, start, units="hours") 
+  #             ) %>% View()
+  
   # drop hwy for some of these
   road_dt0_no_hwy <- filter(road_dt0, road_type != "A1") %>%
     select(-road_type)
@@ -176,13 +202,6 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
   missingness_table <- count_missingness(road_dt0_no_hwy, notes="drop A1 segments")
   write.csv(missingness_table, file.path(dt_pt2, "missing_counts_second_dt_pt2.csv"), row.names = F)
   
-  # # when there are multiple "runs" in a day, give them the same name (for running averages coding below)
-  # road_dt0 <- road_dt0 %>%
-  #   mutate(date=date(time)) %>%
-  #   group_by(date) %>%
-  #   mutate(runname = first(runname)) %>%
-  #   ungroup()
-    
   ############################
   time_series <- mclapply(unique(road_dt0$runname), mc.cores=use_cores, function(x){
     a_run <- filter(road_dt0, runname==x)
@@ -315,9 +334,9 @@ get_hourly_adjustment <- function(dt) {
            date = date(time), # important!! don't use as.Date() - automatically sets date to UTC
            hour = hour(time)) %>%
     
-    # ~41 date-hours per window-quantile have multiple "runnames" (makeup routes?). Calcualte one hourly average here
-    group_by(date, hour) %>%
-    mutate(runname = first(runname)) %>% 
+    # # ~41 date-hours per window-quantile have multiple "runnames" (makeup routes?). Calcualte one hourly average here
+    # group_by(date, hour) %>%
+    # mutate(runname = first(runname)) %>% 
       
     group_by(runname, date, hour, background_adj, bg_lta) %>%
     summarize(bg_hour_avg = mean(background, na.rm = T),
