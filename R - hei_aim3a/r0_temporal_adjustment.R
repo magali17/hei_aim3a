@@ -148,7 +148,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
       filter(!(id %in% c(6796, 534, 3064, 867)))
     missingness_table <- count_missingness(road_dt0, notes="drop Roosevelt Garage")
     
-    write.csv(missingness_table, file.path(dt_pt, "missing_counts_second_dt_cleanup.csv"), row.names = F)
+    write.csv(missingness_table, file.path(dt_pt, "missing_counts_second_dt_cleanup_pt1.csv"), row.names = F)
     
     saveRDS(road_dt0, file.path(dt_pt, "TEMP_road_dt0.rda"))
     
@@ -172,16 +172,15 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
   road_dt0 <- select(road_dt0, -road_type) 
   
   missingness_table <- count_missingness(road_dt0_no_hwy, notes="drop A1 segments")
-  write.csv(missingness_table, file.path(dt_pt2, "missing_counts_second_dt.csv"), row.names = F)
+  write.csv(missingness_table, file.path(dt_pt2, "missing_counts_second_dt_pt2.csv"), row.names = F)
   
   # when there are multiple "runs" in a day, give them the same name (for running averages coding below)
   road_dt0 <- road_dt0 %>%
     mutate(date=date(time)) %>%
     group_by(date) %>%
-    mutate(runname = first(runname))  
+    mutate(runname = first(runname)) %>%
+    ungroup()
     
-  #road_dt0 %>% group_by(date) %>% summarize(n = length(unique(runname))) %>% filter(n>1)
-  
   ############################
   time_series <- mclapply(unique(road_dt0$runname), mc.cores=use_cores, function(x){
     a_run <- filter(road_dt0, runname==x)
