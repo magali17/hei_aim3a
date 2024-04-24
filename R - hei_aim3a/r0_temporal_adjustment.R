@@ -39,7 +39,7 @@ override_existing_background_file = TRUE #TRUE when 1sec file is updated
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
 # rolling quantiles function is the bottleneck here
-use_cores <- 6 #works
+use_cores <- 4 #6 works
 
 ##################################################################################################
 # FUNCTIONS
