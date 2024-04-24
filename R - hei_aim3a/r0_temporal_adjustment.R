@@ -40,7 +40,7 @@ override_existing_background_file = TRUE #TRUE when 1sec file is updated
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
 # rolling quantiles function is the bottleneck here
-use_cores <- 4 #6 works
+use_cores <- 6 #works
 
 ##################################################################################################
 # FUNCTIONS
@@ -255,6 +255,7 @@ if(testing_mode==TRUE) {
 # file_label="_no_hwy"
 # w=windows.[1]
 # p=quantiles.[1]
+# override_existing_file = override_existing_background_file
 calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles, file_label="", 
                                        override_existing_file = override_existing_background_file) {
   
@@ -279,11 +280,7 @@ calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantile
         result <- mclapply(group_split(dt, runname), mc.cores=use_cores, function(x) {
           mutate(x, background_adj = bg_label,
                    # rolling quantile, ignore NAs (i.e., periods of time w/o UFP readings) may still get background estimates
-                   background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", 
-                                          partial = TRUE, 
-                                          na.rm=T
-                                          #fill=NA
-                                          ))
+                   background = rollapply(ufp, width = w, FUN = quantile, prob = p, align = "center", partial = TRUE, na.rm=T))
           }) %>%
           bind_rows()
         # save individual window-quantile combinations
@@ -308,15 +305,20 @@ road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy, file_label="_no_
 saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda")) 
 
 ##################################################################################################
-
 # note: some hours don't have UFP but still have hourly adjustments b/c rm.na=T for rolling window calculations
+## dt=road_dt
 get_hourly_adjustment <- function(dt) {
-  dt %>%
+  temp <- dt %>%
     group_by(background_adj) %>%
     # note: this uses 'background' 1sec rolling quantiles even in places where there were no readings if there were readings some time before/after
     mutate(bg_lta = mean(background, na.rm = T),
            date = date(time), # important!! don't use as.Date() - automatically sets date to UTC
            hour = hour(time)) %>%
+    
+    # ~41 date-hours per window-quantile have multiple "runnames" (makeup routes?). Calcualte one hourly average here
+    group_by(date, hour) %>%
+    mutate(runname = first(runname)) %>% 
+      
     group_by(runname, date, hour, background_adj, bg_lta) %>%
     summarize(bg_hour_avg = mean(background, na.rm = T),
               #bg_hour_median = median(background, na.rm = T)
@@ -329,11 +331,6 @@ get_hourly_adjustment <- function(dt) {
            ) %>%
     # drop NA & NaN caused from no MM data for entire hours early on in the day (why was this start time here to begin with?)
     drop_na()
-  
-  
-  # --> TO DO: average duplicate hours here??
-  
-  
 }
 
 ##################################################################################################
