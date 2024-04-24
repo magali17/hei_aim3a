@@ -33,13 +33,16 @@ set.seed(1)
 ##################################################################################################
 # should existing files be regenerated (e.g., due to code changes) or to speed things up?
 
+# clean road files
 clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
-recreate_time_series <- TRUE #TRUE when make updates to the 1sec road file
+recreate_time_series <- FALSE #TRUE when make updates to the 1sec road file
+
+# rolling quantiles
 override_existing_background_file = TRUE #TRUE when 1sec file is updated
+
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
-# rolling quantiles function is the bottleneck here
 use_cores <- 6 #works
 
 ##################################################################################################
@@ -235,7 +238,7 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
 if(testing_mode==TRUE) {
   windows <- 60*60*1
-  quantiles <- c(0.05)
+  quantiles <- c(0.03, 0.05)
   }
 
 ##################################################################################################
