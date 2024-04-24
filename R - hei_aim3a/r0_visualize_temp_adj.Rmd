@@ -1,0 +1,495 @@
+---
+title: "Untitled"
+output: html_document
+date: "2024-04-23"
+---
+
+# --> TO DO: SEARCH FOR 'TEMP/TO DO' (E.G., remove things that helped run code faster)
+
+# Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, 
+                      cache=F, cache.comments = F, 
+                      message = F, warning = F, 
+                      tidy.opts=list(width.cutoff=60), tidy=TRUE#, fig.height = 10, fig.width = 10
+                      )  
+
+# Clear workspace of all objects and unload all extra (non-base) packages
+rm(list = ls(all = TRUE))
+if (!is.null(sessionInfo()$otherPkgs)) {
+  res <- suppressWarnings(
+    lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
+           detach, character.only=TRUE, unload=TRUE, force=TRUE))
+}
+
+pacman::p_load(tidyverse, lubridate, #zoo,
+               kableExtra, ggpubr #stat_cor()
+               )    
+
+source("functions.R")
+dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
+image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
+dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
+if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
+
+set.seed(1)
+
+# ggplot settings
+theme_set(theme_bw())
+theme_update(legend.position = "bottom")
+
+##################################################################################################
+# FUNCTIONS
+##################################################################################################
+summarize_values <- function(dt, val) {
+  temp <- dt %>%
+    rename(val=all_of(val)) %>%
+    summarize(
+      n = n(),
+      campaigns = length(unique(campaign)),
+      segments = length(unique(id)),
+      min=min(val, na.rm = T),
+      Q25=quantile(val, 0.25, na.rm = T),
+      Q50=quantile(val, 0.50, na.rm = T),
+      Q75=quantile(val, 0.75, na.rm = T),
+      max=max(val, na.rm = T),
+      less0 = sum(val<=0, na.rm = T),
+      prop_less0 = less0/n,
+      missing = sum(is.na(val)),
+      prop_missing = missing/n
+    )
+  
+  names(temp)[names(temp)=="val"] <- val
+  
+  return(temp)
+}
+##################################################################################################
+# TEMP to reduce file sizes
+make_dt_smaller <- function(dt) {
+  dt %>%
+    filter(!cluster_type %in% c("cluster2", "cluster3"),
+           !design %in% c("unbalanced", "unsensible", "road_type"),
+           background_adj == "hr1_pct5")
+  }
+
+
+##################################################################################################
+# DATA
+##################################################################################################
+# --> TO DO: COMBINE SMALLER HWY/NO HWY DATASETS?
+
+# adjusted annual averages (n=30 campaigns per design-version)
+annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% 
+  mutate(road_types = "all_road_types") %>%
+  bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no_highways")) #%>%
+  #--> TEMP
+  #make_dt_smaller()
+  
+# hourly adjustments
+underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) %>% mutate(road_types = "all_road_types"),
+                            readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda")) %>% mutate(road_types = "no_highways")) #%>%
+  # --> TEMP
+  #filter(background_adj == "hr1_pct5")
+
+
+# adjusted visits
+# visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) %>%
+#   # --> TEMP
+#   make_dt_smaller()
+
+visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) %>%
+  # --> TEMP
+  make_dt_smaller()
+
+# 1sec data with rolling quantiles
+road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
+road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
+
+# segment lat/long/road type
+segment_info <- file.path(dt_pt, "segment_lat_long.rda")
+
+##################################################################################################
+# VARIABLES
+##################################################################################################
+main_road_types <- "no_highways"
+main_bg <- "hr1_pct5"
+main_cluster <- "cluster1"
+
+ltas <- distinct(underwrite_adj, background_adj, road_types, bg_lta)
+
+```
+
+# Temporal Adjustments
+
+these are all very similar 
+## hourly adjustments 
+
+```{r}
+###################################################################################################
+# TEST
+# # check that only 1 hourly adj per approach. looks good
+# underwrite_adj %>% 
+#   filter(background_adj == main_bg,
+#          road_types == main_road_types)  %>%
+#   distinct(time, background_adj) %>% 
+#   group_by(time, background_adj) %>% 
+#   mutate(n=n()) %>% View() 
+
+# 19 dates have 2 "runnames"; does this matter w/ a 1 hr rolling window?
+# --> TO DO: if there are multiple date-hour avereages due to multiple runnames, take the avg of the two? or combine "runnames" if on the same date?
+underwrite_adj %>% 
+  filter(background_adj == main_bg,
+         road_types == main_road_types)  %>%
+  
+  group_by(date) %>%
+  mutate(n = length(unique(runname))) %>% 
+  filter(n>1) %>% 
+  
+  ggplot(aes(x=time, y=bg_hour_avg, col=runname, group=runname)) + 
+  facet_wrap(~date, scales="free_x") +
+  geom_point(show.legend = F) + 
+  geom_line(show.legend = F)
+
+underwrite_adj %>%
+  distinct(date, hour) %>%
+  #mutate(date = as.factor(date)) %>%
+  ggplot(aes(y=date, x=hour, col=date)) + 
+  geom_point(show.legend=F)
+
+
+###################################################################################################
+
+# time series: by background adj
+underwrite_adj %>%
+  #mutate(background_adj = factor(background_adj, levels=adj_lvls)) %>%
+  
+  ggplot(aes(x=time, y=avg_hourly_adj, col=background_adj, linetype=road_types)) + 
+  #facet_wrap(~background_adj) +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.5) +
+  geom_point(alpha=0.3) + 
+  geom_smooth() + 
+  labs(y = "Adjustment (pt/cm3)",
+       x = "Hour During the Study Period")
+
+print("correlation between hwy & non-hwy approach by window/percentile")
+underwrite_adj %>%
+  select(-c(bg_hour_avg, bg_lta)) %>%
+  pivot_wider(names_from = road_types, values_from = avg_hourly_adj) %>%
+  group_by(background_adj) %>%
+  summarize(r = cor(all_road_types, no_highways)) %>%
+  kable(caption = "Pearson correlation (R) for temporal adjustments using all road types vs no highways readings. adjustments are almost identical.", digits = 4) %>%
+  kable_styling()
+
+print(paste0("Comparison of hourly adjustments for the ", main_road_types, " approach"))
+underwrite_adj %>%
+  filter(road_types == main_road_types) %>% 
+  select(-c(bg_hour_avg, bg_lta)) %>%
+  pivot_wider(names_from = background_adj, values_from = avg_hourly_adj) %>% 
+  pivot_longer(cols = c(starts_with("hr"), -all_of(main_bg))) %>%
+  
+  # --> need to update 'hr1_pct5' if change this
+  ggplot(aes(x=hr1_pct5, y=value, col=name)) + 
+  geom_point(alpha=0.3) + 
+  geom_smooth() +
+  geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) +
+  stat_cor(method = "pearson", r.digits=5) + 
+  labs(y = "Alternative background Adjustment",
+       x = paste0("Main background adjustment (", main_bg, ")"))
+
+
+ 
+#############
+print("example of a few runs. results are similar")
+#sample_runs
+set.seed(1)
+sample_runs <- underwrite_adj %>%
+  group_by(runname) %>%
+  mutate(hour_duration = length(unique(hour))) %>%
+  ungroup() %>%
+  filter(hour_duration>=5) %>%
+  distinct(runname) %>% 
+  slice_sample(n=6, replace=F) %>% pull()
+
+print("estimated hourly background concentrations for various approaches. dashed lines are the LTAs from each approach")
+underwrite_adj %>%
+  filter(runname %in% sample_runs) %>%
+  
+  ggplot(aes(x=time, y=bg_hour_avg, col=background_adj, shape=road_types, linetype=road_types)) + 
+  facet_wrap(~runname, scales="free_x") +
+  geom_hline(data=ltas, aes(yintercept=bg_lta, col=background_adj, linetype=road_types), alpha=0.5) +
+  geom_point() + 
+  geom_line() +
+  labs(x = "Time",
+       y = "Hourly Background Conc (pt/cm3)",
+       col = "Background Adjustment",
+       linetype = "Roads Used", shape = "Roads Used")
+
+#ggsave(file.path(dt_out, "example_bg_conc.png"), width = 14, height = 8)
+
+print("same as above but hourly adjustments vs estimated background concentrations")
+underwrite_adj %>%
+  filter(runname %in% sample_runs) %>%
+  
+  ggplot(aes(x=time, y=avg_hourly_adj, col=background_adj, shape=road_types, linetype=road_types)) + 
+  facet_wrap(~runname, scales="free_x") +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.5) +
+  geom_point() + 
+  geom_line() + 
+  labs(x = "Time",
+       y = "Hourly Adjustment (pt/cm3)",
+       col = "Background Adjustment",
+       linetype = "Roads Used", shape = "Roads Used")
+
+#ggsave(file.path(dt_out, "example_hourly_adjustments.png"), width = 14, height = 8)
+
+##################################################################################################
+# by DOW
+print(paste0("Distribution of hourly adjustments for ", main_road_types, " approach by DOW"))
+underwrite_adj %>%
+  # filter(#background_adj == main_bg,
+  #        road_types == main_road_types
+  #        ) %>%
+  mutate(dow = wday(date, label=T, week_start = "Monday")) %>%
+  ggplot(aes(x=dow, y=avg_hourly_adj, fill= interaction(background_adj, road_types), #fill=road_types
+             )) +
+  #facet_wrap(~road_types) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.5) +
+  labs(y = "Hourly Adjustment",
+       x = "Day",
+       fill = "Adjustment Approach")
+
+#ggsave(file.path(dt_out, "temp_adj2_dow.png"), width = 14, height = 8)
+
+##################################################################################################
+# by hour
+print(paste0("Distribution of hourly adjustments for ", main_road_types, " approach by hour"))
+underwrite_adj %>%
+  #filter(road_types == main_road_types) %>%
+  mutate(hour = factor(hour, levels=c(1:23, 0))) %>%
+  ggplot(aes(x=hour, y=avg_hourly_adj, fill=interaction(road_types, background_adj))) +
+  #facet_wrap(~road_types) +
+  geom_boxplot() +
+  geom_hline(yintercept = 0, linetype=2, alpha=0.5) +
+  labs(title = paste0("Distribution of hourly adjustments for ", main_road_types, " approach"),
+       y = "Hourly Adjustment",
+       x = "Hour",
+       fill = "Adjustment Approach")
+
+```
+
+## 1-second time series of adjustments
+
+# --> TO DO 
+
+```{r}
+
+# --> color by road vs hwy?
+
+road_dt %>%
+  drop_na(ufp) %>%
+  ggplot(aes(y=ufp)) +
+  geom_boxplot() + 
+  geom_hline(yintercept = c(0, 100, 100e3), linetype=2, col="red") + 
+  scale_y_log10() + 
+  labs(y="1-sec PNC (pt/cm3) measurement on-road")
+
+ggsave(file.path(dt_out, "1sec_data.png"), width = 8, height = 8)
+
+summary(road_dt$ufp)
+
+
+# --> segment-level boxplots (winsorize?)
+
+
+
+
+
+##################################################################################################
+# time series fn
+
+# --> update 'UFP' col labels
+# --> linetype hwy vs non-hwy?
+
+time_series_plot <- function(runs) {
+  road_dt %>%
+    filter(runname %in% runs) %>%
+    drop_na() %>%
+    left_join(select(underwrite_adj, runname, hour, hr_avg =bg_hour_avg)) %>%
+    pivot_wider(names_from = background_adj, values_from = background) %>%
+    pivot_longer(cols = c(ufp, contains("pct"), hr_avg), names_to = "UFP") %>%
+    mutate(UFP = ifelse(UFP == "ufp", "measurement", paste("background", UFP))) %>%
+
+    ggplot(aes(x=time)) +
+    facet_wrap(~runname, scales="free_x") +
+    geom_line(aes(y=value, col=UFP))
+  }
+
+##################################################################################################
+
+# TIME SERIES: ONROAD MEASURES VS 'BACKGROUND' (E.G., Brantley Fig 5)
+# --> some EXTREME HOUR-LONG PERIODS? is this fixed w/ a wider ~3hr window?
+
+set.seed(1)
+time_series_plot(runs = sample(unique(underwrite_adj$runname), 4))
+ggsave(file.path(dt_out, "time_series_sample.png"), width = 12, height = 8)
+
+
+# --> TEMP. day w/ super high readings 500e3
+high_runs <- road_dt %>% filter(ufp >450e3) %>% distinct(runname) %>% pull()
+time_series_plot(high_runs)
+ggsave(file.path(dt_out, "time_series_high_runs.png"), width = 12, height = 8)
+
+
+
+
+
+
+
+# --> add time series plot of visits vs hourly adjustments (like above) 
+
+
+
+
+##################################################################################################
+# --> ?add example of ~1 wk period
+# --> LS: consider overlaying same route driven on same time…driving same structure
+
+
+
+
+
+
+```
+
+## Maps to visualize spatial adjustment patterns ? 
+
+```{r}
+# --> maps to make sure background doesn't vary by space (e.g., near vs away from hwys). use 1sec rolling quantiles?
+
+
+```
+
+
+
+
+# Annual averages
+
+annual averages are almost identical when temporal adjustments w/ and w/o measurements from highways are used to develop temporal adjsutment factors 
+
+```{r}
+print("Annual averages by adjustment approach for each location-design-campaign for. annual averages are not plume adjusted & the main cluster approach")
+
+# correlation table
+print("temporally-adjsuted annual averages are almost identical")
+annual_adj2 %>%
+  filter(#background_adj == main_bg,
+         (is.na(cluster_type) | cluster_type == main_cluster),
+         #road_types == main_road_types
+         adjusted == "unadjusted"
+         ) %>%
+  pivot_wider(names_from = background_adj, values_from = annual_mean) %>% 
+  #pivot_longer(cols = c(starts_with("hr"), -all_of(main_bg))) %>%
+  group_by(road_types) %>%  
+  summarize(n=n(),
+            hr1_pct1 = cor(get(main_bg), hr1_pct1),
+            hr1_pct5 = cor(get(main_bg), get(main_bg)) #QC - this should be 1
+            
+            ) %>%
+  kable(caption = paste0("annual average segment correlations between the main bg approach (", main_bg, ") and other approaches (n is for each segment-campaign-design-adjustment-cluster combination). the correlation for ", main_road_types, " is what's used in the main approach"), 
+        digits = 4) %>%
+  kable_styling()
+
+```
+
+## Negative Annual averages
+
+
+```{r}
+ 
+# since annual averages are very similar, we'll look at main analyses here 
+annual_adj2_main <- annual_adj2 %>%
+  # since all are similar, focus onthe main analysis
+  filter(background_adj == main_bg,
+         (is.na(cluster_type) | cluster_type == main_cluster),
+         road_types == main_road_types) 
+
+##################################################################################################
+annual_avg_by_visits_plot <- function(dt) {
+  #set.seed(1)
+  dt %>%
+    #slice_sample(n=.1*nrow(.), ) %>%
+    mutate(actual_visits = factor(actual_visits),
+           visits = paste0("median ", visits, " per location")) %>%
+    group_by(visits, actual_visits) %>%
+    mutate(no_annual_avgs=n()) %>%
+    
+    ggplot(aes(x=actual_visits, y=annual_mean,col=adjusted #col=  #design  #cluster_type #background_adj
+    )) + 
+    facet_wrap(~background_adj+road_types #~design+background_adj
+               ) +
+    geom_hline(yintercept = 0, linetype=2, col="red") +
+    #geom_hline(yintercept = 1e3, linetype=2) +
+    geom_boxplot() +
+    labs(x = "Actual Visits per Location",
+         y = "Estimated Site Annual Average",
+         col = "Plume", fill = "Plume")
+   }
+##################################################################################################
+# more liely to have negative, more variable site averages results when collect few visits
+# and for plume adjusted approaches that slightly reduce concentrations
+# more common w/ 4 visit designs b/c there are more total annual averages on the low end (more common to only have 1 visit)
+
+print("distribution of estimated annual averages after background adjustments during BH following various clustering & non-clustered sampling approahces (collapses plume adjusted & unadjusted)")
+print("dashed black line is at 1e3")
+
+annual_adj2_main %>%
+  annual_avg_by_visits_plot()
+
+#ggsave(file.path(dt_out, "annual_conc_vs_visit_num.png"), width = 14, height = 8)
+
+```
+
+```{r}
+annual_adj2_main %>%
+  mutate(negative_conc = ifelse(annual_mean<=0, "negative annual avg", "positive annual avg")) %>% 
+  group_by(negative_conc) %>%  
+  summarize(n =n(),
+            precent = n/nrow(annual_adj2_main)*100
+            ) %>%
+  kable(caption = "a tiny proportion of segments end up with negative annual averages (across campaigns-design, adjusted...)") %>%
+  kable_styling()
+
+
+# --> START HERE
+
+# --> what are the sites with negative annual averages? sites with large negative hourly adjustments & low visit concentrations?
+print("negative annual averages happen when the hourly adjustment is very negative (observed values were higher than the LTA during that hour) & a specific segment concentration (e.g., the median from few seconds of measurements) is lower. sampling with replacement may additionally resample the same site")
+negative_sites <- annual_adj2_main %>%
+  filter(annual_mean<=0) %>% 
+  left_join(visits_adj2_no_hwy, relationship = "one-to-many")
+
+negative_sites %>%
+  ggplot(aes(x=median_value, 
+             y=median_value_adjusted,
+             #y=avg_hourly_adj, 
+             col=time)) + 
+  geom_hline(yintercept = 0, linetype=3, alpha=0.5, col="red") +
+  #geom_vline(xintercept = 0, linetype=3, alpha=0.5, col="red") +
+  geom_point() + 
+  geom_smooth() +
+  geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5)
+  
+
+# --> TO DO: why two values for 2020-01-16 at 10 am? happens during the merge# B/c has 2 routes!!??
+negative_sites %>%
+  mutate(avg_hourly_adj = round(avg_hourly_adj)) %>%
+  ggplot(aes(y=date, x=hour, #fill=avg_hourly_adj, group=avg_hourly_adj
+             )) + 
+  geom_bin_2d(#stat="identity"
+              ) + 
+  geom_text(aes(label=avg_hourly_adj), col="green")
+  
+```
+
+ 
