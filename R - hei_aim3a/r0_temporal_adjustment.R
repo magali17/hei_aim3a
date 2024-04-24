@@ -79,7 +79,6 @@ if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
   rm(list=c("v1", "v2"))
 } else {
     visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda")) %>%
-      #visits %>%
 
       # --> TEMP TO MAKE THINGS GO FASTER 
       
@@ -128,16 +127,17 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | !file.exists(file.path(
       slice(1) %>%
       ungroup()  
     missingness_table <- count_missingness(road_dt0, notes="only keep 1st location when same sec reading is assigned to 2")
+    
+    # drop roosevelt garage
+    road_dt0 <- road_dt0 %>%
+      filter(!(id %in% c(6796, 534, 3064, 867)))
+    missingness_table <- count_missingness(road_dt0, notes="drop Roosevelt Garage")
+    
     write.csv(missingness_table, file.path(dt_pt2, "missing_counts_second_dt_cleanup.csv"), row.names = F)
     
     saveRDS(road_dt0, file.path(dt_pt2, "TEMP_road_dt0.rda"))
     
     } else {road_dt0 <- readRDS(file.path(dt_pt2, "TEMP_road_dt0.rda"))}
-  
-  # drop roosevelt garage
-  road_dt0 <- road_dt0 %>%
-    filter(!(id %in% c(6796, 534, 3064, 867)))
-  missingness_table <- count_missingness(road_dt0, notes="drop Roosevelt Garage")
   
   # winsorize at the segment level (drop extremes)
   road_dt0 <- road_dt0 %>%
