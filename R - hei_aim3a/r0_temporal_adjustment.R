@@ -43,7 +43,7 @@ override_existing_background_file = FALSE #TRUE when 1sec file is updated
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
-use_cores <- 8 #works
+use_cores <- 8 
 
 ##################################################################################################
 # FUNCTIONS
