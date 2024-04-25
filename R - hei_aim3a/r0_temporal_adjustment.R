@@ -35,10 +35,10 @@ set.seed(1)
 
 # clean road files
 clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
-recreate_time_series <- FALSE #TRUE when make updates to the 1sec road file
+overwrite_time_series <- FALSE #TRUE when make updates to the 1sec road file
 
 # rolling quantiles
-override_existing_background_file = TRUE #TRUE when e.g., 1sec file is updated
+overwrite_existing_background_file = TRUE #TRUE when e.g., 1sec file is updated
 
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
@@ -114,7 +114,7 @@ add_progress_notes("loading 1s onroad data")
 
 if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) | 
    !file.exists(file.path(dt_pt2, "TEMP_road_dt_no_hwy.rda")) | 
-   recreate_time_series==TRUE) {
+   overwrite_time_series==TRUE) {
   
   if(!file.exists(file.path(dt_pt, "TEMP_road_dt0.rda")) |
      clean_road_files==TRUE) {
@@ -277,9 +277,9 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 # file_label="_no_hwy"
 # w=windows.[1]
 # p=quantiles.[1]
-# override_existing_file = override_existing_background_file
+# override_existing_file = overwrite_existing_background_file
 calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles, file_label="", 
-                                       override_existing_file = override_existing_background_file) {
+                                       override_existing_file = overwrite_existing_background_file) {
   
   adj_lvls <- apply(expand.grid(paste0("hr", sort(windows)/3600), 
                                 paste0("_pct", sort(quantiles)*100)), 
