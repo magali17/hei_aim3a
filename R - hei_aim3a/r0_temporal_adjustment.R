@@ -38,7 +38,7 @@ clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
 recreate_time_series <- FALSE #TRUE when make updates to the 1sec road file
 
 # rolling quantiles
-override_existing_background_file = FALSE #TRUE when 1sec file is updated
+override_existing_background_file = TRUE #TRUE when e.g., 1sec file is updated
 
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
