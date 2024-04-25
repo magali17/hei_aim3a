@@ -38,12 +38,12 @@ clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
 recreate_time_series <- FALSE #TRUE when make updates to the 1sec road file
 
 # rolling quantiles
-override_existing_background_file = TRUE #TRUE when 1sec file is updated
+override_existing_background_file = FALSE #TRUE when 1sec file is updated
 
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
-use_cores <- 6 #works
+use_cores <- 8 #works
 
 ##################################################################################################
 # FUNCTIONS
@@ -236,10 +236,10 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
 windows <- c(1,3)*60*60
 quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
-if(testing_mode==TRUE) {
-  windows <- 60*60*1
-  quantiles <- c(0.03, 0.05)
-  }
+# if(testing_mode==TRUE) {
+#   windows <- 60*60*1
+#   quantiles <- c(0.03, 0.05)
+#   }
 
 ##################################################################################################
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)

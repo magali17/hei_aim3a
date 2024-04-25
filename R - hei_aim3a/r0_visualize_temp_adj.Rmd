@@ -88,6 +88,7 @@ annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>%
   #make_dt_smaller()
   
 # hourly adjustments
+# #note that 'R00' routes have been combined b/c there were multiple 'routes' per day
 underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) %>% mutate(road_types = "all_road_types"),
                             readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda")) %>% mutate(road_types = "no_highways")) #%>%
   # --> TEMP
@@ -104,8 +105,10 @@ visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_a
   make_dt_smaller()
 
 # 1sec data with rolling quantiles
-road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda"))
-road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda"))
+road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda")) %>% 
+  mutate(road_types = "all_road_types")
+road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda")) %>% 
+  mutate(road_types = "no_highways")
 
 # segment lat/long/road type
 segment_info <- file.path(dt_pt, "segment_lat_long.rda")
@@ -130,34 +133,13 @@ these are all very similar
 ###################################################################################################
 # TEST
 # # check that only 1 hourly adj per approach. looks good
-# underwrite_adj %>% 
+# underwrite_adj %>%
 #   filter(background_adj == main_bg,
 #          road_types == main_road_types)  %>%
-#   distinct(time, background_adj) %>% 
-#   group_by(time, background_adj) %>% 
-#   mutate(n=n()) %>% View() 
-
-# 19 dates have 2 "runnames"; does this matter w/ a 1 hr rolling window?
-# --> TO DO: if there are multiple date-hour avereages due to multiple runnames, take the avg of the two? or combine "runnames" if on the same date?
-underwrite_adj %>% 
-  filter(background_adj == main_bg,
-         road_types == main_road_types)  %>%
-  
-  group_by(date) %>%
-  mutate(n = length(unique(runname))) %>% 
-  filter(n>1) %>% 
-  
-  ggplot(aes(x=time, y=bg_hour_avg, col=runname, group=runname)) + 
-  facet_wrap(~date, scales="free_x") +
-  geom_point(show.legend = F) + 
-  geom_line(show.legend = F)
-
-underwrite_adj %>%
-  distinct(date, hour) %>%
-  #mutate(date = as.factor(date)) %>%
-  ggplot(aes(y=date, x=hour, col=date)) + 
-  geom_point(show.legend=F)
-
+#   distinct(time, background_adj) %>%
+#   group_by(time, background_adj) %>%
+#   mutate(n=n()) %>% 
+#   filter(n>1)
 
 ###################################################################################################
 
@@ -184,13 +166,14 @@ underwrite_adj %>%
 
 print(paste0("Comparison of hourly adjustments for the ", main_road_types, " approach"))
 underwrite_adj %>%
-  filter(road_types == main_road_types) %>% 
+  #filter(road_types == main_road_types) %>% 
   select(-c(bg_hour_avg, bg_lta)) %>%
   pivot_wider(names_from = background_adj, values_from = avg_hourly_adj) %>% 
   pivot_longer(cols = c(starts_with("hr"), -all_of(main_bg))) %>%
   
   # --> need to update 'hr1_pct5' if change this
   ggplot(aes(x=hr1_pct5, y=value, col=name)) + 
+  facet_wrap(~road_types) +
   geom_point(alpha=0.3) + 
   geom_smooth() +
   geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) +
@@ -282,72 +265,59 @@ underwrite_adj %>%
 
 ## 1-second time series of adjustments
 
-# --> TO DO 
-
 ```{r}
-
-# --> color by road vs hwy?
-
-road_dt %>%
-  drop_na(ufp) %>%
-  ggplot(aes(y=ufp)) +
-  geom_boxplot() + 
-  geom_hline(yintercept = c(0, 100, 100e3), linetype=2, col="red") + 
-  scale_y_log10() + 
-  labs(y="1-sec PNC (pt/cm3) measurement on-road")
-
-ggsave(file.path(dt_out, "1sec_data.png"), width = 8, height = 8)
-
-summary(road_dt$ufp)
-
-
-# --> segment-level boxplots (winsorize?)
-
-
-
-
-
 ##################################################################################################
 # time series fn
-
-# --> update 'UFP' col labels
-# --> linetype hwy vs non-hwy?
-
 time_series_plot <- function(runs) {
-  road_dt %>%
-    filter(runname %in% runs) %>%
-    drop_na() %>%
-    left_join(select(underwrite_adj, runname, hour, hr_avg =bg_hour_avg)) %>%
-    pivot_wider(names_from = background_adj, values_from = background) %>%
-    pivot_longer(cols = c(ufp, contains("pct"), hr_avg), names_to = "UFP") %>%
-    mutate(UFP = ifelse(UFP == "ufp", "measurement", paste("background", UFP))) %>%
-
-    ggplot(aes(x=time)) +
-    facet_wrap(~runname, scales="free_x") +
-    geom_line(aes(y=value, col=UFP))
+  all <- filter(road_dt, runname %in% runs)
+  no_highways <- filter(road_dt_no_hwy, runname %in% runs)
+  
+  bg_data <- ltas %>% 
+    filter(background_adj %in% main_bg) %>%
+    mutate(ufp = "background_lta")
+  
+  bind_rows(all, no_highways) %>% 
+    # only show main approach
+    filter(background_adj %in% main_bg) %>%
+    
+    rename(measured_ufp=ufp, background_ufp_1s = background) %>%
+    mutate(hour = hour(time)) %>%
+    left_join(select(underwrite_adj, runname, hour, background_adj, road_types, background_ufp_1hr = bg_hour_avg), relationship="many-to-many") %>%
+    pivot_longer(cols = c(measured_ufp, background_ufp_1s, background_ufp_1hr), names_to = "ufp") %>% 
+    
+    ggplot(aes(x=time, col=ufp, linetype=road_types)) +
+    facet_grid(background_adj~runname, scales="free_x", switch = "both") +
+    geom_line(aes(y=value)) +
+    geom_hline(data=bg_data, aes(yintercept=bg_lta,  col=ufp, linetype=road_types)) + 
+    labs(y="UFP (pt/cm3)",
+         x="Time"
+    )
   }
+
+# time_series_plot(sample_ts_runs) + scale_y_log10()
 
 ##################################################################################################
 
 # TIME SERIES: ONROAD MEASURES VS 'BACKGROUND' (E.G., Brantley Fig 5)
-# --> some EXTREME HOUR-LONG PERIODS? is this fixed w/ a wider ~3hr window?
+ 
+print("you see: some segments/time periods are lower than the estimated background; background estimates are available even when no UFP measures are available so long as some measures are available for a given window (e.g., 1+ measurement in 1 hr)")
 
-set.seed(1)
-time_series_plot(runs = sample(unique(underwrite_adj$runname), 4))
-ggsave(file.path(dt_out, "time_series_sample.png"), width = 12, height = 8)
+print("2020-02-26_R01 is an example of how negative annual averages might arise? all readings were above normal, so 'background' ufp is higher & also get some very low readings...when u adjust UFP readings, this could result in very low/negative readings. if no other readings are collected, you end up with a negative annual average.")
 
+set.seed(1) #seed 1 has good example of a day when most readings are below & above the LTA
+sample_ts_runs <- sample(unique(underwrite_adj$runname), 2)
+time_series_plot(sample_ts_runs) 
 
-# --> TEMP. day w/ super high readings 500e3
-high_runs <- road_dt %>% filter(ufp >450e3) %>% distinct(runname) %>% pull()
-time_series_plot(high_runs)
-ggsave(file.path(dt_out, "time_series_high_runs.png"), width = 12, height = 8)
+print("on log y scale")
+time_series_plot(sample_ts_runs) + scale_y_log10()
 
-
-
-
-
+#ggsave(file.path(dt_out, "time_series_sample.png"), width = 12, height = 8)
+```
 
 
+# --> START HERE
+
+```{r}
 # --> add time series plot of visits vs hourly adjustments (like above) 
 
 
@@ -394,7 +364,7 @@ annual_adj2 %>%
   #pivot_longer(cols = c(starts_with("hr"), -all_of(main_bg))) %>%
   group_by(road_types) %>%  
   summarize(n=n(),
-            hr1_pct1 = cor(get(main_bg), hr1_pct1),
+            hr1_pct3 = cor(get(main_bg), hr1_pct3),
             hr1_pct5 = cor(get(main_bg), get(main_bg)) #QC - this should be 1
             
             ) %>%
@@ -483,7 +453,7 @@ negative_sites %>%
   geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5)
   
 
-# --> TO DO: why two values for 2020-01-16 at 10 am? happens during the merge# B/c has 2 routes!!??
+# date-hour combinations that lead to negative annual averages later on. are these extreme? 
 negative_sites %>%
   mutate(avg_hourly_adj = round(avg_hourly_adj)) %>%
   ggplot(aes(y=date, x=hour, #fill=avg_hourly_adj, group=avg_hourly_adj
@@ -494,4 +464,11 @@ negative_sites %>%
   
 ```
 
- 
+# Visits
+
+# --> anything to do here??
+
+```{r}
+
+```
+
