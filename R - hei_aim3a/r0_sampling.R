@@ -34,7 +34,7 @@ image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road
 if(!dir.exists(file.path(image_path, "SI"))){dir.create(file.path(image_path, "SI"), recursive = T)}
 
 # --> UPDATE
-core_count <- 1 #4
+core_count <- 6 #4
 set.seed(21)
 
 # # should QAQC stuff be run/saved (takes longer)?
@@ -481,9 +481,7 @@ message("running spatially clustered analyses")
 
 set.seed(21)
 #cluster_visit_samples <- 
-lapply(1:nrow(sampling_combos_random_clusters), 
-                                  #c(4:5,12:13),
-                                        function(x) {
+lapply(1:nrow(sampling_combos_random_clusters), function(x) {
                                      temp <- sampling_combos_random_clusters[x,]
                                      
                                      design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), first(temp$cluster_approach), first(temp$cluster_type), sep = "_") %>%
