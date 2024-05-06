@@ -88,7 +88,9 @@ log_normal_sample <- function(med, sd = visit_sd, max_value=28, n=1) {
 ########################################################################################################
 # LOAD DATA
 ########################################################################################################\
-cov_mm <- readRDS(file=file.path("/projects/rad/Transfer/Magali/hei_aim3a/R - hei_aim3a/data/onroad/annie/OnRoad Paper Code Data/data/", "cov_onroad_preprocessed.rds")) %>% 
+# cov_mm <- readRDS(file=file.path("/projects/rad/Transfer/Magali/hei_aim3a/R - hei_aim3a/data/onroad/annie/OnRoad Paper Code Data/data/", "cov_onroad_preprocessed.rds")) %>% 
+#   select(id, latitude, longitude)
+cov_mm <- readRDS(file=file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "cov_onroad_preprocessed.rds")) %>% 
   select(id, latitude, longitude)
 
 #Adjusted PNC Medians 
@@ -126,7 +128,7 @@ road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Dat
   distinct(id, road_type) 
 
 segment_clusters_l <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
-  select(id=location, contains("cluster")) 
+  select(id, contains("cluster")) 
 
 segment_clusters <- segment_clusters_l %>%
   pivot_wider(names_from = "cluster_type", values_from = "cluster_value") #%>%
@@ -336,27 +338,30 @@ lapply(1:nrow(sampling_combos),
   temp <- sampling_combos[x,]
   design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>%
     gsub(" ", "", .)
+  visit_file <- file.path(new_dt_pt, "visits", paste0("visits_nonspatial_", design_label, ".rds"))
+  annual_file <- file.path(new_dt_pt, paste0("nonspatial_site_avgs_", design_label, ".rds"))
   
   message(paste0(capture.output(temp), collapse = "\n"))
   
-  # all vs business hours/days
-  if(temp$hours == "all hours"){
-     sampling_hours <- all_hours
-     sampling_days <- all_days} 
-  if(temp$hours == "business hours"){
-     sampling_hours <- business_hours
-     sampling_days <- business_days} 
-  
-  my_samples <- pnc_med %>%
-    filter(adjusted == temp$adjusted,
-           hour %in% sampling_hours,
-           dow2 %in% sampling_days) %>%
-    many_campaigns(df = ., visit_count = temp$visit_count, balanced = temp$balanced) %>%
-    mutate(
-      adjusted = temp$adjusted,
-      design = temp$balanced,
-      visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
-      version = temp$hours)
+  if(!file.exists(visit_file) | !file.exists(annual_file)) {
+    # all vs business hours/days
+    if(temp$hours == "all hours"){
+      sampling_hours <- all_hours
+      sampling_days <- all_days} 
+    if(temp$hours == "business hours"){
+      sampling_hours <- business_hours
+      sampling_days <- business_days} 
+    
+    my_samples <- pnc_med %>%
+      filter(adjusted == temp$adjusted,
+             hour %in% sampling_hours,
+             dow2 %in% sampling_days) %>%
+      many_campaigns(df = ., visit_count = temp$visit_count, balanced = temp$balanced) %>%
+      mutate(
+        adjusted = temp$adjusted,
+        design = temp$balanced,
+        visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
+        version = temp$hours)
     
     annual_averages <- my_samples %>%
       group_by(id, adjusted, actual_visits, campaign, design, visits, version) %>%
@@ -365,10 +370,10 @@ lapply(1:nrow(sampling_combos),
     
     message("saving samples")
     # save separate files since this is large
-    saveRDS(my_samples, file.path(new_dt_pt, "visits", paste0("visits_nonspatial_", design_label, ".rds")))
-    saveRDS(annual_averages, file.path(new_dt_pt, paste0("nonspatial_site_avgs_", design_label, ".rds")))
+    saveRDS(my_samples, file.path(visit_file))
+    saveRDS(annual_averages, annual_file)
     
-  
+    }
   }) #%>%
   # bind_rows() %>%
   # ungroup()
@@ -481,42 +486,47 @@ lapply(1:nrow(sampling_combos_random_clusters),
                                         function(x) {
                                      temp <- sampling_combos_random_clusters[x,]
                                      
+                                     visit_file <- file.path(new_dt_pt, "visits", paste0("visits_clustered_", design_label, ".rds")) 
+                                     annual_file <- file.path(new_dt_pt, paste0("site_avgs_clustered_", design_label,".rds"))
                                      message(paste0(capture.output(temp), collapse = "\n"))
                                      
-                                     # all vs business hours/days
-                                     if(temp$hours == "all hours"){
-                                       sampling_hours <- all_hours
-                                       sampling_days <- all_days} 
-                                     if(temp$hours == "business hours"){
-                                       sampling_hours <- business_hours
-                                       sampling_days <- business_days} 
-                                     
-                                     my_samples <- pnc_med_clusters %>%
-                                       filter(adjusted == temp$adjusted,
-                                              hour %in% sampling_hours,
-                                              dow2 %in% sampling_days,
-                                              cluster_type == temp$cluster_type 
-                                              ) %>% 
-                                       many_campaigns_clustered(df = ., visit_count = temp$visit_count,cluster_approach.=temp$cluster_approach) %>%
-                                       mutate(
-                                         adjusted = temp$adjusted,
-                                         design = temp$cluster_approach,
-                                         visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
-                                         version = temp$hours,
-                                         cluster_type = temp$cluster_type
-                                         )
-                                     
-                                     annual_averages <- my_samples %>%
-                                       group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-                                       summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-                                       ungroup()
-                                     
-                                      
-                                     message("saving samples")
-                                     # save separate files since this is large
-                                     saveRDS(my_samples, file.path(new_dt_pt, "visits", paste0("visits_clustered_", design_label, ".rds")))
-                                     saveRDS(annual_averages, file.path(new_dt_pt, paste0("site_avgs_clustered_", design_label,".rds")))
-                                     
+                                     if(!file.exists(visit_file) | 
+                                        !file.exists(annual_file)) {
+                                       
+                                       # all vs business hours/days
+                                       if(temp$hours == "all hours"){
+                                         sampling_hours <- all_hours
+                                         sampling_days <- all_days} 
+                                       if(temp$hours == "business hours"){
+                                         sampling_hours <- business_hours
+                                         sampling_days <- business_days} 
+                                       
+                                       my_samples <- pnc_med_clusters %>%
+                                         filter(adjusted == temp$adjusted,
+                                                hour %in% sampling_hours,
+                                                dow2 %in% sampling_days,
+                                                cluster_type == temp$cluster_type 
+                                                ) %>% 
+                                         many_campaigns_clustered(df = ., visit_count = temp$visit_count,cluster_approach.=temp$cluster_approach) %>%
+                                         mutate(
+                                           adjusted = temp$adjusted,
+                                           design = temp$cluster_approach,
+                                           visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
+                                           version = temp$hours,
+                                           cluster_type = temp$cluster_type
+                                           )
+                                       
+                                       annual_averages <- my_samples %>%
+                                         group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+                                         summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+                                         ungroup()
+                                       
+                                        
+                                       message("saving samples")
+                                       # save separate files since this is large
+                                       saveRDS(my_samples, visit_file)
+                                       saveRDS(annual_averages, annual_file)
+                                     }
                                      
                                    })# %>%
 # #   bind_rows() %>%
