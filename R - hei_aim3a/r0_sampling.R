@@ -253,24 +253,24 @@ cluster_rank2 <- cluster_rank %>%
             ) %>% 
   left_join(cov_mm) 
 
-lapply(unique(cluster_rank2$name), function(x) {
-  cluster_rank2 %>%
-    filter(#cluster_type==x
-      name==x
-           ) %>%
-    st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
-    ggplot(aes(col=value)) + 
-    geom_sf() + 
-    facet_wrap(~name+cluster_type) +
-    theme_bw() + 
-    theme(panel.grid.major = element_blank()
-          ) + 
-    labs(#col="Rank"
-         )
-  }) %>%
-  ggarrange(plotlist = .)
-
-ggsave(file.path(image_path, "SI", "cluster_road_type_map.png"), width = 8, height = 12)
+# lapply(unique(cluster_rank2$name), function(x) {
+#   cluster_rank2 %>%
+#     filter(#cluster_type==x
+#       name==x
+#            ) %>%
+#     st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
+#     ggplot(aes(col=value)) + 
+#     geom_sf() + 
+#     facet_wrap(~name+cluster_type) +
+#     theme_bw() + 
+#     theme(panel.grid.major = element_blank()
+#           ) + 
+#     labs(#col="Rank"
+#          )
+#   }) %>%
+#   ggarrange(plotlist = .)
+# 
+# ggsave(file.path(image_path, "SI", "cluster_road_type_map.png"), width = 8, height = 12)
 
 ########################################################################################################
 # DESIGNS WITHOUT SPATIAL STRUCTURE
