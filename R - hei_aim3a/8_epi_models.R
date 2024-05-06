@@ -17,7 +17,7 @@ set.seed(1)
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 output_data_path <- file.path(dt_path, "epi")
 
-use_cores <- 4
+use_cores <- 1#4
 ######################################################################
 # LOAD DATA
 ######################################################################

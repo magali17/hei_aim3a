@@ -28,6 +28,7 @@ dt_path <- file.path("data", "onroad", "annie", "Additional Sampling")
 #save updated estimates
 new_dt_pt <- file.path("data", "onroad", "annie", "v2")
 if(!dir.exists(file.path(new_dt_pt))){dir.create(file.path(new_dt_pt), recursive = T)}
+if(!dir.exists(file.path(new_dt_pt, "visits"))){dir.create(file.path(new_dt_pt, "visits"), recursive = T)}
 
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 if(!dir.exists(file.path(image_path, "SI"))){dir.create(file.path(image_path, "SI"), recursive = T)}
@@ -125,7 +126,7 @@ road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Dat
   distinct(id, road_type) 
 
 segment_clusters_l <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
-  select(id, contains("cluster")) 
+  select(id=location, contains("cluster")) 
 
 segment_clusters <- segment_clusters_l %>%
   pivot_wider(names_from = "cluster_type", values_from = "cluster_value") #%>%
@@ -194,7 +195,6 @@ cluster_road_type_rank <- segment_clusters_l %>%
 #   #group_by(cluster_type) %>%
 #   mutate(rank = row_number())  
  
-# --> UPDATE CLUSTER TO CLUSTER1
 cluster1_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster1") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
 cluster2_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster2") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
 cluster3_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster3") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
@@ -282,6 +282,8 @@ sampling_combos <- expand.grid(
   hours = c("all hours", "business hours")
   ) # %>% slice_sample(n = 10)
 
+saveRDS(sampling_combos, file.path(new_dt_pt, "nonspatial_sampling_combo_list.rda"))
+
 ################################################################################################
 # function samples a dataset and returns random samples (rows) following various designs
 
@@ -327,10 +329,13 @@ many_campaigns <- function(sims=sim_n, df, ...) {
 message("running non-spatially clustered analyses")
 
 set.seed(1)
-nonspatial_visit_samples <- lapply(1:nrow(sampling_combos), 
+#nonspatial_visit_samples <- 
+lapply(1:nrow(sampling_combos), 
                                   #8:9,
                                    function(x) {
   temp <- sampling_combos[x,]
+  design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>%
+    gsub(" ", "", .)
   
   message(paste0(capture.output(temp), collapse = "\n"))
   
@@ -352,20 +357,32 @@ nonspatial_visit_samples <- lapply(1:nrow(sampling_combos),
       design = temp$balanced,
       visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
       version = temp$hours)
-  }) %>%
-  bind_rows() %>%
-  ungroup()
+    
+    annual_averages <- my_samples %>%
+      group_by(id, adjusted, actual_visits, campaign, design, visits, version) %>%
+      summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+      ungroup()
+    
+    message("saving samples")
+    # save separate files since this is large
+    saveRDS(my_samples, file.path(new_dt_pt, "visits", paste0("visits_nonspatial_", design_label, ".rds")))
+    saveRDS(annual_averages, file.path(new_dt_pt, paste0("nonspatial_site_avgs_", design_label, ".rds")))
+    
+  
+  }) #%>%
+  # bind_rows() %>%
+  # ungroup()
 
-message("saving samples")
-saveRDS(nonspatial_visit_samples, file.path(new_dt_pt, "nonspatial_visit_samples.rds"))
+# message("saving samples")
+# saveRDS(nonspatial_visit_samples, file.path(new_dt_pt, "nonspatial_visit_samples.rds"))
 
 # calculate annual averages
-nonspatial_site_avgs <- nonspatial_visit_samples %>%
-  group_by(id, adjusted, actual_visits, campaign, design, visits, version) %>%
-  summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-  ungroup()
-
-saveRDS(nonspatial_site_avgs, file.path(new_dt_pt, "nonspatial_site_avgs.rds"))
+# nonspatial_site_avgs <- nonspatial_visit_samples %>%
+#   group_by(id, adjusted, actual_visits, campaign, design, visits, version) %>%
+#   summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+#   ungroup()
+# 
+# saveRDS(nonspatial_site_avgs, file.path(new_dt_pt, "nonspatial_site_avgs.rds"))
 
 ########################################################################################################
 # UNBALANCED CLUSTERED SAMPLING DESIGNS
@@ -379,6 +396,8 @@ sampling_combos_random_clusters <-expand.grid(
   cluster_approach = c("random", "sensible", "unsensible", "road_type"),
   cluster_type = unique(segment_clusters_l$cluster_type)
   ) # %>% slice_sample(n = 10)
+
+saveRDS(sampling_combos_random_clusters, file.path(new_dt_pt, "clustered_sampling_combo_list.rda"))
 
 ########################################################################################################
 # df <- pnc_med_clusters %>%
@@ -456,7 +475,8 @@ pnc_med_clusters <- pnc_med %>%
 message("running spatially clustered analyses")
 
 set.seed(21)
-cluster_visit_samples <- lapply(1:nrow(sampling_combos_random_clusters), 
+#cluster_visit_samples <- 
+lapply(1:nrow(sampling_combos_random_clusters), 
                                   #c(4:5,12:13),
                                         function(x) {
                                      temp <- sampling_combos_random_clusters[x,]
@@ -485,28 +505,41 @@ cluster_visit_samples <- lapply(1:nrow(sampling_combos_random_clusters),
                                          version = temp$hours,
                                          cluster_type = temp$cluster_type
                                          )
-                                   }) %>%
-  bind_rows() %>%
-  ungroup()
-
-message("saving samples")
-
-saveRDS(cluster_visit_samples, file.path(new_dt_pt, "cluster_visit_samples.rds"))
-
-# # check counts
-# cluster_visit_samples %>% 
-#   filter(design==first(design)) %>% 
-#   distinct(id, dow2, adjusted, cluster_type, cluster_value, visit_samples, actual_visits, campaign, design, visits, version) %>% 
-#   group_by_at(vars(-id)) %>%
-#   summarize(ids = length(unique(id))) %>% View()
-
-# calculate annual averages
-cluster_site_avgs <- cluster_visit_samples %>%
-  group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-  summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-  ungroup()
-
-saveRDS(cluster_site_avgs, file.path(new_dt_pt, "cluster_site_avgs.rds"))
+                                     
+                                     annual_averages <- my_samples %>%
+                                       group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+                                       summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+                                       ungroup()
+                                     
+                                      
+                                     message("saving samples")
+                                     # save separate files since this is large
+                                     saveRDS(my_samples, file.path(new_dt_pt, "visits", paste0("visits_clustered_", design_label, ".rds")))
+                                     saveRDS(annual_averages, file.path(new_dt_pt, paste0("site_avgs_clustered_", design_label,".rds")))
+                                     
+                                     
+                                   })# %>%
+# #   bind_rows() %>%
+# #   ungroup()
+# # 
+# # message("saving samples")
+# # 
+# # saveRDS(cluster_visit_samples, file.path(new_dt_pt, "cluster_visit_samples.rds"))
+# 
+# # # check counts
+# # cluster_visit_samples %>%
+# #   filter(design==first(design)) %>%
+# #   distinct(id, dow2, adjusted, cluster_type, cluster_value, visit_samples, actual_visits, campaign, design, visits, version) %>%
+# #   group_by_at(vars(-id)) %>%
+# #   summarize(ids = length(unique(id))) %>% View()
+# 
+# # calculate annual averages
+# cluster_site_avgs <- cluster_visit_samples %>%
+#   group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+#   summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+#   ungroup()
+# 
+# saveRDS(cluster_site_avgs, file.path(new_dt_pt, "cluster_site_avgs.rds"))
 
 ########################################################################################################
 # DONE

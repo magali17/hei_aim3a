@@ -7,6 +7,7 @@ date: "2024-04-23"
 # --> TO DO: SEARCH FOR 'TEMP/TO DO' (E.G., remove things that helped run code faster)
 
 # Setup
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = F, 
                       cache=F, cache.comments = F, 
@@ -39,6 +40,13 @@ theme_set(theme_bw())
 theme_update(legend.position = "bottom")
 
 ##################################################################################################
+# VARIABLES
+##################################################################################################
+main_road_types <-"no_highways" # "all_road_types" #
+main_bg <- "hr1_pct5"
+main_cluster <- "cluster1"
+
+##################################################################################################
 # FUNCTIONS
 ##################################################################################################
 summarize_values <- function(dt, val) {
@@ -69,15 +77,14 @@ make_dt_smaller <- function(dt) {
   dt %>%
     filter(!cluster_type %in% c("cluster2", "cluster3"),
            !design %in% c("unbalanced", "unsensible", "road_type"),
-           background_adj == "hr1_pct5")
+           background_adj == main_bg)
   }
 
 ```
 
+# Load data 
+
 ```{r}
-##################################################################################################
-# DATA
-##################################################################################################
 # --> TO DO: COMBINE SMALLER HWY/NO HWY DATASETS?
 
 # adjusted annual averages (n=30 campaigns per design-version)
@@ -96,11 +103,14 @@ underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")
 
 
 # adjusted visits
-# visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) %>%
-#   # --> TEMP
-#   make_dt_smaller()
+visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) %>%
+  mutate(date = as.Date(date)) %>%
+  # --> TEMP
+  make_dt_smaller()
 
 visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) %>%
+  mutate(date = as.Date(date),
+         hour = as.numeri(hour)) %>%
   # --> TEMP
   make_dt_smaller()
 
@@ -113,16 +123,83 @@ road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_
 # segment lat/long/road type
 segment_info <- file.path(dt_pt, "segment_lat_long.rda")
 
-##################################################################################################
-# VARIABLES
-##################################################################################################
-main_road_types <- "no_highways"
-main_bg <- "hr1_pct5"
-main_cluster <- "cluster1"
-
 ltas <- distinct(underwrite_adj, background_adj, road_types, bg_lta)
 
+bg_data <- ltas %>% 
+    filter(road_types == main_road_types,
+           background_adj %in% main_bg) %>%
+    mutate(ufp = "background_lta")
+
 ```
+
+# Data available
+
+```{r}
+# 1 sec
+
+road_dt_no_hwy %>%
+  filter(background_adj == main_bg,
+         road_types == main_road_types) %>%  
+  drop_na(ufp) %>%
+  summarize(n_1sec_measurements = n()) %>%
+  kable(caption = "Number of 1-sec UFP measures from the P-TRAK") %>%
+  kable_styling()
+
+# mean 1-sec measures per hour
+road_dt_no_hwy %>%
+  filter(background_adj == main_bg,
+         road_types == main_road_types) %>%
+  drop_na(ufp) %>%
+  mutate(date=date(time),
+         hour = hour(time)) %>%
+  group_by(date, hour) %>%
+  summarize(n=n()) %>%
+  ungroup() %>%
+  summarize(
+    min = min(n),
+    mean = mean(n),
+    sd = sd(n),
+    max=max(n)
+  ) %>%
+  kable(caption = "distribution of 1-sec measures per hour...these are NOT used to calculate hourly background", 
+        digits = 0) %>%
+  kable_styling()
+
+
+# mean 1-sec measures per hour
+road_dt_no_hwy %>%
+  filter(background_adj == main_bg,
+         road_types == main_road_types) %>%
+  drop_na(background) %>%
+  mutate(date=date(time),
+         hour = hour(time)) %>%
+  group_by(date, hour) %>%
+  summarize(n=n()) %>%
+  ungroup() %>%
+  summarize(
+    min = min(n),
+    mean = mean(n),
+    sd = sd(n),
+    max=max(n)
+  ) %>%
+  kable(caption = "distribution of 1-sec background estimates per hour...these are used to calculate background", 
+        digits = 0) %>%
+  kable_styling()
+
+
+
+# number of hourly adjustments
+underwrite_adj %>%
+  filter(background_adj == main_bg,
+         road_types == main_road_types) %>%
+  summarize(n_hourly_adjustments = n()) %>%
+  kable(caption = "Number of hourly PNC adjustments") %>%
+  kable_styling()
+
+
+
+```
+
 
 # Temporal Adjustments
 
@@ -314,13 +391,37 @@ time_series_plot(sample_ts_runs) + scale_y_log10()
 #ggsave(file.path(dt_out, "time_series_sample.png"), width = 12, height = 8)
 ```
 
+## visits vs hourly adjustments 
 
 # --> START HERE
 
 ```{r}
 # --> add time series plot of visits vs hourly adjustments (like above) 
+visit_dt= visits_adj2_no_hwy
+runs = sample_ts_runs
 
-
+vists_vs_adjustments_plot <- function(visit_dt, runs) {
+  runnames <- distinct(underwrite_adj, runname, date, hour) %>%
+    filter(runname %in% runs)
+  
+  dt <- filter(visit_dt,
+               background_adj == main_bg) %>% 
+    right_join(runnames) 
+  
+  dt %>%
+    select(date, hour, id, adjusted, median_value, avg_hourly_adj, median_value_adjusted) %>%  
+    pivot_longer(cols = c(median_value, avg_hourly_adj, median_value_adjusted), names_to = "ufp") %>% View()
+    
+ 
+    
+    ggplot(aes(x=time, col=ufp, linetype=road_types)) +
+    facet_grid(background_adj~runname, scales="free_x", switch = "both") +
+    geom_line(aes(y=value)) +
+    geom_hline(data=bg_data, aes(yintercept=bg_lta,  col=ufp, linetype=road_types)) + 
+    labs(y="UFP (pt/cm3)",
+         x="Time"
+    )
+}
 
 
 ##################################################################################################
@@ -339,6 +440,7 @@ time_series_plot(sample_ts_runs) + scale_y_log10()
 ```{r}
 # --> maps to make sure background doesn't vary by space (e.g., near vs away from hwys). use 1sec rolling quantiles?
 
+# segment_info
 
 ```
 

@@ -187,7 +187,7 @@ exclusion_table <- count_remaining_sample(health, description. = "High exposure 
 
 model_covars <- c("visit_age_centered75", "year2", "male", "degree"#, 
                   #"apoe"#, dropping this requirement b/c drops ~ 16% of people (post 2018) w/o APOE genotyping. this is different from Nancy's work, but OK since this is not a confounder anyway so results should be similar
-                  #"race_white" #, "nses_z_cx"
+                  #"race_white" , "nses_z_cx"
                   )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 
@@ -268,7 +268,7 @@ cs_error <- left_join(health, me_exposure, by="study_id")
 # SAVE DATA
 ######################################################################
 message("saving datasets for modeling")
-write.csv(exclusion_table, file.path(output_data_path, "exclusion_table.csv"), row.names = F)
+write.csv(exclusion_table, file.path(output_data_path, paste0("exclusion_table", Sys.Date(), ".csv")), row.names = F)
 saveRDS(cs, file.path(output_data_path, "dt_for_cross_sectional_analysis.rda"))
 saveRDS(cs_r, file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda"))
 saveRDS(cs_ml, file.path(output_data_path, "dt_for_cross_sectional_analysis_machine_learning.rda"))

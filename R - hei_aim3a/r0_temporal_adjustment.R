@@ -15,7 +15,8 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 pacman::p_load(tidyverse, lubridate, zoo,
                #DescTools, # Winsorize() #has issues downloading in the cluster
-               parallel #mclapply()
+               parallel#, #mclapply()
+               #fst
                )    
 
 source("functions.R")
@@ -24,6 +25,7 @@ dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
 if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
+if(!dir.exists(file.path(dt_out, "visits"))){dir.create(file.path(dt_out, "visits"), recursive = T)}
 if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 
 set.seed(1)
@@ -43,7 +45,7 @@ overwrite_existing_background_file = TRUE #TRUE when e.g., 1sec file is updated
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
-use_cores <- 8 
+use_cores <- 1 #8 
 
 ##################################################################################################
 # FUNCTIONS
@@ -58,7 +60,7 @@ count_missingness <- function(dt, notes) {
   rbind(missingness_table, temp)
 }
 
-# NOTSE FILE TO TRACK PROGRESS
+# NOTES FILE TO TRACK PROGRESS
 note_file <- file.path(dt_pt2, paste0("notes_r0_temporal_adjustment_", Sys.Date(),".csv"))
 write.table(data.frame(date = POSIXct(),
                        comment = character()),
@@ -79,30 +81,69 @@ add_progress_notes("loading visit data")
 # fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
 #   select(time, ufp_adjustment = diff_adjustment_winsorize)
 
+
+
+
 # BH samples
-if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
-  v1 <- readRDS(file.path(dt_pt, "nonspatial_visit_samples.rds")) %>%
-    filter(version == "business hours")
-  v2 <- readRDS(file.path(dt_pt, "cluster_visit_samples.rds")) %>%
-    filter(version == "business hours") %>%
-    select(-visit_samples)
+bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
+  grep("business",value = T, .)
 
-  visits <- bind_rows(v1, v2) %>%
-    select(-c(visit_num, runname, dow, dow2))
 
-  saveRDS(visits, file.path(dt_pt, "TEMP_bh_visits.rda"))
-  rm(list=c("v1", "v2"))
-} else {visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda"))}
+# --> or keep separate files? 
+# x=bh_visit_files[1]
+visits <- lapply(bh_visit_files, function(x){ 
+  readRDS(file.path(dt_pt, "visits", x))
+  }) %>% 
+  bind_rows() %>%
+  ungroup() %>%
+  select(id, date, hour, median_value, adjusted, actual_visits, campaign, design, visits, version
+    #-c(visit_samples, visit_num, runname, dow, dow2)
+         )
 
-if(testing_mode==TRUE) {
-  visits <- visits %>%
-    filter(!cluster_type %in% c("cluster2", "cluster3"),
-           !design %in% c("unbalanced", "unsensible", "road_type", "random"))
-}
+
+# if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
+#   v1 <- readRDS(file.path(dt_pt, "nonspatial_visit_samples.rds")) %>%
+#     filter(version == "business hours")
+#   v2 <- readRDS(file.path(dt_pt, "cluster_visit_samples.rds")) %>%
+#     filter(version == "business hours") %>%
+#     select(-visit_samples)
+# 
+#   visits <- bind_rows(v1, v2) %>%
+#     select(-c(visit_num, runname, dow, dow2))
+# 
+#   saveRDS(visits, file.path(dt_pt, "TEMP_bh_visits.rda"))
+#   write.fst(visits, file.path(dt_pt, "TEMP_bh_visits.fst"))
+#   rm(list=c("v1", "v2"))
+# } else {
+#   visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda"))
+#   # error: vector memory exhausted 
+#   #visits <- read.fst(file.path(dt_pt, "TEMP_bh_visits.fst")#,columns = , #from=, to=
+#                           #)
+# }
+
+# 
+# if(testing_mode==TRUE) {
+#   visits <- visits %>%
+#     filter(!cluster_type %in% c("cluster2", "cluster3"),
+#            !design %in% c("unbalanced", "unsensible", "road_type", "random"))
+# }
 
 bh_version <- unique(visits$version) %>% as.character()
 
 visits <- select(visits, -version)
+
+##################################################################################################
+# COMMON VARIABLES
+##################################################################################################
+
+# --> ERROR START HERE. ....FILTER ISSUE LATER
+sampling_combos <- readRDS(file.path(new_dt_pt, "nonspatial_sampling_combo_list.rda")) %>%
+  filter(hours == bh_version) %>%
+  mutate(visits = as.numeric(gsub(" visits", "", visits)))
+
+# --> ADD 
+
+#sampling_combos_clustered <- readRDS(file.path(new_dt_pt, "clustered_sampling_combo_list.rda"))
 
 ##################################################################################################
 
@@ -245,6 +286,8 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 
+# # --> TO DO: SAVE INDIVIDUAL FILES
+
 # if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
 #   message("running fixed site temporal adjustment from predicted UFP based on NO2")
 # 
@@ -369,7 +412,40 @@ saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda
 message("applying temporal adjustment using all segments")
 add_progress_notes("applying temporal adjustment using all segments")
 
+# --> START HERE
+# distinct(visits, adjusted, design, visits, version) 
+    
+
+
+# x=1
+lapply(1:nrow(sampling_combos), function(x) {
+  temp <- sampling_combos[x,]
+  
+  adjusted_visits < visits %>%
+    filter(
+       adjusted == temp$adjusted,
+       design == temp$balanced,
+       #visits == temp$visit_count, 
+       # version == temp$hours
+    )
+  
+  
+         design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>%
+           gsub(" ", "", .)
+         
+         message(paste0(capture.output(temp), collapse = "\n"))
+         
+
+
+
+
+
+
+
+
 visits_adj2 <- visits %>%
+
+#lapply(group_split(visits, ))
   mutate(time = ymd_h(paste(date, hour))) %>%
   # add temporal adjustment
   left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time" #multiple = "all" #receive warning message w/o this 
