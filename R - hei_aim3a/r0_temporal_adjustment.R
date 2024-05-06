@@ -40,7 +40,7 @@ clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
 overwrite_time_series <- FALSE #TRUE when make updates to the 1sec road file
 
 # rolling quantiles
-overwrite_existing_background_file = TRUE #TRUE when e.g., 1sec file is updated
+overwrite_existing_background_file = FALSE #TRUE when e.g., 1sec file is updated
 
 # speed thigns up
 testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
@@ -88,6 +88,7 @@ add_progress_notes("loading visit data")
 bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
   grep("business",value = T, .)
 
+if(testing_mode==TRUE) {bh_visit_files <- bh_visit_files[1:6]}
 
 # --> or keep separate files? 
 # x=bh_visit_files[1]
@@ -137,13 +138,13 @@ visits <- select(visits, -version)
 ##################################################################################################
 
 # --> ERROR START HERE. ....FILTER ISSUE LATER
-sampling_combos <- readRDS(file.path(new_dt_pt, "nonspatial_sampling_combo_list.rda")) %>%
-  filter(hours == bh_version) %>%
-  mutate(visits = as.numeric(gsub(" visits", "", visits)))
+sampling_combos <- readRDS(file.path(dt_pt, "nonspatial_sampling_combo_list.rda")) %>%
+  filter(hours == bh_version) #%>% #mutate(visits = as.numeric(gsub(" visits", "", visits))) %>%
+  #rename(visits = visit_count)
 
-# --> ADD 
+# --> ADD/TO DO 
 
-#sampling_combos_clustered <- readRDS(file.path(new_dt_pt, "clustered_sampling_combo_list.rda"))
+#sampling_combos_clustered <- readRDS(file.path(dt_pt, "clustered_sampling_combo_list.rda"))
 
 ##################################################################################################
 
@@ -412,29 +413,24 @@ saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda
 message("applying temporal adjustment using all segments")
 add_progress_notes("applying temporal adjustment using all segments")
 
-# --> START HERE
-# distinct(visits, adjusted, design, visits, version) 
-    
-
-
-# x=1
-lapply(1:nrow(sampling_combos), function(x) {
-  temp <- sampling_combos[x,]
-  
-  adjusted_visits < visits %>%
-    filter(
-       adjusted == temp$adjusted,
-       design == temp$balanced,
-       #visits == temp$visit_count, 
-       # version == temp$hours
-    )
-  
-  
-         design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>%
-           gsub(" ", "", .)
-         
-         message(paste0(capture.output(temp), collapse = "\n"))
-         
+# # distinct(visits, adjusted, design, visits, version) 
+# lapply(1:nrow(sampling_combos), function(x) {
+#   temp <- sampling_combos[x,]
+#   
+#   adjusted_visits < visits %>%
+#     filter(
+#        adjusted == temp$adjusted,
+#        design == temp$balanced,
+#        #visits == temp$visit_count, 
+#        # version == temp$hours
+#     )
+#   
+#   
+#          design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>%
+#            gsub(" ", "", .)
+#          
+#          message(paste0(capture.output(temp), collapse = "\n"))
+#          
 
 
 
