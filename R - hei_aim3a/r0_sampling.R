@@ -486,6 +486,9 @@ lapply(1:nrow(sampling_combos_random_clusters),
                                         function(x) {
                                      temp <- sampling_combos_random_clusters[x,]
                                      
+                                     design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), first(temp$cluster_approach), first(temp$cluster_type), sep = "_") %>%
+                                       gsub(" ", "", .)
+                                     
                                      visit_file <- file.path(new_dt_pt, "visits", paste0("visits_clustered_", design_label, ".rds")) 
                                      annual_file <- file.path(new_dt_pt, paste0("site_avgs_clustered_", design_label,".rds"))
                                      message(paste0(capture.output(temp), collapse = "\n"))
