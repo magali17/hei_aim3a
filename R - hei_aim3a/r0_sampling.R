@@ -126,7 +126,7 @@ road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Dat
   distinct(id, road_type) 
 
 segment_clusters_l <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
-  select(id=location, contains("cluster")) 
+  select(id, contains("cluster")) 
 
 segment_clusters <- segment_clusters_l %>%
   pivot_wider(names_from = "cluster_type", values_from = "cluster_value") #%>%
