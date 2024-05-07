@@ -81,14 +81,13 @@ add_progress_notes("loading visit data")
 # fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
 #   select(time, ufp_adjustment = diff_adjustment_winsorize)
 
-
-
-
 # BH samples
 bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
-  grep("business",value = T, .)
+  grep("business",value = T, .) %>%
+  # don't include cluster 3 (annie's original clusters)?
+  grep("_cluster3", ., value = T, invert = T)
 
-if(testing_mode==TRUE) {bh_visit_files <- bh_visit_files[1:6]}
+if(testing_mode==TRUE) {bh_visit_files <- bh_visit_files[1:2]}
 
 # --> or keep separate files? 
 # x=bh_visit_files[1]
@@ -97,9 +96,7 @@ visits <- lapply(bh_visit_files, function(x){
   }) %>% 
   bind_rows() %>%
   ungroup() %>%
-  select(id, date, hour, median_value, adjusted, actual_visits, campaign, design, visits, version
-    #-c(visit_samples, visit_num, runname, dow, dow2)
-         )
+  select(id, date, hour, median_value, adjusted, actual_visits, campaign, design, visits, version)
 
 
 # if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
@@ -136,15 +133,11 @@ visits <- select(visits, -version)
 ##################################################################################################
 # COMMON VARIABLES
 ##################################################################################################
-
-# --> ERROR START HERE. ....FILTER ISSUE LATER
-sampling_combos <- readRDS(file.path(dt_pt, "nonspatial_sampling_combo_list.rda")) %>%
-  filter(hours == bh_version) #%>% #mutate(visits = as.numeric(gsub(" visits", "", visits))) %>%
-  #rename(visits = visit_count)
-
-# --> ADD/TO DO 
-
-#sampling_combos_clustered <- readRDS(file.path(dt_pt, "clustered_sampling_combo_list.rda"))
+# sampling_combos <- readRDS(file.path(dt_pt, "nonspatial_sampling_combo_list.rda")) %>%
+#   filter(hours == bh_version)  
+# 
+# sampling_combos_clustered <- readRDS(file.path(dt_pt, "clustered_sampling_combo_list.rda")) %>%
+#   filter(hours == bh_version)
 
 ##################################################################################################
 
@@ -287,27 +280,25 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 
-# # --> TO DO: SAVE INDIVIDUAL FILES
+#if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
+  message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
-# if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
-#   message("running fixed site temporal adjustment from predicted UFP based on NO2")
-# 
-#   visits_adj1 <- visits %>%
-#     mutate(time = ymd_h(paste(date, hour))) %>%
-#     # add temporal adjustment
-#     left_join(fixed_site_temp_adj, by="time") %>%
-#     mutate(median_value_adjusted = median_value + ufp_adjustment,
-#            version = paste(bh_version, "temp adj 1"))
-# 
-#   saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
-# 
-#   annual_adj1 <- visits_adj1 %>%
-#     group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-#     summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-#     ungroup()
-# 
-#   # temp file
-#   saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+  visits_adj1 <- visits %>%
+    mutate(time = ymd_h(paste(date, hour))) %>%
+    # add temporal adjustment
+    left_join(fixed_site_temp_adj, by="time") %>%
+    mutate(median_value_adjusted = median_value + ufp_adjustment,
+           version = paste(bh_version, "temp adj 1"))
+
+  saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
+
+  annual_adj1 <- visits_adj1 %>%
+    group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+    summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+    ungroup()
+
+  # temp file
+  saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
 # } else {
 #   annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
 # }
@@ -413,32 +404,6 @@ saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda
 message("applying temporal adjustment using all segments")
 add_progress_notes("applying temporal adjustment using all segments")
 
-# # distinct(visits, adjusted, design, visits, version) 
-# lapply(1:nrow(sampling_combos), function(x) {
-#   temp <- sampling_combos[x,]
-#   
-#   adjusted_visits < visits %>%
-#     filter(
-#        adjusted == temp$adjusted,
-#        design == temp$balanced,
-#        #visits == temp$visit_count, 
-#        # version == temp$hours
-#     )
-#   
-#   
-#          design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>%
-#            gsub(" ", "", .)
-#          
-#          message(paste0(capture.output(temp), collapse = "\n"))
-#          
-
-
-
-
-
-
-
-
 visits_adj2 <- visits %>%
 
 #lapply(group_split(visits, ))
@@ -449,8 +414,13 @@ visits_adj2 <- visits %>%
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(bh_version, "temp adj 2"))
 
-# [could save as separate files]
 saveRDS(visits_adj2, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
+# also save as separate files
+# x=group_split(visits_adj2, adjusted, visit_count, balanced, cluster_approach, cluster)[[1]]
+# lapply(group_split(visits_adj2, adjusted, visit_count, balanced, cluster_approach, cluster), function(x) {
+#   file_label <- paste(first(x$adjusted), first(x$visit_count), first(x$balanced), first(x$cluster_approach), first(x$cluster_type), sep="_")
+#   saveRDS(file.path(dt_pt2, paste0("bh_visits_fixed_site_temporal_adj_uw_", file_label, ".rda")))
+#   })
 
 message("estimating location annual averages using all segments")
 add_progress_notes("estimating location annual averages using all segments")
@@ -475,6 +445,11 @@ visits_adj2_no_hwy <- visits %>%
 
 saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
 
+# lapply(group_split(visits_adj2_no_hwy, adjusted, visit_count, balanced, cluster_approach, cluster), function(x) {
+#   file_label <- paste(first(x$adjusted), first(x$visit_count), first(x$balanced), first(x$cluster_approach), first(x$cluster_type), sep="_")
+#   saveRDS(file.path(dt_pt2, paste0("bh_visits_fixed_site_temporal_adj_uw_no_hwy_", file_label, ".rda")))
+# })
+
 message("estimating location annual averages using non-hwy segments")
 add_progress_notes("estimating location annual averages using non-hwy segments")
 annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
@@ -493,89 +468,4 @@ add_progress_notes("DONE RUNNING R0_TEMPORAL_ADJUSTMENT.R")
 ##################################################################################################
 # APPENDIX
 ##################################################################################################
-
-##################################################################################################
-# # Overnight data
-# overnight <- readRDS(file.path("data", "Overnight Collocations", "overnight_data_2023-09-11.rda")) %>%
-#   #most of the data is at BH
-#   filter(
-#     # 10W data is only for March 2020; WILCOX data is for after the study period
-#     site == "AQSBH",
-#     variable == "ns_total_conc",
-#     # most (86.5%) of the data comes from PMSCAN_3 (vs PMSCAN_2)
-#     # drop PMSCAN_2. It is used less & produces higher readings when collocated in June that would probably need to be calibrated
-#     instrument_id=="PMSCAN_3") %>%
-#   rename(time=timeint) %>%
-#   mutate(date = date(time),
-#          month = month(time, label=TRUE),
-#          month = factor(month, ordered = F),
-#          dow = wday(time, label=T, week_start = "Monday"),
-#          dow = factor(dow, ordered = F),
-#          weekday = ifelse(dow %in% c("Sat", "Sun"), "weekend", "weekday"),
-#          hour = hour(time),
-#          hour = factor(hour),
-#   ) #%>%
-# 
-#   # --> don't average?
-# 
-#   # # hourly averages
-#   # group_by(site, date, hour, month, dow, weekday, variable) %>%
-#   # summarize(value = mean(value, na.rm = T)) %>%
-#   # ungroup()
-
-# ##################################################################################################
-# # 2. BACKGROUND ADJUSTMENT USING THE COLLECTED DATA
-# ##################################################################################################
-# # e.g., see Hankey 2015 LUR... method summary:
-# # "(1) subtracting instantaneous background concentration estimates (via the underwrite function) from all
-# # instrument-reported concentrations, (2) calculating mean reference-site (i.e., background) measurements among all
-# # sampling days, and (3) adding the mean reference-site concentrations (from step 2) to the underwrite adjusted
-# # concentrations from step 1."
-# # 
-# # approach gap: does not adjust for overnight or weekend hours that are never measured in BH/RH designs
-# 
-# message("running background/local adjustment using the collected data")
-# set.seed(1)
-# 
-# low_conc <- 0.01 #0.05
-# 
-# 
-# # --> UPDATE
-# 
-# # x = group_split(visits, adjusted, campaign, design, visits, cluster_type)[[1]]
-# visits_adj2 <- lapply(group_split(visits, adjusted, campaign, design, visits, cluster_type), function(x){
-#   temp <- x %>%
-#     mutate(hour = as.numeric(hour)) %>%
-#     group_by(hour) %>%
-#     mutate(quantile_background = quantile(median_value, low_conc)) %>% 
-#     ungroup()
-#   
-#   # make the hourly adjustments smoother
-#   temp_hrs <- distinct(temp, hour, quantile_background)
-#   smooth_fit <- lm(quantile_background ~ ns(hour, knots=c(12, 15)), data = temp_hrs)
-#   temp_hrs <- temp_hrs %>%
-#     mutate(smooth_background = predict(smooth_fit, newdata=.),
-#            # long-term average estimate based on background concentrations from the collected campaign data
-#            lta_background = mean(smooth_background))
-#      
-#   # apply hourly adjustments, add the LTA background back in
-#   temp <- left_join(temp, temp_hrs, by=c("hour", "quantile_background")) %>%
-#     mutate(local_conc = median_value - smooth_background,
-#            median_value_adjusted = local_conc + lta_background)
-#   }) %>%
-#   bind_rows() %>%
-#   mutate(version = paste(bh_version, "temp adj 2"))
-# 
-# saveRDS(visits_adj2, file.path(dt_pt, "bh_visits_background_temporal_adj.rds")) 
-# 
-# annual_adj2 <- visits_adj2 %>%
-#   group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-#   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-#   ungroup() 
-# 
-# # temp file
-# saveRDS(annual_adj2, file.path(dt_pt, "bh_site_avgs_background_temporal_adj.rds"))
-
-
-
 
