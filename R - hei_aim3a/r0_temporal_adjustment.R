@@ -45,7 +45,7 @@ overwrite_existing_background_file = FALSE #TRUE when e.g., 1sec file is updated
 # speed thigns up
 testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
 
-use_cores <- 1 #8 
+use_cores <- 6 #8 
 
 ##################################################################################################
 # FUNCTIONS

@@ -92,8 +92,6 @@ make_dt_smaller <- function(dt) {
 # Load data 
 
 ```{r}
-# --> TO DO: COMBINE SMALLER HWY/NO HWY DATASETS?
-
 # adjusted annual averages (n=30 campaigns per design-version)
 annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% 
   mutate(road_types = "all_road_types") %>%
