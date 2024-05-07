@@ -108,18 +108,18 @@ if(testing_mode==TRUE) {
     filter(!grepl("pct10", background_adj))
 }
 
-# adjusted visits [LARGE FILES!]
-visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) %>%
-  mutate(date = as.Date(date)) 
-
-visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) %>%
-  mutate(date = as.Date(date),
-         hour = as.numeri(hour))  
-
-if(testing_mode==TRUE) {
-  visits_adj2 <- make_dt_smaller(visits_adj2)
-  visits_adj2_no_hwy <- make_dt_smaller(visits_adj2_no_hwy)
-}
+# # adjusted visits [LARGE FILES!]
+# visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) %>%
+#   mutate(date = as.Date(date)) 
+# 
+# visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) %>%
+#   mutate(date = as.Date(date),
+#          hour = as.numeri(hour))  
+# 
+# if(testing_mode==TRUE) {
+#   visits_adj2 <- make_dt_smaller(visits_adj2)
+#   visits_adj2_no_hwy <- make_dt_smaller(visits_adj2_no_hwy)
+# }
 
 # 1sec data with rolling quantiles
 road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda")) %>% 
@@ -626,11 +626,17 @@ annual_adj2_main %>%
   kable(caption = "a tiny proportion of segments end up with negative annual averages (across campaigns-design, adjusted...)") %>%
   kable_styling()
 
+```
+
+```{r, eval=F}
+# F, has_visit data - visits_adj2_no_hwy
 
 # --> what are the sites with negative annual averages? sites with large negative hourly adjustments & low visit concentrations?
 print("negative annual averages happen when the hourly adjustment is very negative (observed values were higher than the LTA during that hour) & a specific segment concentration (e.g., the median from few seconds of measurements) is lower. sampling with replacement may additionally resample the same site")
 negative_sites <- annual_adj2_main %>%
   filter(annual_mean<=0) %>% 
+  
+  # --> visit data is large 
   left_join(visits_adj2_no_hwy, relationship = "one-to-many")
 
 negative_sites %>%

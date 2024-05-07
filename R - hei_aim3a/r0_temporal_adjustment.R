@@ -77,9 +77,9 @@ add_progress_notes <- function(note) {
 message("loading visit data")
 add_progress_notes("loading visit data")
 
-# # using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
-# fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
-#   select(time, ufp_adjustment = diff_adjustment_winsorize)
+# using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
+fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
+  select(time, ufp_adjustment = diff_adjustment_winsorize)
 
 # BH samples
 bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
