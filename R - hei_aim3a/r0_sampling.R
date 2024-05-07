@@ -331,13 +331,10 @@ many_campaigns <- function(sims=sim_n, df, ...) {
 message("running non-spatially clustered analyses")
 
 set.seed(1)
-#nonspatial_visit_samples <- 
-lapply(1:nrow(sampling_combos), 
-                                  #8:9,
-                                   function(x) {
+
+lapply(1:nrow(sampling_combos), function(x) {
   temp <- sampling_combos[x,]
-  design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>%
-    gsub(" ", "", .)
+  design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>% gsub(" ", "", .)
   visit_file <- file.path(new_dt_pt, "visits", paste0("visits_nonspatial_", design_label, ".rds"))
   annual_file <- file.path(new_dt_pt, paste0("nonspatial_site_avgs_", design_label, ".rds"))
   
@@ -374,20 +371,8 @@ lapply(1:nrow(sampling_combos),
     saveRDS(annual_averages, annual_file)
     
     }
-  }) #%>%
-  # bind_rows() %>%
-  # ungroup()
+  })  
 
-# message("saving samples")
-# saveRDS(nonspatial_visit_samples, file.path(new_dt_pt, "nonspatial_visit_samples.rds"))
-
-# calculate annual averages
-# nonspatial_site_avgs <- nonspatial_visit_samples %>%
-#   group_by(id, adjusted, actual_visits, campaign, design, visits, version) %>%
-#   summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-#   ungroup()
-# 
-# saveRDS(nonspatial_site_avgs, file.path(new_dt_pt, "nonspatial_site_avgs.rds"))
 
 ########################################################################################################
 # UNBALANCED CLUSTERED SAMPLING DESIGNS

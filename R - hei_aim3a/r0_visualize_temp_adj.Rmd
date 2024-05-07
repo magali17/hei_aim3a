@@ -56,29 +56,6 @@ testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 ##################################################################################################
 # FUNCTIONS
 ##################################################################################################
-summarize_values <- function(dt, val) {
-  temp <- dt %>%
-    rename(val=all_of(val)) %>%
-    summarize(
-      n = n(),
-      campaigns = length(unique(campaign)),
-      segments = length(unique(id)),
-      min=min(val, na.rm = T),
-      Q25=quantile(val, 0.25, na.rm = T),
-      Q50=quantile(val, 0.50, na.rm = T),
-      Q75=quantile(val, 0.75, na.rm = T),
-      max=max(val, na.rm = T),
-      less0 = sum(val<=0, na.rm = T),
-      prop_less0 = less0/n,
-      missing = sum(is.na(val)),
-      prop_missing = missing/n
-    )
-  
-  names(temp)[names(temp)=="val"] <- val
-  
-  return(temp)
-}
-##################################################################################################
 # TEMP to reduce file sizes
 make_dt_smaller <- function(dt) {
   dt %>%

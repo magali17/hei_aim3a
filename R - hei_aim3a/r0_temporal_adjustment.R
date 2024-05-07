@@ -77,13 +77,15 @@ add_progress_notes <- function(note) {
 message("loading visit data")
 add_progress_notes("loading visit data")
 
-# using fixed-site temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
-fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
-  select(time, ufp_adjustment = diff_adjustment_winsorize)
+# using fixedsite temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
+if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
+  fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
+    select(time, ufp_adjustment = diff_adjustment_winsorize)
+}
 
 # BH samples
 bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
-  grep("business",value = T, .) %>%
+  grep("business", value = T, .) %>%
   # don't include cluster 3 (annie's original clusters)?
   grep("_cluster3", ., value = T, invert = T)
 
@@ -91,40 +93,10 @@ if(testing_mode==TRUE) {bh_visit_files <- bh_visit_files[1:2]}
 
 # --> or keep separate files? 
 # x=bh_visit_files[1]
-visits <- lapply(bh_visit_files, function(x){ 
-  readRDS(file.path(dt_pt, "visits", x))
-  }) %>% 
+visits <- lapply(bh_visit_files, function(x){ readRDS(file.path(dt_pt, "visits", x) )}) %>% 
   bind_rows() %>%
   ungroup() %>%
   select(id, date, hour, median_value, adjusted, actual_visits, campaign, design, visits, version)
-
-
-# if(!file.exists(file.path(dt_pt, "TEMP_bh_visits.rda"))) {
-#   v1 <- readRDS(file.path(dt_pt, "nonspatial_visit_samples.rds")) %>%
-#     filter(version == "business hours")
-#   v2 <- readRDS(file.path(dt_pt, "cluster_visit_samples.rds")) %>%
-#     filter(version == "business hours") %>%
-#     select(-visit_samples)
-# 
-#   visits <- bind_rows(v1, v2) %>%
-#     select(-c(visit_num, runname, dow, dow2))
-# 
-#   saveRDS(visits, file.path(dt_pt, "TEMP_bh_visits.rda"))
-#   write.fst(visits, file.path(dt_pt, "TEMP_bh_visits.fst"))
-#   rm(list=c("v1", "v2"))
-# } else {
-#   visits <- readRDS(file.path(dt_pt, "TEMP_bh_visits.rda"))
-#   # error: vector memory exhausted 
-#   #visits <- read.fst(file.path(dt_pt, "TEMP_bh_visits.fst")#,columns = , #from=, to=
-#                           #)
-# }
-
-# 
-# if(testing_mode==TRUE) {
-#   visits <- visits %>%
-#     filter(!cluster_type %in% c("cluster2", "cluster3"),
-#            !design %in% c("unbalanced", "unsensible", "road_type", "random"))
-# }
 
 bh_version <- unique(visits$version) %>% as.character()
 
@@ -280,7 +252,7 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 
-#if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
+if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
   message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
   visits_adj1 <- visits %>%
@@ -299,7 +271,7 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
   # temp file
   saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-# } else {
+} #else {
 #   annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
 # }
 
