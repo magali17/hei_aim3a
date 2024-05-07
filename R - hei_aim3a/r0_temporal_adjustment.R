@@ -40,8 +40,9 @@ clean_road_files <- FALSE #TRUE when make updates to the 1sec road file
 overwrite_time_series <- FALSE #TRUE when make updates to the 1sec road file
 
 # rolling quantiles
-overwrite_existing_background_file = FALSE #TRUE when e.g., 1sec file is updated
+overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is updated
 
+overwrite_fixed_site_temporal_adjustment <- FALSE # true when e.g., update the visit designs
 # speed thigns up
 testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
 
@@ -78,10 +79,10 @@ message("loading visit data")
 add_progress_notes("loading visit data")
 
 # using fixedsite temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
-if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
-  fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
+#if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
+fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
     select(time, ufp_adjustment = diff_adjustment_winsorize)
-}
+#}
 
 # BH samples
 bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
@@ -96,7 +97,7 @@ if(testing_mode==TRUE) {bh_visit_files <- bh_visit_files[1:2]}
 visits <- lapply(bh_visit_files, function(x){ readRDS(file.path(dt_pt, "visits", x) )}) %>% 
   bind_rows() %>%
   ungroup() %>%
-  select(id, date, hour, median_value, adjusted, actual_visits, campaign, design, visits, version)
+  select(id, date, hour, median_value, adjusted, cluster_type, cluster_value, actual_visits, campaign, design, visits, version)
 
 bh_version <- unique(visits$version) %>% as.character()
 
@@ -252,7 +253,8 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 
-if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
+if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds")) | 
+   overwrite_fixed_site_temporal_adjustment == TRUE) {
   message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
   visits_adj1 <- visits %>%
@@ -262,6 +264,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds
     mutate(median_value_adjusted = median_value + ufp_adjustment,
            version = paste(bh_version, "temp adj 1"))
 
+  message("...saving adjusted visits")
   saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
 
   annual_adj1 <- visits_adj1 %>%
@@ -269,7 +272,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds
     summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
     ungroup()
 
-  # temp file
+  message("...saving annual averages")
   saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
 } #else {
 #   annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
@@ -278,13 +281,6 @@ if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds
 ##################################################################################################
 # 2. UNDERWRITE FN: PSEUDO FIXED SITE FROM COLLECTED UFP MEASURES
 ##################################################################################################
-# dt=road_dt_no_hwy %>% filter(runname == first(runname))
-# windows.=windows
-# quantiles.=quantiles
-# file_label="_no_hwy"
-# w=windows.[1]
-# p=quantiles.[1]
-# override_existing_file = overwrite_existing_background_file
 calculate_rolling_quantile <- function(dt, windows.=windows, quantiles.=quantiles, file_label="", 
                                        override_existing_file = overwrite_existing_background_file) {
   
