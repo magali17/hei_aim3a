@@ -24,10 +24,12 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 }
 
 pacman::p_load(tidyverse, lubridate, #zoo,
-               kableExtra, ggpubr #stat_cor()
+               kableExtra, ggpubr, #stat_cor()
+               sf
                )    
 
 source("functions.R")
+dt_pt <- file.path("data", "onroad", "annie", "v2")
 dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
@@ -45,6 +47,11 @@ theme_update(legend.position = "bottom")
 main_road_types <-"no_highways" # "all_road_types" #
 main_bg <- "hr1_pct5"
 main_cluster <- "cluster1"
+
+project_crs <- 4326  #lat/long
+
+# speed thigns up
+testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
 ##################################################################################################
 # FUNCTIONS
@@ -90,9 +97,7 @@ make_dt_smaller <- function(dt) {
 # adjusted annual averages (n=30 campaigns per design-version)
 annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% 
   mutate(road_types = "all_road_types") %>%
-  bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no_highways")) #%>%
-  #--> TEMP
-  #make_dt_smaller()
+  bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no_highways"))  
   
 # hourly adjustments
 # #note that 'R00' routes have been combined b/c there were multiple 'routes' per day
@@ -100,19 +105,23 @@ underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")
                             readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda")) %>% mutate(road_types = "no_highways")) #%>%
   # --> TEMP
   #filter(background_adj == "hr1_pct5")
+if(testing_mode==TRUE) {
+  underwrite_adj <- underwrite_adj %>%
+    filter(!grepl("pct10", background_adj))
+}
 
-
-# adjusted visits
+# adjusted visits [LARGE FILES!]
 visits_adj2 <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) %>%
-  mutate(date = as.Date(date)) %>%
-  # --> TEMP
-  make_dt_smaller()
+  mutate(date = as.Date(date)) 
 
 visits_adj2_no_hwy <- readRDS(file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) %>%
   mutate(date = as.Date(date),
-         hour = as.numeri(hour)) %>%
-  # --> TEMP
-  make_dt_smaller()
+         hour = as.numeri(hour))  
+
+if(testing_mode==TRUE) {
+  visits_adj2 <- make_dt_smaller(visits_adj2)
+  visits_adj2_no_hwy <- make_dt_smaller(visits_adj2_no_hwy)
+}
 
 # 1sec data with rolling quantiles
 road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda")) %>% 
@@ -120,8 +129,14 @@ road_dt <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data.rda")) %>%
 road_dt_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda")) %>% 
   mutate(road_types = "no_highways")
 
+if(testing_mode==TRUE) {
+  road_dt <- filter(road_dt, !grepl("pct10", background_adj))
+  road_dt_no_hwy <- filter(road_dt_no_hwy, !grepl("pct10", background_adj))
+}
+
 # segment lat/long/road type
-segment_info <- file.path(dt_pt, "segment_lat_long.rda")
+segment_info <- readRDS(file.path(dt_pt, "segment_lat_long.rda")) %>%
+  st_as_sf(coords=c("mx", "my"), crs=project_crs)
 
 ltas <- distinct(underwrite_adj, background_adj, road_types, bg_lta)
 
@@ -136,7 +151,6 @@ bg_data <- ltas %>%
 
 ```{r}
 # 1 sec
-
 road_dt_no_hwy %>%
   filter(background_adj == main_bg,
          road_types == main_road_types) %>%  
@@ -161,7 +175,7 @@ road_dt_no_hwy %>%
     sd = sd(n),
     max=max(n)
   ) %>%
-  kable(caption = "distribution of 1-sec measures per hour...these are NOT used to calculate hourly background", 
+  kable(caption = "distribution of 1-sec measures per hour...these are NOT used to calculate hourly background b/c of how rolling quantiles are calcualted (they fill in data gaps)", 
         digits = 0) %>%
   kable_styling()
 
@@ -241,7 +255,7 @@ underwrite_adj %>%
   kable(caption = "Pearson correlation (R) for temporal adjustments using all road types vs no highways readings. adjustments are almost identical.", digits = 4) %>%
   kable_styling()
 
-print(paste0("Comparison of hourly adjustments for the ", main_road_types, " approach"))
+#print(paste0("Comparison of hourly adjustments for the ", main_road_types, " approach"))
 underwrite_adj %>%
   #filter(road_types == main_road_types) %>% 
   select(-c(bg_hour_avg, bg_lta)) %>%
@@ -391,14 +405,13 @@ time_series_plot(sample_ts_runs) + scale_y_log10()
 #ggsave(file.path(dt_out, "time_series_sample.png"), width = 12, height = 8)
 ```
 
-## visits vs hourly adjustments 
+## visits vs hourly adjustments (FILES ARE TOO LARGE)
 
-# --> START HERE
 
-```{r}
+```{r, eval=F}
 # --> add time series plot of visits vs hourly adjustments (like above) 
-visit_dt= visits_adj2_no_hwy
-runs = sample_ts_runs
+# visit_dt= visits_adj2_no_hwy
+# runs = sample_ts_runs
 
 vists_vs_adjustments_plot <- function(visit_dt, runs) {
   runnames <- distinct(underwrite_adj, runname, date, hour) %>%
@@ -435,12 +448,79 @@ vists_vs_adjustments_plot <- function(visit_dt, runs) {
 
 ```
 
-## Maps to visualize spatial adjustment patterns ? 
+## Maps - Temporal adjustment over space 
+
+```{r}
+print("road segments by road type")
+segment_info %>%
+  ggplot(aes(col=road_type)) + 
+  geom_sf()
+
+
+```
+
 
 ```{r}
 # --> maps to make sure background doesn't vary by space (e.g., near vs away from hwys). use 1sec rolling quantiles?
 
-# segment_info
+#1 sec data
+temp0 <-  road_dt %>%
+  bind_rows(road_dt_no_hwy) %>%
+  #filter(background_adj == main_bg) %>%
+  left_join(segment_info, by="id") %>% 
+  drop_na(road_type) 
+
+# annual avg road segment conc
+temp <- road_dt %>%
+  bind_rows(road_dt_no_hwy) %>%
+  group_by(id, background_adj, road_types) %>%
+  summarize(background_sd = sd(background, na.rm = T),
+            background = mean(background, na.rm = T),
+            ufp = mean(ufp, na.rm = T)) %>%
+  ungroup %>%
+  #filter(background_adj == main_bg) %>%
+  left_join(segment_info, by="id") %>%
+  mutate(background_adj = factor(background_adj, levels=unique(.$background_adj) %>% as.character() %>% sort())) %>%
+  drop_na(mx, my)
+
+
+#print("1-second background UFP is slightly higher on A1s")
+ 
+temp0 %>%
+#temp %>%
+  filter(background_adj == main_bg) %>%
+  ggplot(aes(x=road_type, y=background, #fill= background_adj
+             fill=road_types
+             )) + 
+  facet_wrap(~background_adj) +
+  geom_boxplot() + 
+  labs(#y = "Annual average background PNC per road segment",
+       y = "1-sec background PNC by road type"
+       )
+
+
+print("see higher 'background' concentrations near I-5")
+temp %>% 
+  st_as_sf(coords = c("mx", "my"), crs=project_crs) %>%
+  ggplot(aes(col=background)) + 
+  facet_grid(road_types~background_adj, switch="y") +
+  geom_sf(size=0.8) +
+  #theme_minimal() +
+  #scale_color_viridis()
+  scale_color_viridis_b() + 
+  labs(col = "Annual Avg Background UFP (pt/cm3)")
+
+temp %>% 
+  st_as_sf(coords = c("mx", "my"), crs=project_crs) %>%
+  ggplot(aes(col=background_sd)) + 
+  facet_grid(road_types~background_adj, switch="y") +
+  geom_sf(size=0.8) +
+  #theme_minimal() +
+  #scale_color_viridis()
+  scale_color_viridis_b() + 
+  labs(col = "SD of 1-sec 'Background' UFP (pt/cm3)")
+
+
 
 ```
 
@@ -456,23 +536,37 @@ print("Annual averages by adjustment approach for each location-design-campaign 
 
 # correlation table
 print("temporally-adjsuted annual averages are almost identical")
-annual_adj2 %>%
-  filter(#background_adj == main_bg,
-         (is.na(cluster_type) | cluster_type == main_cluster),
-         #road_types == main_road_types
-         adjusted == "unadjusted"
+temp <- annual_adj2 %>%
+  filter((is.na(cluster_type) | cluster_type == main_cluster),
+          
+         #adjusted == "unadjusted"
          ) %>%
   pivot_wider(names_from = background_adj, values_from = annual_mean) %>% 
-  #pivot_longer(cols = c(starts_with("hr"), -all_of(main_bg))) %>%
-  group_by(road_types) %>%  
-  summarize(n=n(),
-            hr1_pct3 = cor(get(main_bg), hr1_pct3),
-            hr1_pct5 = cor(get(main_bg), get(main_bg)) #QC - this should be 1
-            
-            ) %>%
-  kable(caption = paste0("annual average segment correlations between the main bg approach (", main_bg, ") and other approaches (n is for each segment-campaign-design-adjustment-cluster combination). the correlation for ", main_road_types, " is what's used in the main approach"), 
-        digits = 4) %>%
-  kable_styling()
+  pivot_longer(cols = c(starts_with("hr"), -all_of(main_bg))) 
+
+paste0("correlations of annual average segment PNCs between the main  (", main_bg, ") and alternative background approachs") 
+temp %>%
+  group_by(road_types, adjusted, name) %>%
+  summarize(
+    n=n(),
+    correlation = cor(get(main_bg), value)) %>%
+  ggplot(aes(x=name, y=correlation, col=road_types, shape=adjusted)) + 
+  geom_point(size=2) + 
+  labs(y="Correlation (R) of Annual Averages After Temporal Adjustment",
+       x = "Background Adjustment Approach"
+       )
+  
+   
+ 
+
+#plot
+annual_adj2 %>%
+  ggplot(aes(x=road_types, y=annual_mean, fill=background_adj)) +  #adjusted
+  #facet_wrap(~road_types) + 
+  geom_boxplot() + 
+  labs(y = "segment annual average from various backround adjustment approaches"
+  )
+
 
 ```
 
@@ -534,8 +628,6 @@ annual_adj2_main %>%
   kable(caption = "a tiny proportion of segments end up with negative annual averages (across campaigns-design, adjusted...)") %>%
   kable_styling()
 
-
-# --> START HERE
 
 # --> what are the sites with negative annual averages? sites with large negative hourly adjustments & low visit concentrations?
 print("negative annual averages happen when the hourly adjustment is very negative (observed values were higher than the LTA during that hour) & a specific segment concentration (e.g., the median from few seconds of measurements) is lower. sampling with replacement may additionally resample the same site")

@@ -43,7 +43,7 @@ overwrite_time_series <- FALSE #TRUE when make updates to the 1sec road file
 overwrite_existing_background_file = FALSE #TRUE when e.g., 1sec file is updated
 
 # speed thigns up
-testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
+testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
 
 use_cores <- 1 #8 
 
@@ -449,6 +449,7 @@ visits_adj2 <- visits %>%
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(bh_version, "temp adj 2"))
 
+# [could save as separate files]
 saveRDS(visits_adj2, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
 
 message("estimating location annual averages using all segments")
