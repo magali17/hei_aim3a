@@ -44,14 +44,14 @@ theme_update(legend.position = "bottom")
 ##################################################################################################
 # VARIABLES
 ##################################################################################################
-main_road_types <-"no_highways" # "all_road_types" #
-main_bg <- "hr1_pct5"
+main_road_types <-"no_highways" 
+main_bg <- "hr3_pct1" #"hr1_pct5"
 main_cluster <- "cluster1"
 
 project_crs <- 4326  #lat/long
 
 # speed thigns up
-testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
+testing_mode <- FALSE #TRUE #e.g., reduce visit designs & windows/quantile combinations
 
 ##################################################################################################
 # FUNCTIONS
