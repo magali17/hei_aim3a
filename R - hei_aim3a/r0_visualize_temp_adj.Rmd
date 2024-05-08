@@ -74,22 +74,36 @@ make_dt_smaller <- function(dt) {
 annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% 
   mutate(road_types = "all_road_types") %>%
   bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no_highways"))  
-  
+
+annual_adj2_main0 <- filter(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")), background_adj == main_bg) %>% 
+  select(-background_adj)
+# dim(annual_adj2_main0)
+
 ## fixed site adj annual avgs (UFP~NO2)
 temporal_adjustments1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+# dim(temporal_adjustments1)
 
 ## unadjusted annual averages
 annual_unadjusted <- bind_rows(readRDS(file.path("data", "onroad", "annie", "v2", "nonspatial_site_avgs.rds")),
                     readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avgs.rds"))) %>%
-  filter(grepl("business", version))
+  filter(grepl("business", version),
+         cluster_type %in% unique(temporal_adjustments1$cluster_type) #drops cluster3
+         )
+# dim(annual_unadjusted)
 
 ## combine unadjusted and temporally-adjusted annual averages
-annual_comparison <- bind_rows(annual_unadjusted, annual_adj2) %>%
-  bind_rows(temporal_adjustments1) %>%
-  mutate(version = gsub("business hours", "business", version),
-         version = gsub(" ", "_", version),)
+annual_comparison <- bind_rows(temporal_adjustments1, annual_adj2_main0) %>%
+  rename(annual_mean_adj = annual_mean) %>%
+  left_join(select(annual_unadjusted, -c(version, cluster_value)))
 
-rm(temporal_adjustments1, annual_unadjusted)
+dim(annual_comparison) 
+
+  # 
+  # bind_rows(annual_unadjusted) %>%
+  # mutate(version = gsub("business hours", "business", version),
+  #        version = gsub(" ", "_", version),)
+
+#rm(temporal_adjustments1, annual_unadjusted)
  
 # hourly adjustments
 # #note that 'R00' routes have been combined b/c there were multiple 'routes' per day
@@ -666,14 +680,15 @@ negative_sites %>%
 
 annual averages
 
-# --> TO DO 
+# --> TO DO - why are some temp adj missing??
 
 ```{r}
 
 annual_comparison %>%
-  pivot_wider(names_from=version, values_from=annual_mean) %>%
+  pivot_wider(names_from=version, values_from=annual_mean) %>% View()
   
-  pivot_longer(cols=vars(contains("temp_adj")), name_to="adjusted", values_to="value") %>%
+  pivot_longer(cols=contains("temp_adj"), #names_to=adjusted, values_to=value
+               ) #%>%
   
   ggplot(aes(x=business, y=value, col=version)) + 
   facet_wrap(~adjusted+visits) + 

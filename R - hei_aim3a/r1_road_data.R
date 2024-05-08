@@ -48,6 +48,8 @@ cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
   select(location, latitude, longitude, all_of(cov_names))
 saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 
+# --> TO DO: UPDATE USING INDIVUDUAL FILES?? ACTUAL_VISITS IS OFF W/ TEMPORAL ADJ FILES
+
 ## 5874 locations
 onroad_ns <- readRDS(file.path("data", "onroad", "annie", "v2", "nonspatial_site_avgs.rds" #"PNC_nonspatial_annavgs.rds"
                                )) %>%
@@ -60,7 +62,7 @@ onroad_s <- readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avg
 #   mutate(spatial_code = ifelse(design %in% c("sensible", "unsensible", "road_type"), "sy", "sn"))
 
 
-# --> UPDATE CODE
+# --> TO DO: UPDATE CODE
 # temporal adjustments
 ## using a fixed site (UFP~NO2 model based on collocations)
 temporal_adjustments1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
