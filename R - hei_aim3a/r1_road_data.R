@@ -19,6 +19,7 @@ pacman::p_load(tidyverse,
 
 source("functions.R")
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 
 # load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
@@ -53,11 +54,21 @@ onroad_s <- readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avg
                               )) %>%
   mutate(spatial_code = "sy")
 
-temporal_adjustments <- readRDS(file.path("data", "onroad", "annie", "v2", "temp_adj_site_avgs.rds")) %>%
-  mutate(spatial_code = ifelse(design %in% c("sensible", "unsensible", "road_type"), "sy", "sn"))
+# temporal_adjustments <- readRDS(file.path("data", "onroad", "annie", "v2", "temp_adj_site_avgs.rds")) %>%
+#   mutate(spatial_code = ifelse(design %in% c("sensible", "unsensible", "road_type"), "sy", "sn"))
+
+
+# --> UPDATE CODE
+temporal_adjustments1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>%
+  filter(background_adj == main_bg) %>%
+  select(names(temporal_adjustments1)) %>%
+  bind_rows(temporal_adjustments1)
+
+rm(temporal_adjustments1)
 
 onroad0 <- bind_rows(onroad_ns, onroad_s) %>%
-  rbind(temporal_adjustments) %>%
+  bind_rows(temporal_adjustments) %>%
   rename(location=id,
          value = annual_mean) %>%
   # log transform pollutant concentrations before modeling
@@ -83,7 +94,8 @@ cw <- onroad0 %>%
       design=="random" ~ "random",
       design=="sensible" ~ "sen",
       design=="unsensible" ~ "unsen",
-      design=="road_type" ~ "road"
+      design=="road_type" ~ "road",
+      design=="route" ~ "route",
     ),
 
     version_code = case_when(
@@ -110,7 +122,7 @@ cw <- onroad0 %>%
 # View(cw %>% filter(campaign==1))
 
 save_new_cw <- TRUE
-if(save_new_cw==TRUE) {write.csv(cw, file.path(dt_path, "onroad_model_cw_20240313.csv"), row.names = F)}
+if(save_new_cw==TRUE) {write.csv(cw, file.path(dt_path, "onroad_model_cw_20240507.csv"), row.names = F)}
 
 onroad1 <- left_join(onroad0, cw) %>%
   select(location, value, model, variable, design_code) %>%
@@ -122,7 +134,9 @@ onroad <- onroad1 %>%
   st_transform(m_crs)
 
 message("saving onroad modeling data")
-saveRDS(onroad, file.path(dt_path, "Selected Campaigns", "onroad_modeling_data_20240313.rda"))
+saveRDS(onroad, file.path(dt_path, "Selected Campaigns", #"onroad_modeling_data_20240313.rda"
+                          "onroad_modeling_data_20240507.rda"
+                          ))
 
 ##################################################################################################
 # SEPARATE DATA FOR MODELING LATER

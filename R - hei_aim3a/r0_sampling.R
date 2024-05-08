@@ -110,6 +110,35 @@ unadj_pnc_med <- readRDS(file = file.path("data", "onroad", "annie", "Additional
 pnc_med <- bind_rows(adj_pnc_med, unadj_pnc_med) %>% 
   ungroup()
 
+###################################
+# # QC: routes
+# ## 443 segments were sampled on more than one "runname" (date-route combo)
+# unadj_pnc_med %>% 
+#   mutate(route = substr(runname, 12,14)) %>%
+#   group_by(id) %>%
+#   summarize(routes = paste(unique(route), collapse = ", "),
+#             n = length(unique(route))) %>% 
+#   #locations sampled on more than one route
+#   filter(n>1) %>%
+#   nrow() 
+# 
+# # id's per run
+# ## 
+# segments_visited_per_run <- unadj_pnc_med %>%
+#   group_by(runname) %>%
+#   summarize(n = length(unique(id))) %>%  
+#   summarize(min = min(n),
+#             q05 = quantile(n, 0.05),
+#             q10 = quantile(n, 0.10),
+#             q25 = quantile(n, 0.25),
+#             mean = mean(n),
+#             q75 = quantile(n, 0.75),
+#             q90 = quantile(n, 0.90),
+#             q95 = quantile(n, 0.95),
+#             max = max(n))
+
+###################################
+
 saveRDS(pnc_med, file.path(new_dt_pt, "pnc_med.rds"))
 
 # save segments used
@@ -536,6 +565,20 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
 #   ungroup()
 # 
 # saveRDS(cluster_site_avgs, file.path(new_dt_pt, "cluster_site_avgs.rds"))
+########################################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ########################################################################################################
 # DONE

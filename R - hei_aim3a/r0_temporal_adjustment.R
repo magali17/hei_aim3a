@@ -244,11 +244,6 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
 windows <- c(1,3)*60*60
 quantiles <- c(0.01, 0.03, 0.05, 0.10)
 
-# if(testing_mode==TRUE) {
-#   windows <- 60*60*1
-#   quantiles <- c(0.03, 0.05)
-#   }
-
 ##################################################################################################
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################

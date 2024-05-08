@@ -2,6 +2,8 @@
 title: "Untitled"
 output: html_document
 date: "2024-04-23"
+editor_options: 
+  chunk_output_type: console
 ---
 
 # --> TO DO: SEARCH FOR 'TEMP/TO DO' (E.G., remove things that helped run code faster)
@@ -44,14 +46,15 @@ theme_update(legend.position = "bottom")
 ##################################################################################################
 # VARIABLES
 ##################################################################################################
-main_road_types <-"no_highways" # "all_road_types" #
-main_bg <- "hr1_pct5"
+main_road_types <-"no_highways" 
+main_bg <- "hr3_pct1" #"hr1_pct5"
 main_cluster <- "cluster1"
 
-project_crs <- 4326  #lat/long
+#lat/long
+project_crs <- 4326  
 
 # speed thigns up
-testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
+testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
 
 ##################################################################################################
 # FUNCTIONS
@@ -480,8 +483,6 @@ temp %>%
   ggplot(aes(col=background)) + 
   facet_grid(road_types~background_adj, switch="y") +
   geom_sf(size=0.8) +
-  #theme_minimal() +
-  #scale_color_viridis()
   scale_color_viridis_b() + 
   labs(col = "Annual Avg Background UFP (pt/cm3)")
 
@@ -490,8 +491,6 @@ temp %>%
   ggplot(aes(col=background_sd)) + 
   facet_grid(road_types~background_adj, switch="y") +
   geom_sf(size=0.8) +
-  #theme_minimal() +
-  #scale_color_viridis()
   scale_color_viridis_b() + 
   labs(col = "SD of 1-sec 'Background' UFP (pt/cm3)")
 
