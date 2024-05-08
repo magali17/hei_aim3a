@@ -26,6 +26,8 @@ load(file.path(dt_path, "uk_workspace.rdata"))
 
 set.seed(1)
 
+# underwrite temporal adjustment approach
+main_bg <- "hr3_pct1"
 ##################################################################################################
 # DATA
 ##################################################################################################
@@ -59,9 +61,12 @@ onroad_s <- readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avg
 
 
 # --> UPDATE CODE
+# temporal adjustments
+## using a fixed site (UFP~NO2 model based on collocations)
 temporal_adjustments1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+## using the underwrite approach
 temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>%
-  filter(background_adj == main_bg) %>%
+  filter(background_adj == main_bg) %>%  
   select(names(temporal_adjustments1)) %>%
   bind_rows(temporal_adjustments1)
 

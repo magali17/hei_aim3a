@@ -70,10 +70,27 @@ make_dt_smaller <- function(dt) {
 
 ```{r}
 # adjusted annual averages (n=30 campaigns per design-version)
+## underwrite adjusted annual avgs 
 annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% 
   mutate(road_types = "all_road_types") %>%
   bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no_highways"))  
   
+## fixed site adj annual avgs (UFP~NO2)
+temporal_adjustments1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+
+## unadjusted annual averages
+annual_unadjusted <- bind_rows(readRDS(file.path("data", "onroad", "annie", "v2", "nonspatial_site_avgs.rds")),
+                    readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avgs.rds"))) %>%
+  filter(grepl("business", version))
+
+## combine unadjusted and temporally-adjusted annual averages
+annual_comparison <- bind_rows(annual_unadjusted, annual_adj2) %>%
+  bind_rows(temporal_adjustments1) %>%
+  mutate(version = gsub("business hours", "business", version),
+         version = gsub(" ", "_", version),)
+
+rm(temporal_adjustments1, annual_unadjusted)
+ 
 # hourly adjustments
 # #note that 'R00' routes have been combined b/c there were multiple 'routes' per day
 underwrite_adj <- bind_rows(readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda")) %>% mutate(road_types = "all_road_types"),
@@ -641,9 +658,29 @@ negative_sites %>%
 
 # Visits
 
-# --> anything to do here??
-
 ```{r}
 
 ```
+
+# Compare temporal adjustments to unadjusted
+
+annual averages
+
+# --> TO DO 
+
+```{r}
+
+annual_comparison %>%
+  pivot_wider(names_from=version, values_from=annual_mean) %>%
+  
+  pivot_longer(cols=vars(contains("temp_adj")), name_to="adjusted", values_to="value") %>%
+  
+  ggplot(aes(x=business, y=value, col=version)) + 
+  facet_wrap(~adjusted+visits) + 
+  geom_point(alpha=0.1) + 
+  geom_smooth()
+  
+
+```
+
 
