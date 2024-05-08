@@ -567,9 +567,34 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
 # saveRDS(cluster_site_avgs, file.path(new_dt_pt, "cluster_site_avgs.rds"))
 ########################################################################################################
 
+########################################################################################################
+# ROUTE SAMPLING
+########################################################################################################
+# Like the "balanced" design but sampling is based on runname/date so that it incorporates spatial & temporal structure realistic of field campaigns
+# most campaigns can't test this b/c driving routes may not be fixed or repeated many times
 
+one_campaign_by_route <- function(df, 
+                         visit_count,
+                         balanced) {
+  
+  if(balanced=="balanced") {
+    one_sample = df %>%
+      group_by(id) %>% 
+      slice_sample(n= visit_count, replace=T) %>% 
+      mutate(actual_visits = n())}
+  
+  
+  
+  
+  return(one_sample)
+}
 
-
+many_campaigns <- function(sims=sim_n, df, ...) {
+  mclapply(1:sims, mc.cores = core_count, function(s) {
+    one_campaign(df, ...) %>%
+      mutate(campaign = s)}) %>%
+    bind_rows()
+}
 
 
 
