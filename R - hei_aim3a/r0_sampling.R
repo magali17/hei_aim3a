@@ -42,23 +42,19 @@ set.seed(21)
 ########################################################################################################
 # COMMON VARIABLES
 ########################################################################################################
-
-# --> UPDATE
 sim_n <- 30
 
 all_hours <- c(0:23)
 business_hours <- c(9:17)
+#minimum proportion of a route that should be within BHs for it to be considered a BH route
+bsns_coverage_threshold <- 0.6
 
 all_days <- c("weekday", "weekend")
 business_days <- "weekday"
 
 visit_count2 <- 12
 visit_count1 <- 4
-
-# --> ??
-# visit_med2 <- log(12)
-# visit_med1 <- log(4)
-
+ 
 visit_sd <- 2 # use log(visit_sd)
 
 adjusted_vars <- c("adjusted", "unadjusted")
@@ -111,31 +107,66 @@ pnc_med <- bind_rows(adj_pnc_med, unadj_pnc_med) %>%
   ungroup()
 
 ###################################
-# # QC: routes
-# ## 443 segments were sampled on more than one "runname" (date-route combo)
-# unadj_pnc_med %>% 
+# QC: routes
+## 443 segments/locations are linked to more than one route
+unadj_pnc_med %>%
+  mutate(route = substr(runname, 12,14)) %>%
+  group_by(id) %>%
+  summarize(routes = paste(unique(route), collapse = ", "),
+            n = length(unique(route))) %>%
+  #locations sampled on more than one route
+  filter(n>1) %>%
+  nrow()
+
+# id's per run
+##
+segments_visited_per_run <- unadj_pnc_med %>%
+  group_by(runname) %>%
+  summarize(n = length(unique(id))) %>%
+  summarize(no_runs=n(),
+            min = min(n),
+            q05 = quantile(n, 0.05),
+            q10 = quantile(n, 0.10),
+            q25 = quantile(n, 0.25),
+            mean = mean(n),
+            q75 = quantile(n, 0.75),
+            q90 = quantile(n, 0.90),
+            q95 = quantile(n, 0.95),
+            max = max(n))
+
+# drop routes with few visits (e.g., makeup routes?)
+routes_to_sample <- unadj_pnc_med %>%
+  mutate(bsns_hours = ifelse(dow2 == business_days & hour %in% business_hours, 1, 0)) %>%
+  group_by(runname) %>%
+  summarize(no_ids = length(unique(id)),
+            # proportion of segments visited during business hours
+            proportion_bsns_hours = mean(bsns_hours)
+            ) %>% #filter(proportion_bsns_hours>=0.5) %>% View()
+  # drop runs with a low # of segments visits (<the 10th percentile of 280 segments)
+  filter(no_ids>segments_visited_per_run$q10) %>%
+  mutate(route = substr(runname, 12,14))
+
+# # left with 239/266 (90%) routes
+# nrow(routes_to_sample)/length(unique(unadj_pnc_med$runname))
+
+# # plot showing hours sampled per run 
+# unadj_pnc_med %>%
 #   mutate(route = substr(runname, 12,14)) %>%
-#   group_by(id) %>%
-#   summarize(routes = paste(unique(route), collapse = ", "),
-#             n = length(unique(route))) %>% 
-#   #locations sampled on more than one route
-#   filter(n>1) %>%
-#   nrow() 
-# 
-# # id's per run
-# ## 
-# segments_visited_per_run <- unadj_pnc_med %>%
-#   group_by(runname) %>%
-#   summarize(n = length(unique(id))) %>%  
-#   summarize(min = min(n),
-#             q05 = quantile(n, 0.05),
-#             q10 = quantile(n, 0.10),
-#             q25 = quantile(n, 0.25),
-#             mean = mean(n),
-#             q75 = quantile(n, 0.75),
-#             q90 = quantile(n, 0.90),
-#             q95 = quantile(n, 0.95),
-#             max = max(n))
+#   distinct(runname, date, dow2, hour, route) %>%
+#   
+#   ggplot(aes(x=hour, y=runname, col=route)) + 
+#   facet_wrap(~dow2, scales="free") + 
+#   geom_vline(xintercept = c("09", "17"), linetype=2, alpha=0.5) + 
+#   geom_point(size=0.5) 
+  
+
+# # for 50% business coverage: 7-9 runs per route
+# # for 60% business coverage: 6-9 runs per route
+# # for 80% business coverage: 4-8 runs per route
+# routes_to_sample %>%
+#   filter(proportion_bsns_hours>=bsns_coverage_threshold) %>%
+#   group_by(route) %>%
+#   summarize(n=n())
 
 ###################################
 
@@ -565,42 +596,89 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
 #   ungroup()
 # 
 # saveRDS(cluster_site_avgs, file.path(new_dt_pt, "cluster_site_avgs.rds"))
-########################################################################################################
-
+ 
 ########################################################################################################
 # ROUTE SAMPLING
 ########################################################################################################
 # Like the "balanced" design but sampling is based on runname/date so that it incorporates spatial & temporal structure realistic of field campaigns
 # most campaigns can't test this b/c driving routes may not be fixed or repeated many times
+# sampling designs
+sampling_combos_routes <- expand.grid(
+  adjusted = adjusted_vars,
+  visit_count = c(visit_count2, visit_count1),
+  balanced = c("balanced"),
+  hours = c("all hours", "business hours")) 
 
-one_campaign_by_route <- function(df, 
-                         visit_count,
-                         balanced) {
+saveRDS(sampling_combos_routes, file.path(new_dt_pt, "sampling_combos_routes_list.rda"))
+
+# --> START HERE - CHECK THAT RESULTS ARE CORRECT??
+
+########################################################################################################
+one_campaign_by_route <- function(visit_dt, adjusted, hours, visit_count,
+                                  bsns_coverage_threshold.=bsns_coverage_threshold #this becomes irrelevant if "all hours" design
+                                  ) {
   
-  if(balanced=="balanced") {
-    one_sample = df %>%
-      group_by(id) %>% 
-      slice_sample(n= visit_count, replace=T) %>% 
-      mutate(actual_visits = n())}
+  # all vs business hours/days
+  if(hours == "all hours"){ temp_routes <- routes_to_sample } 
+  # routes with most samples during BH
+  if(hours == "business hours"){ temp_routes <- filter(routes_to_sample, proportion_bsns_hours>bsns_coverage_threshold.) } 
   
+  sampling_routes <- temp_routes %>%
+    group_by(route) %>%
+    slice_sample(n= visit_count, replace=T)
   
+  visit_dt <- filter(visit_dt, adjusted == adjusted) %>% 
+    left_join(sampling_routes, ., relationship = "many-to-many") %>%
+    mutate(actual_visits = visit_count)
   
-  
-  return(one_sample)
+  return(visit_dt)
 }
 
-many_campaigns <- function(sims=sim_n, df, ...) {
+many_campaigns_by_route <- function(sims=sim_n, df, ...) {
   mclapply(1:sims, mc.cores = core_count, function(s) {
-    one_campaign(df, ...) %>%
+    one_campaign_by_route(df, ...) %>%
       mutate(campaign = s)}) %>%
     bind_rows()
 }
+########################################################################################################
 
+message("running non-spatially clustered analyses")
 
-
-
-
-
+set.seed(1)
+# x=16
+lapply(1:nrow(sampling_combos_routes), function(x) {
+  temp <- sampling_combos[x,]
+  design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>% gsub(" ", "", .)
+  visit_file <- file.path(new_dt_pt, "visits", paste0("visits_route_", design_label, ".rds"))
+  annual_file <- file.path(new_dt_pt, paste0("route_site_avgs_", design_label, ".rds"))
+  
+  message(paste0(capture.output(temp), collapse = "\n"))
+  
+  if(!file.exists(visit_file) | !file.exists(annual_file)) {
+    
+    my_samples <- many_campaigns_by_route(df = pnc_med,
+                            adjusted = temp$adjusted,
+                            hours = temp$hours,
+                            visit_count=temp$visit_count)  %>%
+      mutate(
+        adjusted = temp$adjusted,
+        design = temp$balanced,
+        visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
+        version = paste("by route", temp$hours))
+    
+    saveRDS(my_samples, file.path(visit_file))
+    
+    annual_averages <- my_samples %>%
+      group_by(id, adjusted, actual_visits, campaign, design, visits, version) %>%
+      summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+      ungroup()
+    
+    message("saving samples")
+    # save separate files since this is large
+    saveRDS(annual_averages, annual_file)
+    
+  }
+})  
 
 
 
