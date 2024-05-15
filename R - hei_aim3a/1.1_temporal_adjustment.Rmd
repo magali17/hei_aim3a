@@ -97,15 +97,18 @@ nox <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox.rda")) %>%
   arrange(time)
 
 # Overnight data 
+## NS is 1-minute data; P-trak is 10-sec data originally
 overnight <- readRDS(file.path("data", "Overnight Collocations", "overnight_data_2023-09-11.rda")) %>%
   #most of the data is at BH
   filter(
     # 10W data is only for March 2020; WILCOX data is for after the study period
     site == "AQSBH",
-    variable == "ns_total_conc",
-    # most (86.5%) of the data comes from PMSCAN_3 (vs PMSCAN_2)
-    # drop PMSCAN_2. It is used less & produces higher readings when collocated in June that would probably need to be calibrated 
-    instrument_id=="PMSCAN_3") %>%
+    # variable == "ns_total_conc",
+    # # most (86.5%) of the data comes from PMSCAN_3 (vs PMSCAN_2)
+    # # drop PMSCAN_2. It is used less & produces higher readings when collocated in June that would probably need to be calibrated 
+    # instrument_id=="PMSCAN_3"
+    instrument_id !="PMSCAN_2"
+    ) %>%
   rename(time=timeint) %>%
   mutate(date = date(time),
          month = month(time, label=TRUE),
@@ -115,13 +118,26 @@ overnight <- readRDS(file.path("data", "Overnight Collocations", "overnight_data
          weekday = ifelse(dow %in% c("Sat", "Sun"), "weekend", "weekday"),
          hour = hour(time),
          hour = factor(hour),
-         ) %>%
+         ) %>%  
   # hourly averages
+  # note that there are 2 Nanoscans (1 collocated period in July) & 2 P-traks that sample at different times
   group_by(site, date, hour, month, dow, weekday, variable) %>%
   summarize(value = mean(value, na.rm = T)) %>%
   ungroup()
 
-saveRDS(overnight, file.path("data", "Overnight Collocations", "overnight_data_2023-09-11_modified.rda"))
+
+# ggplot(data=overnight, aes(y=instrument_id, x=time)) + geom_point()
+
+# # note that there are 2 Nanoscans (1 collocated period in July) & 2 P-traks that sample at different times
+# test <- overnight %>% 
+#   filter(instrument_id %in% c("PMSCAN_2", "PMSCAN_3")) %>% 
+#   pivot_wider(names_from = instrument_id, values_from = value) %>%
+#   drop_na(contains("PMSCAN_"))
+# cor(test$PMSCAN_2, test$PMSCAN_3)
+  
+saveRDS(overnight, file.path("data", "Overnight Collocations", #"overnight_data_2023-09-11_modified.rda"
+                             "overnight_data_2024-05-15.rda"
+                             ))
 
 unbalanced_samples0 <- readRDS(file.path(dt_path, "campaign visit samples", "fewer_hours.rda")) %>%
   select(design, version, campaign, location, time, dow=day, hour, season, weekday=tow2, no2, pnc_noscreen, ns_total_conc) %>%
@@ -142,15 +158,31 @@ all_data_annual <- stops_w %>%
 ## using the approach w/o highway data
 main_bg <- "hr3_pct1"
 
+# --> CHECK THAT TZ = LA/AMERICAL
 temp_adj2 <- readRDS(file.path("data", "onroad", "annie", "v2", "temporal_adj", 
                                "20240421", # CHECK THAT THIS IS THE LATEST VERSION
-                               "underwrite_temp_adj_no_hwy.rda"
-                               )) %>%
+                               "underwrite_temp_adj_no_hwy.rda")) %>%
   filter(background_adj == main_bg) %>%
   select(time, avg_hourly_adj)
  
+```
+
+# NS vs Ptrak data
+
+```{r}
+cor_dt <- overnight %>%
+  pivot_wider(names_from = variable, values_from = value) %>%
+  drop_na(ns_total_conc, pnc_noscreen) 
+
+# number of paired hour observations
+nrow(cor_dt) # 342 hour pairs
+
+print("correlation between hourly avg P-TRAK and NS measures")
+cor(cor_dt$ns_total_conc, cor_dt$pnc_noscreen, use="complete.obs")
+
 
 ```
+
 
 # ADJUSTMENT 1
 ## check regulatory data
@@ -236,15 +268,16 @@ nox <- nox %>%
 ## nanoscan
 overnight %>%
   #filter(month == first(month)) %>%
-  mutate(time = ymd_h(paste(date, hour))) %>% 
+  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>% 
   ggplot(aes(x=time, y=value, )) + 
+  facet_wrap(~variable) +
   geom_point(alpha=0.4, aes(col=month)) + 
   geom_smooth() + 
   labs(title = "Overnight NS data")
 
 # available data
 overnight %>%
-  group_by(month) %>%
+  group_by(month, variable) %>%
   summarize(dates = length(unique(date)),
             start = min(date),
             end = max(date),
@@ -256,13 +289,16 @@ overnight %>%
 overnight %>%
   filter(site == "AQSBH") %>%
   pivot_longer(cols = c(month, dow, hour), names_to = "time_var", values_to = "time_value") %>% 
-  mutate(time_var = ifelse(time_var=="dow", "day", time_var)) %>%
+  mutate(time_var = ifelse(time_var=="dow", "day", time_var)) %>%  
   
-  group_by(time_value, time_var) %>%
+  group_by(time_value, time_var, variable) %>%
   summary_table(var = "value") %>%
+  
+  filter(variable=="ns_total_conc") %>%
+  
   ggplot(aes(x=time_value)) +
   geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  #ggplot(aes(x=time_value, y=value)) +
+  #facet_wrap(~time_var+variable, scales="free", switch = "x", ncol = 2) +
   facet_wrap(~time_var, scales="free", switch = "x", ncol = 2) +
   #geom_boxplot() +
   labs(x = "Time", y="PNC (pt/cm3)")
@@ -281,7 +317,7 @@ winsorize_quantile <- 0.05
 calibration_dt <- overnight %>%
   filter(site == "AQSBH") %>%
   pivot_wider(names_from = variable,values_from = value) %>%
-  select(date, month, dow, hour, ns_total_conc) %>% 
+  select(date, month, dow, hour, ns_total_conc, pnc_noscreen) %>% 
   # note that this changes the date to ??UTC? the
   #add_season(.date_var = "date") %>% 
   left_join(nox %>%  
@@ -294,7 +330,7 @@ ufp_conversion <- 1e3
 calibration_dt %>%
   mutate(ns_total_conc = ns_total_conc/ufp_conversion) %>%
   pivot_longer(cols = c(ns_total_conc, contains("no2")),names_to = "pollutant") %>%
-  mutate(time = ymd_h(paste(date, hour))) %>%
+  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
   
   ggplot(aes(x=time, y=value, col=pollutant)) + 
   facet_wrap(~month, scales = "free") + 
@@ -307,22 +343,23 @@ calibration_dt %>%
 
 ggsave(file.path(image_path, "no2_pnc_time_trend.png"), width = 8, height = 6)
   
-#scatterplot
+# --> same as above for p-trak
 calibration_dt %>%
-  ggplot(aes(x=no2, y=ns_total_conc, col=month)) +
-  geom_point(alpha=0.4) +
-  geom_smooth() +
-  labs(title="Hourly regulatory NO2 vs NanoScan readings\nat Beacon Hill in 2019")
+  mutate(pnc_noscreen = pnc_noscreen/ufp_conversion) %>%
+  pivot_longer(cols = c(pnc_noscreen, contains("no2")),names_to = "pollutant") %>%
+  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
+  
+  ggplot(aes(x=time, y=value, col=pollutant)) + 
+  facet_wrap(~month, scales = "free") + 
+  geom_point(alpha=0.3) + 
+  # make smooth line more wiggly to show hourly patterns (what we are interested in)
+  geom_smooth(span=0.1, se = F) + 
+  labs(title = paste0("time series of hourly NO2 (ppb) and UFP (", ufp_conversion, " pt/cm3) at Beacon Hill"), 
+       subtitle = "Overnight data",
+       y="Observed Concentration")
 
-# log-normal distribution
-calibration_dt %>%
-  pivot_longer(cols = c(ns_total_conc, no2),names_to = "pollutant") %>%
-  ggplot(aes(x=value, fill=pollutant)) + 
-  facet_wrap(~pollutant, scales="free") + 
-  geom_histogram() + 
-  labs(title = "distribution of time-matched hourly NO2 & UFP readings",
-       subtitle = "readings are log-normal"
-       )
+ggsave(file.path(image_path, "no2_pnc_time_trend_ptrak.png"), width = 8, height = 6)
+
 
 ```
 
@@ -360,31 +397,48 @@ print("the hour functions look non-linear")
 par(mfrow = c(3, 3))
 plot(lm1)
 
+#same as above for p-trak
+set.seed(2)
+# use cyclic spline?? mgcg::s(x, bs = "ad", xt = list(bs = "cc")) 
+lm1_ptrak <-  calibration_dt %>%
+  mutate(hour = as.numeric(as.character(hour))) %>%
+  gam(data=., formula=log(pnc_noscreen)~log(no2) + dow + 
+                                                    s(hour,
+                                                      bs="cc", #cyclic cubic regression spline
+                                                      k=5, #k=5 or 6? both perform similarly
+                                                      by = dow #interaction by dow
+                                                      )) 
+
+summary(lm1_ptrak)
+
+
 calibration_dt <- calibration_dt %>%
   mutate(ufp_prediction = predict(lm1) %>% exp(),
-         residual = ns_total_conc - ufp_prediction,
-         time = ymd_h(paste(date, hour))) 
+         ufp_prediction_ptrak = predict(lm1_ptrak) %>% exp(),
+         residual = pnc_noscreen - ufp_prediction_ptrak,
+         residual_ptrak = ns_total_conc - ufp_prediction,
+         time = ymd_h(paste(date, hour),  tz=local_tz)) 
 
 ```
 
 ```{r}
 # compare UFP measurements (31 dys) to predictions
-calibration_dt %>%
-  select(date, hour, ns_total_conc, contains("ufp_prediction")) %>%
-  pivot_longer(cols = contains("ufp_prediction")) %>%
-  mutate(name = ifelse(name=="ufp_prediction", "current UFP model", "model with DOW main effect")) %>%
-  
-  ggplot(aes(x=ns_total_conc, y=value, col=name)) + 
-  geom_point() + 
-  geom_smooth() + 
-  geom_abline(slope = 1, intercept = 0, linetype=2) +
-  theme(aspect.ratio = 1) +
-  labs(x="Observed UFP",
-       y = "Predicted UFP",
-       col=NULL,
-       title = "Hourly UFP (pt/cm3) at Beacon Hill (31 dys)\nduring the study period"
-       )
-#ggsave(file.path(image_path, "..", "other", "qc", "predicted_ufp_vs_measured_dow_main_effect.png"), width = 6, height = 6)
+# calibration_dt %>%
+#   select(date, hour, ns_total_conc, contains("ufp_prediction")) %>%
+#   pivot_longer(cols = contains("ufp_prediction")) %>%
+#   mutate(name = ifelse(name=="ufp_prediction", "current UFP model", "model with DOW main effect")) %>%
+#   
+#   ggplot(aes(x=ns_total_conc, y=value, col=name)) + 
+#   geom_point() + 
+#   geom_smooth() + 
+#   geom_abline(slope = 1, intercept = 0, linetype=2) +
+#   theme(aspect.ratio = 1) +
+#   labs(x="Observed UFP",
+#        y = "Predicted UFP",
+#        col=NULL,
+#        title = "Hourly UFP (pt/cm3) at Beacon Hill (31 dys)\nduring the study period"
+#        )
+# #ggsave(file.path(image_path, "..", "other", "qc", "predicted_ufp_vs_measured_dow_main_effect.png"), width = 6, height = 6)
 
 
 ```
@@ -401,7 +455,7 @@ y_breaks <- c(c(0, 3, 10, 20)*1e3,
                  c(3, 10, 20)*-1e3)
 
 # time series 
-
+## NS
 calibration_dt %>%
   ggplot(aes(x=time, y=residual)) + 
   facet_wrap(~month, scales = "free_x") + 
@@ -417,6 +471,21 @@ ggsave(file.path(image_path, "no2_pnc_residuals_time_trend.png"), width = 8, hei
 
 print("distribution of residuals")
 summary(calibration_dt$residual) 
+
+
+## ptrak
+calibration_dt %>%
+  ggplot(aes(x=time, y=residual_ptrak)) + 
+  facet_wrap(~month, scales = "free_x") + 
+  geom_hline(yintercept = 0, linetype=2, alpha=0.6) + 
+  geom_hline(yintercept = c(-3e3, 3e3), linetype=3, alpha=0.5) + 
+  geom_point(aes(col=dow), alpha=0.4) + 
+  geom_smooth(#span=0.3
+              ) +
+  scale_y_continuous(breaks = y_breaks) +
+  labs(title = paste0("time series of UFP residuals from the model (native scale)"))
+
+ggsave(file.path(image_path, "no2_pnc_residuals_time_trend_ptrak.png"), width = 8, height = 6)
 
 ```
 
@@ -441,19 +510,36 @@ predicted_ufp <- nox %>%
   predict(lm1, newdata=.) %>% 
   exp()
 
+predicted_ufp_ptrak <- nox %>%
+  mutate(hour = as.numeric(as.character(hour))) %>% 
+  predict(lm1_ptrak, newdata=.) %>% 
+  exp()
+
 predicted_lta_ufp <- mean(predicted_ufp)
+predicted_lta_ufp_ptrak <- mean(predicted_ufp_ptrak)
 
 predicted_ufp_low <- quantile(predicted_ufp, winsorize_quantile, na.rm = T)
 predicted_ufp_high <- quantile(predicted_ufp, 1-winsorize_quantile, na.rm = T)
 
+predicted_ufp_low_ptrak <- quantile(predicted_ufp_ptrak, winsorize_quantile, na.rm = T)
+predicted_ufp_high_ptrak <- quantile(predicted_ufp_ptrak, 1-winsorize_quantile, na.rm = T)
+
+
 nox <- nox %>%
   mutate(predicted_ufp = predicted_ufp,
+         predicted_ufp_ptrak = predicted_ufp_ptrak,
          predicted_ufp_winsorized = ifelse(predicted_ufp < predicted_ufp_low, predicted_ufp_low,
                              ifelse(predicted_ufp > predicted_ufp_high, predicted_ufp_high, predicted_ufp)),
          
+        predicted_ufp_winsorized_ptrak = ifelse(predicted_ufp_ptrak < predicted_ufp_low_ptrak, predicted_ufp_low_ptrak,
+                             ifelse(predicted_ufp_ptrak > predicted_ufp_high_ptrak, predicted_ufp_high_ptrak, predicted_ufp_ptrak)),
+         
+         
          # adjustment based on the difference method
          diff_adjustment = predicted_lta_ufp - predicted_ufp,
+         diff_adjustment_ptrak = predicted_lta_ufp_ptrak - predicted_ufp_ptrak,
          diff_adjustment_winsorize = predicted_lta_ufp - predicted_ufp_winsorized,
+         diff_adjustment_winsorize_ptrak = predicted_lta_ufp_ptrak - predicted_ufp_winsorized_ptrak,
          )
 
 saveRDS(nox, file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda"))
@@ -494,7 +580,7 @@ nox %>%
   geom_smooth() + 
   
   geom_point(data=overnight %>% mutate(time = paste(date, hour),
-                                       time = ymd_h(time),
+                                       time = ymd_h(time,  tz=local_tz),
                                        pollutant = "ufp_observation",
                                        value = value/ufp_conversion), 
              alpha=0.3) +
@@ -509,8 +595,7 @@ visualize fix no2 to the mean and see temporal patterns
 test <- nox %>%
   mutate(hour = as.numeric(as.character(hour)),
          no2 = mean(no2, na.rm = T)) %>% 
-  predict(#lm1_test, 
-          lm1, 
+  predict(lm1, 
           newdata=.) %>% 
   exp()
 
@@ -548,8 +633,12 @@ unbalanced_samples <- unbalanced_samples0 %>%
   mutate(time = ymd_h(substr(time, 1, 13), tz = local_tz)) %>%
   left_join(select(nox, time, contains("diff_adjustment"))) %>%
   mutate(ns_total_conc_adj_no2lm = ns_total_conc + diff_adjustment,
-         ns_total_conc_adj_no2lm_winsorize = ns_total_conc + diff_adjustment_winsorize)
+         ns_total_conc_adj_no2lm_winsorize = ns_total_conc + diff_adjustment_winsorize,
+         
+         ptrak_adj_no2lm = pnc_noscreen + diff_adjustment_ptrak,
+         ptrak_adj_no2lm_winsorize = pnc_noscreen + diff_adjustment_winsorize_ptrak)
   
+
 saveRDS(unbalanced_samples, file.path(dt_path, "campaign visit samples", "bh_visits_fixed_site_temp_adj.rds")) 
 
 # prop.table(table(unbalanced_samples$ns_total_conc_adj_no2lm<=0))
@@ -565,7 +654,7 @@ hist(unbalanced_samples$diff_adjustment_winsorize)
 # annual averages
 adjusted_annual_avg <- unbalanced_samples %>% 
   group_by(design, version, campaign, location) %>%
-  summarize_at(vars(contains(c( "ns_"))), ~mean(., na.rm = T)) %>%
+  summarize_at(vars(contains(c( "ns_", "pnc_noscreen", "ptrak"))), ~mean(., na.rm = T)) %>%
   ungroup()
 
 
@@ -588,10 +677,12 @@ unbalanced_samples %>%
 
 ```{r}
 dt1 <- adjusted_annual_avg %>%
-  select(design, version, campaign, location, ns_total_conc)
+  select(design, version, campaign, location, ns_total_conc, pnc_noscreen)
 
 dt2 <- adjusted_annual_avg %>%
-  select(design, version, campaign, location, ns_total_conc = ns_total_conc_adj_no2lm_winsorize) %>%
+  select(design, version, campaign, location, ns_total_conc = ns_total_conc_adj_no2lm_winsorize,
+                                              pnc_noscreen = ptrak_adj_no2lm_winsorize
+         ) %>%
   mutate(version = paste(version, "temp adj 1"))
 
 
@@ -606,28 +697,28 @@ adjustments generally decrease annual average site estimates
 ```{r}
 #overnight_bh <- mean(overnight$value)
 
-adjusted_annual_avg %>%
-  left_join(all_data_annual) %>%
-  pivot_longer(cols = c(contains(c("ns_")))) %>%
-  ggplot(aes(x=version, y=value, col=name)) +
-    facet_wrap(~design, scales="free") +
-  # overnight BH estimate
-      geom_boxplot() +
-  labs(title = "Comparison of UFP annual site averages before/after temporal adjustment")
+# adjusted_annual_avg %>%
+#   left_join(all_data_annual) %>%
+#   pivot_longer(cols = c(contains(c("ns_")))) %>%
+#   ggplot(aes(x=version, y=value, col=name)) +
+#     facet_wrap(~design, scales="free") +
+#   # overnight BH estimate
+#       geom_boxplot() +
+#   labs(title = "Comparison of UFP annual site averages before/after temporal adjustment")
     
 
-# --> compare to all_data_annual? # left_join(all_data_annual) 
-adjusted_annual_avg %>%
-  pivot_longer(cols = contains("ns_total_conc_adj")) %>% 
-  ggplot(aes(x=ns_total_conc, y=value, col=name)) +
-  facet_wrap(~version) +
-  geom_point(alpha=0.1) +
-  geom_hline(yintercept = 0, col="gray") +
-  geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) +
-  geom_abline(slope = c(0.75, 1.25), intercept = 0, linetype=3, alpha=0.5) +
-  geom_smooth() + #stat_poly_eq() +
-  labs(title = "Comparison of NanoScan annual site averages before and after temporal adjustment",
-       subtitle = "dashed lines are the 1-1 and +-25%")
+# # --> compare to all_data_annual? # left_join(all_data_annual) 
+# adjusted_annual_avg %>%
+#   pivot_longer(cols = contains("ns_total_conc_adj")) %>% 
+#   ggplot(aes(x=ns_total_conc, y=value, col=name)) +
+#   facet_wrap(~version) +
+#   geom_point(alpha=0.1) +
+#   geom_hline(yintercept = 0, col="gray") +
+#   geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) +
+#   geom_abline(slope = c(0.75, 1.25), intercept = 0, linetype=3, alpha=0.5) +
+#   geom_smooth() + #stat_poly_eq() +
+#   labs(title = "Comparison of NanoScan annual site averages before and after temporal adjustment",
+#        subtitle = "dashed lines are the 1-1 and +-25%")
 
 
 print("average/overall annual average site estimate correlations for unadjusted and adjusted data campaigns")
@@ -636,7 +727,7 @@ r <- lapply(unique(adjusted_annual_avg$version), function(x) {
   adjusted_annual_avg %>%
     left_join(all_data_annual) %>% 
     filter(version==x) %>%
-    select(contains("ns_total_conc")) %>%
+    select(contains(c("ns_total_conc", "pnc_noscreen", "ptrak"))) %>%
     cor() 
   }) 
 
@@ -645,6 +736,21 @@ names(r) <- unique(adjusted_annual_avg$version)
 r
   
 ```
+
+# compare Ptrak vs NS hourly adjustments
+
+```{r}
+print("very high correlation between winsorized hourly adjustments from p-trak and ns readings")
+cor(nox$diff_adjustment_winsorize, nox$diff_adjustment_winsorize_ptrak)
+
+nox %>%
+  ggplot(aes(x=diff_adjustment_winsorize, y=diff_adjustment_winsorize_ptrak)) + 
+  geom_abline(slope = 1, intercept = 0, linetype=2) + 
+  geom_point(alpha=0.3) + 
+  geom_smooth() 
+  
+```
+
 
 
 # ADJUSTMENT 2
@@ -692,17 +798,17 @@ r
 # --> START HERE
 
 ```{r}
-# dt2
-samples_temp_adj2 <- unbalanced_samples0 %>%
-  #remove minutes & seconds
-  mutate(time = ymd_h(substr(time, 1, 13), tz = local_tz)) %>%  
-  left_join(temp_adj2#, by="time"
-            ) %>% View()
-  mutate(version = paste(version, "temp adj 2"),
-         ns_total_conc_adj2 = ns_total_conc + avg_hourly_adj,
-         pnc_noscreen_adj2 = pnc_noscreen + avg_hourly_adj)
-
-select(c(names(dt2), pnc_noscreen))  
+# # dt2
+# samples_temp_adj2 <- unbalanced_samples0 %>%
+#   #remove minutes & seconds
+#   mutate(time = ymd_h(substr(time, 1, 13), tz = local_tz)) %>%  
+#   left_join(temp_adj2#, by="time"
+#             ) %>% View()
+#   mutate(version = paste(version, "temp adj 2"),
+#          ns_total_conc_adj2 = ns_total_conc + avg_hourly_adj,
+#          pnc_noscreen_adj2 = pnc_noscreen + avg_hourly_adj)
+# 
+# select(c(names(dt2), pnc_noscreen))  
 
 ```
 

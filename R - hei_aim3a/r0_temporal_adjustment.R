@@ -42,7 +42,7 @@ overwrite_time_series <- FALSE #TRUE when make updates to the 1sec road file
 # rolling quantiles
 overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is updated
 
-overwrite_fixed_site_temporal_adjustment <- FALSE # true when e.g., update the visit designs
+overwrite_fixed_site_temporal_adjustment <- TRUE # true when e.g., update the visit designs
 # speed thigns up
 testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
 
@@ -102,6 +102,8 @@ visits <- lapply(bh_visit_files, function(x){ readRDS(file.path(dt_pt, "visits",
 bh_version <- unique(visits$version) %>% as.character()
 
 visits <- select(visits, -version)
+
+local_tz <- tz(fixed_site_temp_adj$time)
 
 ##################################################################################################
 # COMMON VARIABLES
@@ -253,7 +255,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds
   message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
   visits_adj1 <- visits %>%
-    mutate(time = ymd_h(paste(date, hour))) %>%
+    mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
     # add temporal adjustment
     left_join(fixed_site_temp_adj, by="time") %>%
     mutate(median_value_adjusted = median_value + ufp_adjustment,
@@ -346,7 +348,7 @@ get_hourly_adjustment <- function(dt) {
     ungroup() %>%
     mutate(avg_hourly_adj = bg_lta - bg_hour_avg,
            #median_hourly_adj = bg_lta - bg_hour_median,
-           time = ymd_h(paste(date, hour), tz = tz(dt$time))) %>%
+           time = ymd_h(paste(date, hour), tz=local_tz)) %>%
     select(runname, date, hour, time, background_adj, bg_lta, bg_hour_avg, avg_hourly_adj#, bg_hour_median, median_hourly_adj
            ) %>%
     # drop NA & NaN caused from no MM data for entire hours early on in the day (why was this start time here to begin with?)
@@ -370,7 +372,7 @@ add_progress_notes("applying temporal adjustment using all segments")
 visits_adj2 <- visits %>%
 
 #lapply(group_split(visits, ))
-  mutate(time = ymd_h(paste(date, hour))) %>%
+  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
   # add temporal adjustment
   left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time" #multiple = "all" #receive warning message w/o this 
             ) %>% 
@@ -400,7 +402,7 @@ message("applying temporal adjustment to non-hwy segments")
 add_progress_notes("applying temporal adjustment using non-hwy segments")
 
 visits_adj2_no_hwy <- visits %>%
-  mutate(time = ymd_h(paste(date, hour))) %>%
+  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
   # add temporal adjustment
   left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj), by="time") %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
