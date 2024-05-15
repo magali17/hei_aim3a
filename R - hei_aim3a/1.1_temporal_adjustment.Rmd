@@ -137,6 +137,19 @@ all_data_annual <- stops_w %>%
   group_by(location) %>%
   summarize(ns_total_conc_all_data = mean(ns_total_conc))
 
+########################################
+# from r0_temporal_adjustment.R
+## using the approach w/o highway data
+main_bg <- "hr3_pct1"
+
+temp_adj2 <- readRDS(file.path("data", "onroad", "annie", "v2", "temporal_adj", 
+                               "20240421", # CHECK THAT THIS IS THE LATEST VERSION
+                               "underwrite_temp_adj_no_hwy.rda"
+                               )) %>%
+  filter(background_adj == main_bg) %>%
+  select(time, avg_hourly_adj)
+ 
+
 ```
 
 # ADJUSTMENT 1
@@ -636,42 +649,63 @@ r
 
 # ADJUSTMENT 2
 
-background adjustment based on the collected data
+
 
 ```{r}
-low_conc <- 0.01 
-# x = group_split(visits, adjusted, campaign, design, visits, cluster_type)[[1]]
-visits_adj2 <- lapply(group_split(unbalanced_samples0, design, version, campaign), function(x){
-  temp <- x %>%
-    mutate(hour = as.numeric(as.character(hour))) %>%
-    group_by(hour) %>%
-    mutate(quantile_background = quantile(ns_total_conc, low_conc)) %>% 
-    ungroup()
-  
-  # make the hourly adjustments smoother
-  temp_hrs <- distinct(temp, hour, quantile_background)
-  smooth_fit <- lm(quantile_background ~ ns(hour, knots=c(12, 15)), data = temp_hrs)
-  temp_hrs <- temp_hrs %>%
-    mutate(smooth_background = predict(smooth_fit, newdata=.),
-           # long-term average estimate based on background concentrations from the collected campaign data
-           lta_background = mean(smooth_background))
-     
-  # apply hourly adjustments, add the LTA background back in
-  temp <- left_join(temp, temp_hrs, by=c("hour", "quantile_background")) %>%
-    mutate(local_conc = ns_total_conc - smooth_background,
-           ns_total_conc_adjusted = local_conc + lta_background)
-  }) %>%
-  bind_rows() %>%
-  mutate(version = paste(version, "temp adj 2"))
+# OLD??
 
-saveRDS(visits_adj2, file.path(dt_path, "campaign visit samples", "bh_visits_background_temp_adj.rds")) 
-
-annual_adj2 <- visits_adj2 %>%
-  group_by(design, version, campaign, location) %>%
-  summarize(ns_total_conc = mean(ns_total_conc_adjusted, na.rm=T)) %>%
-  ungroup() 
+# background adjustment based on the collected data
+# low_conc <- 0.01 
+# # x = group_split(visits, adjusted, campaign, design, visits, cluster_type)[[1]]
+# visits_adj2 <- lapply(group_split(unbalanced_samples0, design, version, campaign), function(x){
+#   temp <- x %>%
+#     mutate(hour = as.numeric(as.character(hour))) %>%
+#     group_by(hour) %>%
+#     mutate(quantile_background = quantile(ns_total_conc, low_conc)) %>% 
+#     ungroup()
+#   
+#   # make the hourly adjustments smoother
+#   temp_hrs <- distinct(temp, hour, quantile_background)
+#   smooth_fit <- lm(quantile_background ~ ns(hour, knots=c(12, 15)), data = temp_hrs)
+#   temp_hrs <- temp_hrs %>%
+#     mutate(smooth_background = predict(smooth_fit, newdata=.),
+#            # long-term average estimate based on background concentrations from the collected campaign data
+#            lta_background = mean(smooth_background))
+#      
+#   # apply hourly adjustments, add the LTA background back in
+#   temp <- left_join(temp, temp_hrs, by=c("hour", "quantile_background")) %>%
+#     mutate(local_conc = ns_total_conc - smooth_background,
+#            ns_total_conc_adjusted = local_conc + lta_background)
+#   }) %>%
+#   bind_rows() %>%
+#   mutate(version = paste(version, "temp adj 2"))
+# 
+# saveRDS(visits_adj2, file.path(dt_path, "campaign visit samples", "bh_visits_background_temp_adj.rds")) 
+# 
+# annual_adj2 <- visits_adj2 %>%
+#   group_by(design, version, campaign, location) %>%
+#   summarize(ns_total_conc = mean(ns_total_conc_adjusted, na.rm=T)) %>%
+#   ungroup() 
 
 ```
+
+# --> START HERE
+
+```{r}
+# dt2
+samples_temp_adj2 <- unbalanced_samples0 %>%
+  #remove minutes & seconds
+  mutate(time = ymd_h(substr(time, 1, 13), tz = local_tz)) %>%  
+  left_join(temp_adj2#, by="time"
+            ) %>% View()
+  mutate(version = paste(version, "temp adj 2"),
+         ns_total_conc_adj2 = ns_total_conc + avg_hourly_adj,
+         pnc_noscreen_adj2 = pnc_noscreen + avg_hourly_adj)
+
+select(c(names(dt2), pnc_noscreen))  
+
+```
+
 
 # --> ? compare site annual averages for: unadjusted, temp adj 1, temp adj 2
 

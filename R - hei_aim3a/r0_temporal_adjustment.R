@@ -346,7 +346,7 @@ get_hourly_adjustment <- function(dt) {
     ungroup() %>%
     mutate(avg_hourly_adj = bg_lta - bg_hour_avg,
            #median_hourly_adj = bg_lta - bg_hour_median,
-           time = ymd_h(paste(date, hour))) %>%
+           time = ymd_h(paste(date, hour), tz = tz(dt$time))) %>%
     select(runname, date, hour, time, background_adj, bg_lta, bg_hour_avg, avg_hourly_adj#, bg_hour_median, median_hourly_adj
            ) %>%
     # drop NA & NaN caused from no MM data for entire hours early on in the day (why was this start time here to begin with?)
