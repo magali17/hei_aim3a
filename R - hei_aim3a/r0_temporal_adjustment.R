@@ -81,7 +81,11 @@ add_progress_notes("loading visit data")
 # using fixedsite temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
 #if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
 fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
-    select(time, ufp_adjustment = diff_adjustment_winsorize)
+  # use ptrak-based temporal adjustment  
+  select(time, 
+         #ufp_adjustment2 = diff_adjustment_winsorize,
+           ufp_adjustment = diff_adjustment_winsorize_ptrak,
+           )
 #}
 
 # BH samples

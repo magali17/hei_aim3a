@@ -158,12 +158,12 @@ all_data_annual <- stops_w %>%
 ## using the approach w/o highway data
 main_bg <- "hr3_pct1"
 
-# --> CHECK THAT TZ = LA/AMERICAL
-temp_adj2 <- readRDS(file.path("data", "onroad", "annie", "v2", "temporal_adj", 
-                               "20240421", # CHECK THAT THIS IS THE LATEST VERSION
-                               "underwrite_temp_adj_no_hwy.rda")) %>%
-  filter(background_adj == main_bg) %>%
-  select(time, avg_hourly_adj)
+# # --> CHECK THAT TZ = LA/AMERICAL
+# temp_adj2 <- readRDS(file.path("data", "onroad", "annie", "v2", "temporal_adj", 
+#                                "20240421", # CHECK THAT THIS IS THE LATEST VERSION
+#                                "underwrite_temp_adj_no_hwy.rda")) %>%
+#   filter(background_adj == main_bg) %>%
+#   select(time, avg_hourly_adj)
  
 ```
 
@@ -828,7 +828,8 @@ nox %>%
 ```{r}
 # save data
 rbind(dt1, dt2) %>% 
-  rbind(annual_adj2) %>%
+  #rbind(annual_adj2) %>%
+                      # output, v3_____    
   saveRDS(., file.path(dt_path, "temporal_adjustment.rda"))
 
 ```
