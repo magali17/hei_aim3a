@@ -27,7 +27,10 @@ run_cv <- FALSE
 ##################################################################################################
 temporal <- readRDS(file.path(dt_path, "temporal_adjustment.rda")) %>%
   mutate(visits = 12) %>%
-  pivot_longer(cols = ns_total_conc, names_to = "variable", values_to = "value")
+  # note that pnc_noscreen is not necessary but used in sensitivity analyses sometimes
+  pivot_longer(cols = c(ns_total_conc, pnc_noscreen), names_to = "variable", values_to = "value") %>%
+  # 1 value for pnc_noscreen is ~ -200
+  mutate(value = ifelse(value<=0, 1, value))
 
 keep_vars2 <- c("ns_total_conc", "ns_10_100", "pnc_noscreen", "no2")
 
@@ -115,9 +118,11 @@ if(create_new_cw == TRUE) {
                     sep = "_"),
       model_no = row_number())
   
-  write.csv(cw, file.path(dt_path, "other_designs_model_cw_20240313.csv"), row.names = F)
+  write.csv(cw, file.path(dt_path, #"other_designs_model_cw_20240313.csv"
+                          "other_designs_model_cw_20240516.csv"
+                          ), row.names = F)
   } else {
-    cw <- read.csv(file.path(dt_path, "other_designs_model_cw_20240313.csv"))
+    cw <- read.csv(file.path(dt_path, "other_designs_model_cw_20240516.csv"))
     }
   
 dt <- left_join(dt, cw) %>%
@@ -156,6 +161,18 @@ lapply(sitetype_vars, function(x) {
            variable == x) %>%
     saveRDS(., file.path(dt_path, "Selected Campaigns", paste0("other_stop_designs_data_sitetype_", x, ".rda")))
 })
+
+##################################################################################################
+# 5/16 SEPARETE OUT TEMPORAL ADJ & UNADJUSTED
+temporally_adjusted_models <- cw %>% 
+  #filter(grepl("temp adj", version)) 
+  filter(grepl("fewhrs", model)) %>%
+  distinct(model) %>% pull()
+
+dt %>%
+  filter(model %in% temporally_adjusted_models) %>%  
+                  # Output/v3_   
+  saveRDS(., file.path(dt_path, "Selected Campaigns", "other_stop_designs_data_temp_adj.rda")) 
 
 ##################################################################################################
 # CV
@@ -201,7 +218,9 @@ cv_predictions0 <- lapply(group_split(dt, model),
                             FUN = do_cv, fold_name = "random_fold") %>%
   bind_rows()
 
-saveRDS(cv_predictions0, file.path(dt_path, "UK Predictions", "TEMP_other_design_cv_predictions.rda"))
+saveRDS(cv_predictions0, file.path(dt_path, "UK Predictions", #"TEMP_other_design_cv_predictions.rda"
+                                   "TEMP_other_design_cv_predictions_20240516.rda"
+                                   ))
 
 ##################################################################################################
 # COMBINE PREDICTIONS & BEST ESTIMATES
@@ -219,7 +238,9 @@ predictions <- cv_predictions0 %>%
   mutate_at(vars(campaign_estimate, prediction), ~exp(.))
 
 message("saving predictions")
-saveRDS(predictions, file.path(dt_path, "UK Predictions", "other_design_predictions.rda"))
+saveRDS(predictions, file.path(dt_path, "UK Predictions", #"other_design_predictions.rda"
+                               "other_design_predictions_20240516.rda"
+                               ))
 
 
 ##################################################################################################
@@ -238,13 +259,15 @@ validation_stats <- function(dt, prediction, reference){
   MSE_based_R2 = max(1 - MSE_pred/MSE_obs, 0)
   # alternative gives same mse-based R2
   # caret::R2(pred = dt$prediction,obs =dt$estimate, form = "traditional")
-
+  reg_based_R2 = cor(dt[[reference]], dt[[prediction]], method = "pearson")^2
+  
   result <- distinct(dt, model, out_of_sample# , reference
   ) %>%
     mutate(
       no_sites = nrow(dt),
       RMSE = RMSE,
-      MSE_based_R2 = MSE_based_R2
+      MSE_based_R2 = MSE_based_R2,
+      reg_based_R2 = reg_based_R2
     )
   return(result)
 }
@@ -257,9 +280,28 @@ model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
 message("saving model evaluation statistics")
 
 model_perf0 %>%
-  saveRDS(., file.path(dt_path, "other_designs_model_eval.rda"))
+  saveRDS(., file.path(dt_path, #"other_designs_model_eval.rda"
+                       "other_designs_model_eval_20240516.rda"
+                       ))
 
 ##################################################################################################
 # DONE
 ##################################################################################################
 message("done with other_designs_1.R")
+
+
+##################################################################################################
+# APPENDIX
+##################################################################################################
+# # quick check of model eval for temporal adjustment
+# model_perf0 %>%
+#   filter(grepl("_fewhrs", model)) %>%
+#   left_join(cw) %>% 
+#   pivot_longer(cols = contains("_R2")) %>% View()
+#   
+#   ggplot(aes(x=version, fill=variable, y=value)) + 
+#     facet_wrap(~name) + 
+#     geom_boxplot()
+
+
+

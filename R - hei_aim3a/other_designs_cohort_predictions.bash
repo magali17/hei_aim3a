@@ -12,4 +12,7 @@ Rscript other_designs_2predict.R other_stop_designs_data_sitetype_pnc_noscreen.r
 Rscript other_designs_2predict.R other_stop_designs_data_sitetype_ns_10_100.rda cohort/other\ designs/sitetype_ns_10_100
 
 
+## 5/16/24 - temporally adjusted designs
+Rscript other_designs_2predict.R other_stop_designs_data_temp_adj.rda cohort/other\ designs/temp_adj
+
 echo "done running scripts"

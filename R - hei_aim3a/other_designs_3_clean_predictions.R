@@ -9,8 +9,29 @@ prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "other de
 kp_directory <- file.path(dt_path, "UK Predictions", "cohort", "KP")
 
 source("functions.R")
+
+
 ##################################################################################################
-# 2024-03-14: fixed the temporal adjustment (main effect), added 2nd temporal adjustment
+# 2024-05-16: roadside paper - fixed the temporal adjustment 1 (UTM hour merging issue); added p-trak adjusted
+# --> onroad paper - 
+##################################################################################################
+# fixed the temporal adjustment 1 (UTM hour merging issue); added p-trak temporally adjusted
+## removed original 2nd temporal adj. decided not to apply the UW approach b/c its currently based on ptrak data AND from 'onroad' data which we have said we don't trust as much
+temp_adj_predictions <- readRDS(file.path(prediction_directory, "temp_adj", "predictions_2024-05-16.rda"))
+
+# added temporal adjustment (had to rerun & save BH), updated the clusters, added route-based sampling
+onroad_predictions <- readRDS(file.path(dt_path, "UK Predictions", "cohort", "onroad_pnc_noscreen", 
+                                        # --> TO DO
+                                        #"predictions_2024-05-16.rda"
+                                        ))
+
+predictions_20240520 <- rbind(temp_adj_predictions, onroad_predictions)
+
+saveRDS(predictions_20240520, file.path(kp_directory, paste0("fewhrs_", Sys.Date(), ".rda")))
+write.csv(predictions_20240520, file.path(kp_directory, paste0("fewhrs_", Sys.Date(), ".csv")))
+
+##################################################################################################
+# 2024-03-14: fixed the temporal adjustment (main effect), added 2nd temporal adjustment 
 ##################################################################################################
 
 # save file elsewhere and as a CSV for KP

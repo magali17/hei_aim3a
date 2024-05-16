@@ -681,8 +681,7 @@ dt1 <- adjusted_annual_avg %>%
 
 dt2 <- adjusted_annual_avg %>%
   select(design, version, campaign, location, ns_total_conc = ns_total_conc_adj_no2lm_winsorize,
-                                              pnc_noscreen = ptrak_adj_no2lm_winsorize
-         ) %>%
+                                              pnc_noscreen = ptrak_adj_no2lm_winsorize) %>%
   mutate(version = paste(version, "temp adj 1"))
 
 
@@ -753,9 +752,7 @@ nox %>%
 
 
 
-# ADJUSTMENT 2
-
-
+# ADJUSTMENT 2 - DON'T DO B/C BASED ON NS DATA & EXTREM ADJUSTMENTS ARE LARGER W/ NS (VS PTRAK DATA)?
 
 ```{r}
 # OLD??
@@ -795,8 +792,6 @@ nox %>%
 
 ```
 
-# --> START HERE
-
 ```{r}
 # # dt2
 # samples_temp_adj2 <- unbalanced_samples0 %>%
@@ -812,10 +807,8 @@ nox %>%
 
 ```
 
-
-# --> ? compare site annual averages for: unadjusted, temp adj 1, temp adj 2
-
 ```{r}
+# --> ? compare site annual averages for: unadjusted, temp adj 1, temp adj 2
 
 
 
@@ -823,7 +816,7 @@ nox %>%
 
 
 
-# Save data
+# SAVE DATA
 
 ```{r}
 # save data
@@ -852,11 +845,12 @@ no2_lm <- nox %>%
   mutate(hour = as.numeric(as.character(hour))) %>%
   lm(formula=log(no2)~dow*bs(hour, knots = c(5, 11, 17)),)
 
+# R2~0.089
 summary(no2_lm)
 
 
 print("more specific model adding month")
-# R2 ~ 0.18
+# R2 ~ 0.182
 no2_lm2 <- nox %>%
   mutate(hour = as.numeric(as.character(hour))) %>%
   lm(formula=log(no2)~dow*bs(hour, knots = c(5, 11, 17)) + month) 

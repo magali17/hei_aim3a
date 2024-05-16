@@ -131,10 +131,14 @@ annual_trainint_set <- annual_trainint_set0 %>%
   bind_rows(fewr_hrs)
 
 
-# site predictions for temporally adjusted designs
-other_design_site_predictions <- readRDS(file.path(dt_path, "UK Predictions", "other_design_predictions.rda")) %>%
+# site predictions for temporally adjusted designs & others?
+other_design_site_predictions <- readRDS(file.path(dt_path, "UK Predictions", 
+                                                   #"other_design_predictions.rda"
+                                                   "other_design_predictions_20240516.rda"
+                                                   )) %>%
+  # -> UPDATE here & elsewhere: add pnc_noscreen?
   filter(grepl("nstot_fewhrs", model)) %>%
-  left_join(read.csv(file.path(dt_path, "other_designs_model_cw.csv"))) %>%
+  left_join(read.csv(file.path(dt_path, "other_designs_model_cw_20240516.csv"))) %>%
   label_pollutants() %>% label_designs() %>%
   select(version, campaign, location, gs_estimate, prediction) %>% 
   mutate(adjusted = ifelse(grepl("Adj", version), "Adjusted", "Unadjusted"),
@@ -144,8 +148,15 @@ other_design_site_predictions <- readRDS(file.path(dt_path, "UK Predictions", "o
          #absolute error
          error = abs(error)) 
 
+
+
+
+
 # number of visits (stops) per site 
 stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
+
+# exposure model performances for other designs
+model_eval_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval_20240516.rda"))
 
 
 ##################################################################################################
