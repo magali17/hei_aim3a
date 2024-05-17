@@ -90,8 +90,8 @@ label_designs <- function(dt) {
                             ifelse(version=="4_visits 309_sites", "4", #"1,200",
                                    version))),
     version = factor(version, levels = c("All Data", 1:3, "4", "6", "12", 
-                                         "Business", "Business Adj", "Bus", "Bus Adj",
-                                         "Rush","Rush Adj",
+                                         "Business", "Business Adj", "Business Adj 1", "Business Adj 2", "Bus", "Bus Adj 1", "Bus Adj 2",
+                                         "Rush","Rush Adj", "Rush Adj 1", "Rush Adj 2",
                                          site_type_levels, site_type_levels_alt
                                          ))) 
   

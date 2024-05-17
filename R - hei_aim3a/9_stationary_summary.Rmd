@@ -83,6 +83,7 @@ all_pollutants_labels <- unique(campaign_descriptions$variable)
 main_pollutants_labels <- all_pollutants_labels[str_detect(all_pollutants_labels, "Total")]
 sensitivity_pollutant_labels <- all_pollutants_labels[str_detect(all_pollutants_labels, "Total|10-100|100|20-1,000")]
 
+# --> will want to update this w/ new exposres: updated temporal adjustment (also includes pnc_noscreen)
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%
   right_join(select(campaign_descriptions, model, variable, design, version, campaign), by="model")  
@@ -103,26 +104,33 @@ exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table.csv"))
 model_coefs_issue12 <- readRDS(file.path(output_data_path, "model_coefs_issue12.rda"))
 
 ##################################################################################################
-#annual average site estimates (for exposure description)
+# annual estimates
+# annual estimates: site type
 annual_site_type <- readRDS(file.path(dt_path, "annual_site_type.rda")) %>%
   select(-no2) %>%
   # ? only visualize a few?
   filter(!grepl(drop_site_types, version)) 
-  
+
+# annual estimates: fewer season
 annual_fixed_seasons <- readRDS(file.path(dt_path, "fixed_season_annual.rda"))  %>%
   select(-no2)
-## fewer hrs w/ temp adj but only for total NS (drops P-TRAK used in sensitivity)
+
+# annual estimates: fewer hours & temporal adjustment (for total NS & P-TRAK (no 10-100 nm))
 annual_temp_adj <- readRDS(file.path(dt_path, "temporal_adjustment.rda")) %>%
   mutate(visits=12)
-##fewr hour designs not for total NS
+
+# full, fewer visits, fewer hours  
 annual_trainint_set0 <- readRDS(file.path(dt_path, "annual_training_set.rda")) 
+
+# annual estimates: fewer hours for 10-100 (no temporal adj available)
 annual_non_temp_adj <- annual_trainint_set0 %>%
   filter(design %in% c("fewer hours")) %>% 
-  select(location, ns_10_100, pnc_noscreen, visits, campaign, design, version, spatial_temporal)
+  select(location, ns_10_100, #pnc_noscreen, 
+         visits, campaign, design, version, spatial_temporal)
 ## combine
 fewr_hrs <- left_join(annual_temp_adj, annual_non_temp_adj)
 
-# combine everything
+# annual estimates: combine everything
 annual_trainint_set <- annual_trainint_set0 %>%
   filter(design %in% c("full", "fewer total stops")) %>%
   select(-no2, -spatial_temporal) %>%
@@ -130,14 +138,15 @@ annual_trainint_set <- annual_trainint_set0 %>%
   bind_rows(annual_fixed_seasons) %>% 
   bind_rows(fewr_hrs)
 
-
+##################################################################################################
+# site predictions
 # site predictions for temporally adjusted designs & others?
 other_design_site_predictions <- readRDS(file.path(dt_path, "UK Predictions", 
                                                    #"other_design_predictions.rda"
                                                    "other_design_predictions_20240516.rda"
                                                    )) %>%
   # -> UPDATE here & elsewhere: add pnc_noscreen?
-  filter(grepl("nstot_fewhrs", model)) %>%
+  filter(grepl("nstot_fewhrs|pnc_noscreen", model)) %>%
   left_join(read.csv(file.path(dt_path, "other_designs_model_cw_20240516.csv"))) %>%
   label_pollutants() %>% label_designs() %>%
   select(version, campaign, location, gs_estimate, prediction) %>% 
@@ -148,13 +157,23 @@ other_design_site_predictions <- readRDS(file.path(dt_path, "UK Predictions",
          #absolute error
          error = abs(error)) 
 
-
-
-
-
 # number of visits (stops) per site 
 stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
 
+# CROSS-WALKS
+# exposure model crosswalks (cw)
+# --> TO DO COMBINE, DECIDE WHAT 
+cw0 <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
+  filter(design %in% c("fewer total stops", "full")) %>%
+  bind_rows()
+  
+#cw_other_designs <- 
+
+
+
+
+##################################################################################################
+# MODEL EVAL
 # exposure model performances for other designs
 model_eval_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval_20240516.rda"))
 
@@ -186,15 +205,7 @@ version_levels2 <- setdiff(levels(campaign_descriptions$version), c("Business", 
   append(c("Business",
          "Business \nTemporally\nAdjusted",
          "Rush",
-         "Rush \nTemporally\nAdjusted"#,
-         
-         ))
-
-# balanced_versions2 <- grep("^H\\d", levels(campaign_descriptions$version), value = T) %>%
-#   gsub(" ", "\n", .) %>%
-#   gsub("H", "High ", .) %>%
-#   gsub("L", "Low ", .)  
-
+         "Rush \nTemporally\nAdjusted"))
 
 ```
 
@@ -770,6 +781,17 @@ ggsave(file.path(image_path, "other", "qc", "all_data_ns_ptrak_issue12_model.png
 
 ```
 
+## Predicted Exposure 'Error'
+
+```{r}
+comp_exp %>%
+  filter(variable == main_pollutants_labels) %>%
+  
+  mutate(prediction_diff = exposure-all_exposure)
+
+
+
+```
 
 
 
