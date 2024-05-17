@@ -160,6 +160,7 @@ other_design_site_predictions <- readRDS(file.path(dt_path, "UK Predictions",
 # number of visits (stops) per site 
 stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
 
+##################################################################################################
 # CROSS-WALKS
 # exposure model crosswalks (cw)
 # --> TO DO COMBINE, DECIDE WHAT 
