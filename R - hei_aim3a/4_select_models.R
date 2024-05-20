@@ -55,7 +55,8 @@ selected_campaigns0 %>%
 
 # only keep annual averages for selected campaigns
 selected_campaigns  <- selected_campaigns0 %>%
-  select(campaign, design, version, variable, performance, model) %>%
+  select(campaign, design, version, variable, #performance, 
+         model) %>%
   left_join(annual) %>%
   select(model, variable, location, value:last_col())
   

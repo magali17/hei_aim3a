@@ -60,6 +60,7 @@ winsorize <- function(variable, minval, maxval) {
 #######################################################################################################################
 label_designs <- function(dt) {
   
+  
   site_type_levels <- readRDS(file.path(dt_path, "site_type_levels.rda")) %>% rev()
   site_type_levels_alt <- gsub("H ", "H", site_type_levels) %>% gsub("L ", "L", .)
   
@@ -90,10 +91,13 @@ label_designs <- function(dt) {
                             ifelse(version=="4_visits 309_sites", "4", #"1,200",
                                    version))),
     version = factor(version, levels = c("All Data", 1:3, "4", "6", "12", 
-                                         "Business", "Business Adj", "Business Adj 1", "Business Adj 2", "Bus", "Bus Adj 1", "Bus Adj 2",
+                                         "Business", "Business Adj", "Business Adj 1", "Business Adj 2", "Bus", "Bus Adj", "Bus Adj 1", "Bus Adj 2",
+                                         "Business\nTemporally\nAdjusted",
+                                         
                                          "Rush","Rush Adj", "Rush Adj 1", "Rush Adj 2",
+                                         "Rush\nTemporally\nAdjusted",
                                          site_type_levels, site_type_levels_alt
-                                         ))) 
+    ))) 
   
   return(dt)
 }
