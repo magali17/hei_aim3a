@@ -191,7 +191,7 @@ model_covars <- c("visit_age_centered75", "year2", "male", "degree"#,
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 
 # for sensitivity analyses
-model_covars_extended <- c(model_covars, "race_white" , " ")
+model_covars_extended <- c(model_covars, "race_white" , "nses_z_cx")
 saveRDS(model_covars_extended, file.path(output_data_path, "model_covars_extended.rda"))
 
 health <- health %>%
@@ -209,8 +209,7 @@ health <- health %>%
     degree = factor(degree),
     visit_age_centered75 = visit_age - 75
   ) %>%  
-  select(study_id, casi_irt, all_of(model_covars_extended#, model_covars
-                                    ),
+  select(study_id, casi_irt, all_of(model_covars_extended), #, model_covars),
          #QC variables for NO2 and UFP
          ends_with(c("no2_MM_05_yr", "ufp_10_42_MM_05_yr")),
          -starts_with(c("cum_exp_", "var_avg_", "num_years_")), 
@@ -285,3 +284,4 @@ saveRDS(cs_lcm, file.path(output_data_path, "dt_for_cross_sectional_analysis_lcm
 saveRDS(cs_error, file.path(output_data_path, "dt_for_cross_sectional_analysis_error.rda"))
 
 message("Done with 7_clean_act_dt.R")
+
