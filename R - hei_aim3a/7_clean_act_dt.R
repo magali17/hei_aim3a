@@ -147,7 +147,6 @@ exposure0_lcm_ref <- health %>%
   pivot_longer(cols = c(full_pm25_ST, full_pm25_SP), names_to = "model", values_to = "avg_0_5_yr")
 
 ######################################################################
-
 health <- health %>%
   mutate(year = year(visitdt)) 
 
@@ -191,6 +190,10 @@ model_covars <- c("visit_age_centered75", "year2", "male", "degree"#,
                   )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 
+# for sensitivity analyses
+model_covars_extended <- c(model_covars, "race_white" , " ")
+saveRDS(model_covars_extended, file.path(output_data_path, "model_covars_extended.rda"))
+
 health <- health %>%
   mutate(
     # 2 yr time bins most of the time other than during the first wave (1994-1995) - following Nancy's cross-sectional analysis approach
@@ -206,7 +209,8 @@ health <- health %>%
     degree = factor(degree),
     visit_age_centered75 = visit_age - 75
   ) %>%  
-  select(study_id, casi_irt, all_of(model_covars),
+  select(study_id, casi_irt, all_of(model_covars_extended#, model_covars
+                                    ),
          #QC variables for NO2 and UFP
          ends_with(c("no2_MM_05_yr", "ufp_10_42_MM_05_yr")),
          -starts_with(c("cum_exp_", "var_avg_", "num_years_")), 
@@ -217,7 +221,7 @@ health <- health %>%
 ######################################################################
 # MISSINGNESS
 ######################################################################
-# Proportion missing: APOE, .2% race, 5% NSES is missing [has this been updated?]
+# Proportion missing: APOE, 0.2% race, 2.2% NSES is missing [has this been updated?]
 health %>%
   summarize_all(~sum(is.na(.))) %>%
   pivot_longer(everything(), names_to = "covariate", values_to = "count") %>%
@@ -226,16 +230,22 @@ health %>%
   arrange(-prop_missing) %>%
   filter(count>0)
 
-
 # # apoe available
 # ## note: last visitdt becomes 2018-05-02 (vs 2020-03-05) when we filter by APOE availability
 # health <- filter(health, !is.na(apoe))
 # exclusion_table <- count_remaining_sample(health, description. = "Have APOE")
 
 health <- drop_na(health, all_of(model_covars))
-exclusion_table <- count_remaining_sample(health, description. = "all covariates available")
+exclusion_table <- count_remaining_sample(health, description. = "all primary covariates available")
 
-saveRDS(health, file.path("data", "issue_12", "issue_012_rerun_for_release20231010", "issue_012_clean.rda"))
+saveRDS(health, file.path("data", "issue_12", #"issue_012_rerun_for_release20231010", 
+                          "issue_012_rerun_for_release20231108", 
+                          "issue_012_clean.rda"))
+
+# counts for sensitivity analyses
+exclusion_table <- drop_na(health, all_of(model_covars_extended)) %>%
+  count_remaining_sample(., description. = "all primary & secondary covariates available")
+
 ######################################################################
 # COMBINE HEALTH AND EXPOSURE DATA
 ######################################################################
@@ -252,7 +262,6 @@ cs_lcm <- left_join(health, exposure0_lcm, by="study_id") %>%
   rbind(left_join(health, exposure0_lcm_ref, by="study_id"))
 # data for HEI Aim 3b - non-parametric part?
 cs_error <- left_join(health, me_exposure, by="study_id")
-
 
 ######################################################################
 # QC VARIABLES

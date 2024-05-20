@@ -29,12 +29,14 @@ main_pollutants <-c(
 saveRDS(main_pollutants, file.path(output_data_path, "main_pollutants.rda"))
 
 model_covars <- readRDS(file.path(output_data_path, "model_covars.rda"))
+# sensitivity analyses
+model_covars_extended <- readRDS(file.path(output_data_path, "model_covars_extended.rda"))
 ap_prediction <- "avg_0_5_yr"
 
 # modeling units - using same as Nancy et al. 2023  
 pm25_units <- 1 
-pnc_units <- 1900#1000
-no2_units <- 3 #5
+pnc_units <- 1900 
+no2_units <- 3 
 
 save(pm25_units, pnc_units, no2_units, file= file.path(output_data_path, "modeling_units.rdata"))
 #####################################################################################
@@ -42,13 +44,47 @@ save(pm25_units, pnc_units, no2_units, file= file.path(output_data_path, "modeli
 
 #additional designs added later. include descriptions & model eval
 ## note that fewer hour designs are only for total NS, so have to use the old ones for sensitivity analyses 
-campaign_descriptions_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval.rda"))  %>%
-  left_join(read.csv(file.path(dt_path, "other_designs_model_cw.csv"))  ) %>%
+
+# --> UPDATE ONCE HAVE NEW MODELS (TOT_FEWHRS_...)
+
+# campaign_descriptions_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval.rda"
+#                                                          #"other_designs_model_eval_20240516.rda"
+# ))  %>%
+#   left_join(read.csv(file.path(dt_path, "other_designs_model_cw.csv"
+#                                #"other_designs_model_cw_20240516.csv"
+#   ))  ) %>%
+#   mutate(reference = "gs_estimate")
+
+campaign_descriptions_other_designs <- readRDS(file.path(dt_path, #"other_designs_model_eval.rda"
+                                                         "other_designs_model_eval_20240516.rda"
+                                                         ))  %>%
+  left_join(read.csv(file.path(dt_path, #"other_designs_model_cw.csv"
+                               "other_designs_model_cw_20240516.csv"
+                               ))  ) %>%
   mutate(reference = "gs_estimate")
+
+
+###################
+# --> TEMP FOR MERGING W/ existing (non-updated) 'cs' data
+temp_cw <- campaign_descriptions_other_designs %>%
+  filter(grepl("_bh|_rh", model)) %>% 
+  mutate(
+    model = gsub("adj1|adj2", "adj", model),
+    #5/20/24
+    model = gsub("fewhrs_", "", model),
+    version_code = gsub("adj1|adj2", "adj", version_code),
+    version = gsub("adj 1|adj 2", "adj", version))
+
+campaign_descriptions_other_designs <- bind_rows(campaign_descriptions_other_designs, temp_cw) %>%
+  mutate(model=gsub("adj1", "adj", model))
+
+# unique(cs0$model)[!unique(cs0$model) %in% campaign_descriptions$model] %>% as.data.frame() %>% View()
+###################
 
 campaign_descriptions0 <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns.rda"))
 
 # I accidentally dropped these other pollutants from the temporal adjustment, so using the original 30 campaigns for these variables. Shoudl be OK since all campaigns were selected randomly anayway
+# --> TEMP: pnc_noscreen will be available in next dataset
 campaign_descriptions_fewer_hrs_sensitivity <- campaign_descriptions0 %>%
   filter(design == "fewer hours" & variable %in% c("pnc_noscreen", "ns_10_100"))
   
@@ -182,6 +218,17 @@ message("saving model coeficients...")
 model_coefs_issue12 <- get_model_results(models_issue12)
 saveRDS(model_coefs_issue12, file.path(output_data_path, "model_coefs_issue12.rda"))
 
+####################################
+# 5/20/24. Sensitivity analyses - extended models
+message("running sensitivity models...")
+models_sensitivity <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
+saveRDS(models_sensitivity, file.path(output_data_path, "models_sensitivity.rda"))
+
+message("saving model coeficients...")
+model_coefs0_sensitivity <- get_model_results(models_sensitivity)
+model_coefs_sensitivity <- left_join(model_coefs0_sensitivity, campaign_descriptions)
+saveRDS(model_coefs_sensitivity, file.path(output_data_path, "model_coefs_sensitivity.rda"))
+
 ######################################################################
 # NON-STATIONARY (ROAD) DATA
 message("running NON-STATIONARY models...")
@@ -192,6 +239,17 @@ message("saving model coeficients...")
 model_coefs_r <- get_model_results(models_r) %>%
   left_join(cw_r)
 saveRDS(model_coefs_r, file.path(output_data_path, "model_coefs_road.rda"))
+
+####################################
+# 5/20/24. Sensitivity analyses - extended models
+message("running sensitivity models...")
+models_r_sensitivity <- mclapply(group_split(cs_r, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
+saveRDS(models_r_sensitivity, file.path(output_data_path, "models_road_sensitivity.rda"))
+
+message("saving model coeficients...")
+model_coefs_r_sensitivity <- get_model_results(models_r_sensitivity) %>%
+  left_join(cw_r)
+saveRDS(model_coefs_r_sensitivity, file.path(output_data_path, "model_coefs_road_sensitivity.rda"))
 
 ######################################################################
 # MACHINE LEARNING EXPOSURE MODELS
