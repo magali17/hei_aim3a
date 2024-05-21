@@ -1461,8 +1461,6 @@ ggsave(file.path(image_path, "other", "poster", paste0("betas.png")), width = 6,
 
 ## Beta Summary
 
-# --> START HERE ONCE RE-RUN MODELS 
-
 ```{r}
 # keep this even though code below is the same to not show facet label for main analysis figure
 # true Coefficient estimate
