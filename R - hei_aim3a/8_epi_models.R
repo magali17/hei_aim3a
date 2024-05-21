@@ -169,7 +169,6 @@ cs_lcm <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_l
 ######################################################################
 # EPI MODELS
 ######################################################################
-# df = group_split(cs, model)[[1]]
 lm_fn <- function(df, ap_prediction.=ap_prediction, model_covars. = model_covars) {
   result <- lm(as.formula(paste("casi_irt ~", ap_prediction., "+", paste(model_covars., collapse = "+"))), data = df)
   #save model
@@ -198,7 +197,6 @@ get_model_results <- function(dt) {
 
 ######################################################################
 # STATIONARY DATA
-
 message("running STATIONARY models...")
 models <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
 saveRDS(models, file.path(output_data_path, "models.rda"))

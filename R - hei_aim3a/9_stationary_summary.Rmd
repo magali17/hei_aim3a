@@ -223,14 +223,35 @@ model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
   select(-c(out_of_sample, reference, RMSE, contains("R2")))
 
 model_coefs <- model_coefs0 %>% 
-  filter(model %in% model_eval$model) %>%
+  filter(model %in% unique(cs$model), #model_eval$model
+         # drop old/duplicate models
+         #!grepl("nstot_bh|nstot_rh|pncnoscreen_bh|pncnoscreen_rh", model)
+         !grepl("nstot_bh|nstot_rh", model)
+         ) %>%
   label_pollutants() %>% label_designs() %>%
    mutate(
     ref = ifelse((design == "Fewer Visits" & version == "12") |
                    (design == "Fewer Seasons" & version == "4") |
                    (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
 
-exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table.csv"))
+
+# sensitivity health analyses
+model_coefs_sensitivity <- readRDS(file.path(output_data_path, "model_coefs_sensitivity.rda")) %>%
+  # make sure the latest model performances are used
+  select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
+  filter(model %in% unique(cs$model), #model_eval$model,
+         # drop old/duplicate models
+         !grepl("nstot_bh|nstot_rh", model),
+         # just focus on the NS for now
+         grepl("total", variable)) %>%
+  label_pollutants() %>% label_designs() %>%
+   mutate(
+    ref = ifelse((design == "Fewer Visits" & version == "12") |
+                   (design == "Fewer Seasons" & version == "4") |
+                   (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
+
+
+exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table2024-05-20.csv"))
 
 #issue 12 reference models
 model_coefs_issue12 <- readRDS(file.path(output_data_path, "model_coefs_issue12.rda"))
@@ -1229,22 +1250,34 @@ model_coefs_issue12 %>%
 The black horizontal line and gray area are the health effect estimate from the full campaign
 
 ```{r, fig.height=8, fig.width=8}
-# x = main_pollutants_labels[2]
-true_betas <- model_coefs %>%
+get_reference_betas <- function(dt) {
+  dt %>%
   filter(design == "All Data",
-         variable %in% sensitivity_pollutant_labels
-         ) %>%
-  select(variable, est, lower, upper, se) %>%
+         variable %in% sensitivity_pollutant_labels) %>%
+  select(variable, est, lower, upper, se, significant) %>%
    mutate(variable2 = variable,
           variable = ifelse(grepl("Total", variable), "10-420 nm", as.character(variable)),
            variable = factor(variable, levels = c("10-420 nm", "10-100 nm", "20-1,000 nm")),
-           analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity")) 
+           analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity"),
+          
+          ) 
+  }
 
+true_betas <- get_reference_betas(model_coefs)
+true_betas_sensitivity <- get_reference_betas(model_coefs_sensitivity)
+ 
 true_betas %>%
   select(-variable2) %>%
   mutate_if(is.numeric, ~round(., 3)) %>%
   kable(caption = "coefficient health estiamtes from the all data campaign") %>%
   kable_styling()
+
+true_betas_sensitivity %>%
+  select(-variable2) %>%
+  mutate_if(is.numeric, ~round(., 3)) %>%
+  kable(caption = "coefficient health estiamtes from the all data campaign") %>%
+  kable_styling()
+
 
 p_list <- unique(true_betas$variable) %>% as.character()
 # x = p_list[2]
@@ -1282,9 +1315,10 @@ lapply(p_list, function(x){
 ```
 
 
-tables include the proportion significant
 
-```{r}
+```{r, eval=F}
+# tables include the proportion significant
+
 prop_sign <- model_coefs %>%
   group_by(variable, design, version) %>%
   summarize(prop_sign = mean(significant),
@@ -1434,6 +1468,8 @@ ggsave(file.path(image_path, "other", "poster", paste0("betas.png")), width = 6,
 # true Coefficient estimate
 tot_pnc <- filter(true_betas, grepl("Total|10-420", variable)) %>%
   pull(est)
+tot_pnc_sensitivity <- filter(true_betas_sensitivity, grepl("Total|10-420", variable)) %>%
+  pull(est)
 
 y_lims <- c(-0.018, 0.0005)
 
@@ -1444,31 +1480,57 @@ model_coefs %>%
   kable(caption = "distribution of Coefficient estimates for fewer visits & seasons", digits = 3) %>%
   kable_styling()
 
+# for NS
+# dt=model_coefs_sensitivity
+# true_betas.=true_betas_sensitivity
 
-model_coefs %>%
-  filter(grepl("Total", variable)) %>%  
+beta_summary_plot <- function(dt, true_betas.) {
+  true_betas. <- filter(true_betas., grepl("Total|10-420", variable)) %>%
+    mutate(design="All Data",
+           design= factor(design, levels= levels(model_coefs$design)),
+           significant = ifelse(significant==TRUE, "Statistically Significant", "Not Statistically Significant"))
+    
+  p <- dt %>%
+  filter(grepl("Total", variable)) %>% 
+  mutate(version = gsub("Bus", "Business", version),
+         version = gsub("Adj 1", "\nTemporally\nAdjusted", version),
+         version = factor(version, levels=version_levels2)) %>%
   
   group_by(version, design, variable, ref) %>%
   summary_table(var = "est") %>%
   ggplot(aes(x=version, fill=ref)) +
   geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  #ggplot(aes(x=version, y=est, fill=ref)) +
   facet_wrap(~design, scales="free_x", switch="x") +
-  geom_hline(yintercept = tot_pnc, linetype=1, alpha=0.5) +
+  geom_hline(yintercept = true_betas.$est, linetype=1, alpha=0.5) +
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-  # scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="% Difference", labels = scales::percent), #limits = y_lims
-  #                    ) +
-  scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="Health Point Estimate (% Different from Reference)", labels = scales::percent),
+  scale_y_continuous(sec.axis = sec_axis(trans=~(.-true_betas.$est)/-true_betas.$est, name="Health Point Estimate (% Different from Reference)", labels = scales::percent),
                      position="right") +
   
-    geom_label(inherit.aes = F, data=mutate(filter(true_betas, grepl("Total|10-420", variable)), design="All Data" ) %>% mutate(design= factor(design, levels= levels(model_coefs$design))), aes(x=1, y=est, label = round(tot_pnc, 2))) +
-  labs(y = "Coefficient Point Estimate", x = "Design",
-       fill= NULL
-       )
+    geom_label(inherit.aes = F, data=true_betas., aes(x=1, y=est, label = round(est, 3))) +
+    labs(y = "Coefficient Point Estimate", x = "Design",
+       fill= NULL)
+  
+  if(grepl("Not", true_betas.$significant,ignore.case = T)){
+    p <- p + geom_text(inherit.aes = F, data=true_betas., aes(x=1, y=est*2, label=significant)) 
+  }
+  
+  # make the % label the correct direction of estimate happens to be positive
+  if(true_betas.$est>0){
+    p <- p + scale_y_continuous(sec.axis = sec_axis(trans=~(.-true_betas.$est)/true_betas.$est, name="Health Point Estimate (% Different from Reference)", labels = scales::percent), position="right") 
+    }
+    
+  print(p)
+  }
 
+beta_summary_plot(dt=model_coefs, true_betas.=true_betas)
 ggsave(file.path(image_path, "beta_boxplots_main.png"), width = 10, height = 6)
 
-# SI
+# SI - sensitivity
+beta_summary_plot(dt=model_coefs_sensitivity, true_betas.=true_betas_sensitivity)
+ggsave(file.path(image_path, "SI", "beta_boxplots_sensitivity.png"), width = 10, height = 6)
+
+
+# SI - other PNC measures
 
 lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm"), function(x) {
   
@@ -1495,7 +1557,7 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm"), function(x) {
     geom_hline(yintercept = ref_pnc, linetype=1, alpha=0.5) +
     geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
     #geom_boxplot() + 
-    scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="Health Point Estimate\n(% Difference)", labels = scales::percent),
+    scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc, name="Health Point Estimate\n(% Different from Reference)", labels = scales::percent),
                      position="right") +
     geom_label(inherit.aes = F, data=filter(true_betas2, grepl(x, variable)) %>% 
                  mutate(design="All Data", 
