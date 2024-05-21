@@ -13,7 +13,7 @@ source("functions.R")
 
 ##################################################################################################
 # 2024-05-16: roadside paper - fixed the temporal adjustment 1 (UTM hour merging issue); added p-trak adjusted
-# --> onroad paper - 
+# --> ADD: onroad paper - 
 ##################################################################################################
 # fixed the temporal adjustment 1 (UTM hour merging issue); added p-trak temporally adjusted
 ## removed original 2nd temporal adj. decided not to apply the UW approach b/c its currently based on ptrak data AND from 'onroad' data which we have said we don't trust as much
