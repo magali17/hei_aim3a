@@ -113,6 +113,9 @@ message("selecting exposure models")
 # si's ML UFP models
 ml_models <- c("upls", "uspatpl", "uspatcv", "urf", "utprs", "urt", "utr")
 # low-cost sensor/monitor (LCM) models
+
+# #non- MM models
+#grep("r_|s_", unique(exposure0$model), invert = T, value = T)
 lcm_models <- str_subset(unique(exposure0$model), "^pm25_fptv_|^pm25_fp_|^pm25_rp_|^pm25_fp_")
   
 ########################################################
