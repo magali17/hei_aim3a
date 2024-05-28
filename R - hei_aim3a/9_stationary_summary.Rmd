@@ -185,7 +185,8 @@ model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
                    (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
 
 #rm(model_eval_other_designs0)
-  
+
+##################################################################################################  
 # --> will want to update this w/ new exposres: updated temporal adjustment (also includes pnc_noscreen)
 # test <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>% rename(exposure = avg_0_5_yr) 
 # test0 <- test %>% filter(study_id == first(study_id))
@@ -220,7 +221,8 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")
 # test2 %>% filter(grepl("tot", model)) %>% View()
 # test2 %>% filter(grepl("bh", model)) %>% View()
 # test2 %>% filter(is.na(design)) %>% View()
-  
+
+##################################################################################################
 model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
   # make sure the latest model performances are used
   select(-c(out_of_sample, reference, RMSE, contains("R2")))
@@ -258,6 +260,16 @@ exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table2024-05-
 
 #issue 12 reference models
 model_coefs_issue12 <- readRDS(file.path(output_data_path, "model_coefs_issue12.rda"))
+
+###########################################
+#all model coefficients - want ap & age effects
+coef_all <- readRDS(file.path(output_data_path, "model_coefs_all.rda")) 
+coef_r_all <- readRDS(file.path(output_data_path, "models_r_all.rda")) 
+coef_lcm_all <- readRDS(file.path(output_data_path, "models_lcm_all.rda")) 
+
+#no ML?
+
+
 
 ##################################################################################################
 # annual estimates

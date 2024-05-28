@@ -10,7 +10,9 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 }
 
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, parallel)    
+pacman::p_load(tidyverse, parallel,
+               broom #tidy()
+               )    
 
 set.seed(1)
 
@@ -196,6 +198,17 @@ get_model_results <- function(dt) {
   } 
 
 ######################################################################
+
+get_model_results_all_coefs <- function(dt) {
+  
+  mclapply(dt, mc.cores=use_cores, function(x){
+    tidy(x) %>%
+      mutate(model = x$model)
+  }) %>%
+    bind_rows()
+  }
+
+######################################################################
 # STATIONARY DATA
 message("running STATIONARY models...")
 models <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
@@ -205,7 +218,11 @@ message("saving model coeficients...")
 model_coefs0 <- get_model_results(models)
 model_coefs <- left_join(model_coefs0, campaign_descriptions)
 saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
+# same as above but raw for all coefficients
+model_coefs_all <- get_model_results_all_coefs(models)
+saveRDS(model_coefs_all, file.path(output_data_path, "model_coefs_all.rda"))
 
+###########
 
 # issue 12 reference models: NS & P-TRAK
 message("running ISSUE 12 reference epi models...")
@@ -215,6 +232,10 @@ saveRDS(models_issue12, file.path(output_data_path, "models_issue12.rda"))
 message("saving model coeficients...")
 model_coefs_issue12 <- get_model_results(models_issue12)
 saveRDS(model_coefs_issue12, file.path(output_data_path, "model_coefs_issue12.rda"))
+
+# same as above but raw for all coefficients
+model_coefs_all_issue12 <- get_model_results_all_coefs(models_issue12)
+saveRDS(model_coefs_all_issue12, file.path(output_data_path, "model_coefs_issue12_all.rda"))
 
 ####################################
 # 5/20/24. Sensitivity analyses - extended models
@@ -227,6 +248,10 @@ model_coefs0_sensitivity <- get_model_results(models_sensitivity)
 model_coefs_sensitivity <- left_join(model_coefs0_sensitivity, campaign_descriptions)
 saveRDS(model_coefs_sensitivity, file.path(output_data_path, "model_coefs_sensitivity.rda"))
 
+# same as above but raw for all coefficients
+model_coefs_sensitivity_all <- get_model_results_all_coefs(models_sensitivity)
+saveRDS(model_coefs_sensitivity_all, file.path(output_data_path, "model_coefs_sensitivity_all.rda"))
+
 ######################################################################
 # NON-STATIONARY (ROAD) DATA
 message("running NON-STATIONARY models...")
@@ -237,6 +262,10 @@ message("saving model coeficients...")
 model_coefs_r <- get_model_results(models_r) %>%
   left_join(cw_r)
 saveRDS(model_coefs_r, file.path(output_data_path, "model_coefs_road.rda"))
+
+# same as above but raw for all coefficients
+models_r_all <- get_model_results_all_coefs(models_r)
+saveRDS(models_r_all, file.path(output_data_path, "models_r_all.rda")) #should be model_coefs_r_all.rda
 
 ####################################
 # 5/20/24. Sensitivity analyses - extended models
@@ -260,6 +289,10 @@ model_coefs_ml <-  get_model_results(models_ml) %>%
   left_join(cw_ml)
 saveRDS(model_coefs_ml, file.path(output_data_path, "model_coefs_ml.rda"))
 
+# same as above but raw for all coefficients
+models_ml_all <- get_model_results_all_coefs(models_ml)
+saveRDS(models_ml_all, file.path(output_data_path, "models_ml_all.rda"))
+
 #####################################################################################
 # LCM MODELS
 message("running LCM models...")
@@ -270,6 +303,10 @@ message("saving model coeficients...")
 model_coefs_lcm <-  get_model_results(models_lcm) %>%
   left_join(cw_lcm)
 saveRDS(model_coefs_lcm, file.path(output_data_path, "model_coefs_lcm.rda"))
+
+# same as above but raw for all coefficients
+models_lcm_all <- get_model_results_all_coefs(models_lcm)
+saveRDS(models_lcm_all, file.path(output_data_path, "models_lcm_all.rda"))
 
 ######################################################################
 

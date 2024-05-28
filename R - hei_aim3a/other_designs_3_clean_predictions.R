@@ -2,7 +2,7 @@
 ##################################################################################################
 # SETUP
 ##################################################################################################
-pacman::p_load(tidyverse)
+pacman::p_load(tidyverse, knitr, kableExtra)
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "other designs")
@@ -27,9 +27,69 @@ onroad_predictions <- readRDS(file.path(dt_path, "UK Predictions", "cohort", "on
 
 predictions_20240520 <- rbind(temp_adj_predictions, onroad_predictions)
 
-saveRDS(predictions_20240520, file.path(kp_directory, paste0("fewhrs_", Sys.Date(), ".rda")))
-write.csv(predictions_20240520, file.path(kp_directory, paste0("fewhrs_", Sys.Date(), ".csv")))
+saveRDS(predictions_20240520, file.path(kp_directory, paste0(Sys.Date(), "_temp_adj_and_onroad_predictions.rda")))
+write.csv(predictions_20240520, file.path(kp_directory, paste0(Sys.Date(), "_temp_adj_and_onroad_predictions.rda")))
 
+
+##################################################################################################
+# 2024-05-24: compare the last & current cohort predictions for temporal adjustments
+# these are very similar
+##################################################################################################
+temp_adj_predictions <- readRDS(file.path(prediction_directory, "temp_adj", "predictions_2024-05-16.rda")) %>%
+  filter(grepl("nstot", model)) %>%
+  mutate(model = gsub("adj1|adj2", "adj", model)) %>%
+  rename(new_prediction = prediction)
+
+# # this older file doesn't have temporal adjustments for nstot_bh or nstot_rh
+# test <- readRDS(file.path(kp_directory, "predictions_2023-03-31.rda")) 
+# grep("bh|rh", unique(test$model), value = T)
+
+# this only has temp adjusted predictions
+#old <- readRDS(file.path(kp_directory, "other_design_predictions_temp_adj_2023-12-20.rda"))
+
+## just has nstot adjusted & unadjusted
+old <- readRDS(file.path(kp_directory, "other_design_predictions_2023-12-20.rda")) %>%
+  filter(grepl("_bh|_rh", model)) %>%
+  rename(old_prediction = prediction)
+ 
+# filter(old, location_id==first(location_id)) %>% View()
+
+comp <- left_join(old, temp_adj_predictions, by = join_by(location_id, start_date, end_date, model)) %>%
+  mutate(
+    version = ifelse(grepl("bh", model), "BH", "RH"),
+    adjusted = ifelse(grepl("adj", model), "adjusted", "unadjusted"),
+    prediction_difference = new_prediction-old_prediction
+    )
+
+#comp %>% filter(location_id == first(location_id)) %>% View()
+
+
+# paired predictions: a subjects prediction before/after for the same campaign (adjusted or unadjusted)
+# R #looks good! R>0.99
+comp %>%
+  filter(adjusted == "adjusted") %>%
+  group_by(variable, version, adjusted) %>%
+  summarize(
+    n=n(), 
+    R = cor(old_prediction, new_prediction)) %>%
+  kable(caption = "paired predictions for a given campaign and participant location") %>%
+  kable_styling()
+
+# predition differnce  
+summary(comp$prediction_difference)
+ 
+# scaterplot/bins comparing predictions. mostly similar with some differences 
+comp %>%
+  # note that unadjusted are slightly different for RH - these campaigns may have been rerun or recoded since last time
+  filter(adjusted == "adjusted") %>%
+  
+  ggplot(aes(x=old_prediction, y=new_prediction)) +
+  facet_wrap(~version+adjusted, scales="free") + 
+  geom_abline(slope = 1, intercept = 0, linetype=2, alpha=0.5) +
+  #geom_point() 
+  geom_bin2d() +
+  geom_smooth() 
+  
 ##################################################################################################
 # 2024-03-14: fixed the temporal adjustment (main effect), added 2nd temporal adjustment 
 ##################################################################################################

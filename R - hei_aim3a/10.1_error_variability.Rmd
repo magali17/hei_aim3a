@@ -1,5 +1,5 @@
 ---
-title: "Measurement Error"
+title: "HEI Ch5 - Measurement Error"
 author: "Magali Blanco"
 date: ' `r Sys.time()` '
 output:
@@ -294,7 +294,7 @@ betas_p <- lapply(1:sim_n, function(x){
     # rename exposure variable back to its original name
     rename(gs_estimate = avg_0_5_yr)
   
-  # estimated beta using site estimates
+  # estimated beta using site observations/estimates
   ## no need to add other covariates b/c they are identical across the sample. We are interested in differences in the betas
   ## this should produce a similar beta as the "all data" beta estimate
   betas_bs$obs_beta <- lm(simulated_casi ~ gs_estimate, data = sites_sample_bs) %>%
