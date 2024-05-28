@@ -1,0 +1,86 @@
+---
+title: "9_comparisons"
+author: "Magali Blanco"
+date: "2024-05-24"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, 
+                      cache=F, cache.comments = F, 
+                      message = F, warning = F, 
+                      tidy.opts=list(width.cutoff=60), tidy=TRUE#, fig.height = 10, fig.width = 10
+                      )  
+
+# Clear workspace of all objects and unload all extra (non-base) packages
+rm(list = ls(all = TRUE))
+if (!is.null(sessionInfo()$otherPkgs)) {
+  res <- suppressWarnings(
+    lapply(paste('package:', names(sessionInfo()$otherPkgs), sep=""),
+           detach, character.only=TRUE, unload=TRUE, force=TRUE))}
+
+pacman::p_load(tidyverse, 
+               knitr, kableExtra#, ggpubr, #ggarrange()
+               )    
+
+dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+dt_path <- file.path(dt_path, "epi")
+
+set.seed(1)
+
+source("functions.R")
+out_path <- file.path(dt_path, "9_comparisons")
+
+
+##################################################################################################
+# LOAD DATA
+##################################################################################################
+#all model coefficients - want ap & age effects
+coef_all <- readRDS(file.path(dt_path, "model_coefs_all.rda")) %>%
+  filter((grepl("nstot_all", model)))
+
+## --> no all-data model??
+#coef_r_all <- readRDS(file.path(dt_path, "models_r_all.rda")) 
+
+# ## stationary and LCM
+# st_ref_model <- "full_ST" #ST 
+# sp_ref_model <- "full_SP" # SP 
+# # ## no LCM
+# # st_ref_model2 <- "fptv_no" #ST 
+# # sp_ref_model2 <- "fp_no" # SP 
+
+
+coef_lcm_all <- readRDS(file.path(dt_path, "models_lcm_all.rda")) %>%
+  filter((grepl("full_", model)))
+
+
+coefs <- rbind(coef_all, coef_lcm_all) %>%
+  filter(grepl("avg_0_5_yr|age", term)) %>%
+  select(term, estimate, model) %>%
+  mutate(term = ifelse(term == "avg_0_5_yr", "ap",
+                       ifelse(term == "visit_age_centered75", "age", term))) %>%
+  pivot_wider(names_from = term, values_from = estimate) %>%
+  mutate(
+    ap_age_equivalent = ap/age,
+    ap_month_equivalent = ap_age_equivalent*12
+  )
+
+
+
+```
+
+# compare all-data health estimates
+compare beta & age coefficients for all-data estimates
+```{r}
+coefs %>%
+  select(-ap_age_equivalent) %>%
+  kable(caption = "Estimated associations between air pollutants (PNC [1,900 pt/cm3], PM2.5 [1 ug/m3]) and one year of aging with baseline CASI-IRT score, as determined by reference models (PNC all-data stationary mobile monitoring model, PM2.5 models with LCMs). Air pollution associations are scaled relative to the age association to contextualize their effects.",
+        digits=3, 
+        col.names = c("Model", "Air Pollution", "Age", "Air Pollution Month Equivalent")
+        ) %>%
+  kable_styling()
+
+```
+
