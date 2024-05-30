@@ -25,7 +25,8 @@ use_cores <- 1#4
 ######################################################################
 main_pollutants <-c( 
   "ns_total_conc", "ns_10_100",
-  "pnc_noscreen" #onroad & ML models use ptrak
+  "pnc_noscreen", #onroad & ML models use ptrak
+  "no2" #HEI wants these
   )
 
 saveRDS(main_pollutants, file.path(output_data_path, "main_pollutants.rda"))
@@ -88,7 +89,7 @@ campaign_descriptions0 <- readRDS(file.path(dt_path, "Selected Campaigns", "sele
 # I accidentally dropped these other pollutants from the temporal adjustment, so using the original 30 campaigns for these variables. Shoudl be OK since all campaigns were selected randomly anayway
 # --> TEMP: pnc_noscreen will be available in next dataset
 campaign_descriptions_fewer_hrs_sensitivity <- campaign_descriptions0 %>%
-  filter(design == "fewer hours" & variable %in% c("pnc_noscreen", "ns_10_100"))
+  filter(design == "fewer hours" & variable %in% c("pnc_noscreen", "ns_10_100", "no2"))
   
 campaign_descriptions <- campaign_descriptions0 %>%
   filter(design %in% c("fewer total stops", "full")) %>%
