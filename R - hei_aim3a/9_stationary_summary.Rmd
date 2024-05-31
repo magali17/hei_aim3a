@@ -240,11 +240,15 @@ model_coefs <- model_coefs0 %>%
 model_coefs_sensitivity <- readRDS(file.path(output_data_path, "model_coefs_sensitivity.rda")) %>% #View()
   # make sure the latest model performances are used
   select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
-  filter(model %in% unique(cs$model), #model_eval$model,
-         # drop old/duplicate models
-         !grepl("nstot_bh|nstot_rh", model),
-         # just focus on the NS for now
-         grepl("total", variable)) %>%
+  # filter(model %in% unique(cs$model), #model_eval$model,
+  #        # drop old/duplicate models
+  #        !grepl("nstot_bh|nstot_rh", model),
+  #        # just focus on the NS for now
+  #        grepl("total", variable)) %>%
+  filter(grepl("s_nstot", model)) %>%
+  
+  
+  
   label_pollutants() %>% label_designs() %>%
    mutate(
     ref = ifelse((design == "Fewer Visits" & version == "12") |
@@ -849,7 +853,6 @@ ggsave(file.path(image_path, "SI", "temp_adj_site_error_boxplots.png"), width = 
 
 ```
 
-# --> START HERE
 
 
 

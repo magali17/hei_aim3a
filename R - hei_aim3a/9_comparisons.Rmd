@@ -39,7 +39,7 @@ out_path <- file.path(dt_path, "9_comparisons")
 ##################################################################################################
 #all model coefficients - want ap & age effects
 coef_all <- readRDS(file.path(dt_path, "model_coefs_all.rda")) %>%
-  filter((grepl("nstot_all", model)))
+  filter((grepl("nstot_all|pncnoscreen_all", model)))
 
 ## --> no all-data model??
 #coef_r_all <- readRDS(file.path(dt_path, "models_r_all.rda")) 
@@ -53,44 +53,41 @@ coef_all <- readRDS(file.path(dt_path, "model_coefs_all.rda")) %>%
 
 
 coef_lcm_all <- readRDS(file.path(dt_path, "models_lcm_all.rda")) %>%
-  filter((grepl("full_", model)))
+  filter(grepl("full_", model) |
+           
+           # --> TEMP: LS would prefer to report the exact models chris used. these are Slightly different and will be updated 
+           model %in% c("no22_1", "no2_SP_2_1", #gold w/o historical - all monitors
+                        "no26_1", "no2_SP_6_1" #no homes - AQS + 3 snapshot
+                        ))
 
 
 coefs <- rbind(coef_all, coef_lcm_all) %>%
   filter(grepl("avg_0_5_yr|age", term)) %>%
-  # select(term, estimate, #lower, upper, 
-  #        model) %>%
   mutate(term = ifelse(term == "avg_0_5_yr", "ap",
                        ifelse(term == "visit_age_centered75", "age", term)),
-         #term_label = paste0(estimate, " (", lower, ", ", upper, ")")
+         label = paste0(round(est, 3), " (", round(lower, 3), ", ", round(upper, 3), ")")
          ) %>%
-   select(term, estimate, # term_label,  
-         model) %>%
-  pivot_wider(names_from = term, values_from = estimate) %>%
+   select(term, est, label, #lower, upper,
+         model) %>% 
+  pivot_wider(names_from = term, values_from = c(est, label)) %>%
   mutate(
-    ap_age_equivalent = ap/age,
+    ap_age_equivalent = est_ap/est_age,
     ap_month_equivalent = ap_age_equivalent*12
   )
 
 
 ```
 
-# compare all-data health estimates
+# compare all-data health ests
 compare beta & age coefficients for all-data estimates
 ```{r}
 coefs %>%
-  select(-ap_age_equivalent) %>%
+  select(model, label_ap, label_age, ap_month_equivalent) %>%
   kable(caption = "Estimated associations between air pollutants (PNC [1,900 pt/cm3], PM2.5 [1 ug/m3]) and one year of aging with baseline CASI-IRT score, as determined by reference models (PNC all-data stationary mobile monitoring model, PM2.5 models with LCMs). Air pollution associations are scaled relative to the age association to contextualize their effects.",
         digits=3, 
         col.names = c("Model", "Air Pollution", "Age", "Air Pollution Month Equivalent")
         ) %>%
   kable_styling()
 
-# CI
-rbind(coef_all, coef_lcm_all) %>%
-  filter(grepl("avg_0_5_yr|age", term)) %>%
-  select(model, term, estimate, lower, upper)
-
-  
 ```
 
