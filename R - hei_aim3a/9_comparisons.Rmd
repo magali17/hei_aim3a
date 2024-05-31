@@ -58,15 +58,19 @@ coef_lcm_all <- readRDS(file.path(dt_path, "models_lcm_all.rda")) %>%
 
 coefs <- rbind(coef_all, coef_lcm_all) %>%
   filter(grepl("avg_0_5_yr|age", term)) %>%
-  select(term, estimate, model) %>%
+  # select(term, estimate, #lower, upper, 
+  #        model) %>%
   mutate(term = ifelse(term == "avg_0_5_yr", "ap",
-                       ifelse(term == "visit_age_centered75", "age", term))) %>%
+                       ifelse(term == "visit_age_centered75", "age", term)),
+         #term_label = paste0(estimate, " (", lower, ", ", upper, ")")
+         ) %>%
+   select(term, estimate, # term_label,  
+         model) %>%
   pivot_wider(names_from = term, values_from = estimate) %>%
   mutate(
     ap_age_equivalent = ap/age,
     ap_month_equivalent = ap_age_equivalent*12
   )
-
 
 
 ```
@@ -82,5 +86,11 @@ coefs %>%
         ) %>%
   kable_styling()
 
+# CI
+rbind(coef_all, coef_lcm_all) %>%
+  filter(grepl("avg_0_5_yr|age", term)) %>%
+  select(model, term, estimate, lower, upper)
+
+  
 ```
 

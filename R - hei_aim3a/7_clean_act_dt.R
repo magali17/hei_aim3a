@@ -107,17 +107,17 @@ if(file.exists(me_dt_path)) {
 message("selecting exposure models")
 # see "ACT and HEI Data Documentation for UW" doc for all model crosswalks
 # ID model names for LCS, ML, onroad ("^r")
-#other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
-#other_model_names
+# other_model_names <- str_subset(unique(exposure0$model), "^s_|^r_", negate = T)
+# other_model_names
 
 # si's ML UFP models
 ml_models <- c("upls", "uspatpl", "uspatcv", "urf", "utprs", "urt", "utr")
 # low-cost sensor/monitor (LCM) models
 
 # #non- MM models
-#grep("r_|s_", unique(exposure0$model), invert = T, value = T)
-lcm_models <- str_subset(unique(exposure0$model), "^pm25_fptv_|^pm25_fp_|^pm25_rp_|^pm25_fp_")
-  
+# grep("r_|s_", unique(exposure0$model), invert = T, value = T)
+lcm_models <- str_subset(unique(exposure0$model), "^pm25_fptv_|^pm25_fp_|^pm25_rp_|^pm25_fp_|^no2")
+
 ########################################################
 # other models we'll eventually use 
 ## Road models

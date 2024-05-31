@@ -148,8 +148,12 @@ cs_ml <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_ma
 
 #####################################################################################
 # LCM MODELS
+cw_lcm_no2 <- read.csv(file.path(dt_path, "model_cw_lcm_no2.csv")) %>%
+  select(ST.Model.Label., SP.Model.Label., Description.)
+
 cw_lcm <- read.csv(file.path(dt_path, "model_cw_lcm0.csv")) %>%
   mutate(ST.Model.Label. = ifelse(ST.Model.Label.=="", NA, ST.Model.Label.)) %>%
+  bind_rows(cw_lcm_no2) %>%
   pivot_longer(cols = c(ST.Model.Label., SP.Model.Label.), names_to = "model_type", values_to = "model") %>%
   drop_na(model) %>%
   rename(method = Description., ) %>%
@@ -199,14 +203,20 @@ get_model_results <- function(dt) {
   } 
 
 ######################################################################
+# dt <- models <- readRDS(file.path(output_data_path, "models.rda"))
+# x=dt[[1]]
 
 get_model_results_all_coefs <- function(dt) {
-  
+ 
   mclapply(dt, mc.cores=use_cores, function(x){
-    tidy(x) %>%
-      mutate(model = x$model)
+    tidy(x, conf.int = T) %>%
+      mutate(model = x$model,
+             n=nobs(x)) %>%
+      rename(lower = conf.low, upper=conf.high, est=estimate, se=std.error)
   }) %>%
-    bind_rows()
+    bind_rows() %>%
+      mutate(significant = ifelse((lower <0 & upper <0) |
+                                    (lower >0 & upper >0), TRUE, FALSE))
   }
 
 ######################################################################
@@ -286,7 +296,7 @@ models_ml <- mclapply(group_split(cs_ml, model), mc.cores=use_cores, function(x)
 saveRDS(models_ml, file.path(output_data_path, "models_ml.rda"))
 
 message("saving model coeficients...")
-model_coefs_ml <-  get_model_results(models_ml) %>%
+model_coefs_ml <- get_model_results(models_ml) %>%
   left_join(cw_ml)
 saveRDS(model_coefs_ml, file.path(output_data_path, "model_coefs_ml.rda"))
 
