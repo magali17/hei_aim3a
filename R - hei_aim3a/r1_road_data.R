@@ -48,25 +48,28 @@ cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
   select(location, latitude, longitude, all_of(cov_names))
 saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 
-# --> TO DO: UPDATE USING INDIVUDUAL FILES?? ACTUAL_VISITS IS OFF W/ TEMPORAL ADJ FILES
-
 ## 5874 locations
-onroad_ns <- readRDS(file.path("data", "onroad", "annie", "v2", "nonspatial_site_avgs.rds" #"PNC_nonspatial_annavgs.rds"
-                               )) %>%
-  mutate(spatial_code = "sn")
-onroad_s <- readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avgs.rds" #"PNC_spatial_annavgs.rds"
-                              )) %>%
-  mutate(spatial_code = "sy")
-
-# temporal_adjustments <- readRDS(file.path("data", "onroad", "annie", "v2", "temp_adj_site_avgs.rds")) %>%
-#   mutate(spatial_code = ifelse(design %in% c("sensible", "unsensible", "road_type"), "sy", "sn"))
+# onroad_ns <- readRDS(file.path("data", "onroad", "annie", "v2", "nonspatial_site_avgs.rds")) %>%
+#   mutate(spatial_code = "sn")
+# onroad_s <- readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avgs.rds")) %>%
+#   mutate(spatial_code = "sy")
 
 
-# --> TO DO: UPDATE CODE
+# --> TO DO: CHECK THAT INDIVUDUAL FILES CODE WORKS & ROUTES ARE ADDED  [ACTUAL_VISITS IS OFF W/ TEMPORAL ADJ FILES]
+
+design_types <- readRDS(file.path(dt_pt, "design_types_list.rds"))
+
+onroad0 <- lapply(design_types, function(x){
+  file_names <- list.files(file.path("data", "onroad", "annie", "v2", "site_avgs", x))  
+  lapply(file_names, function(f){readRDS(file.path("data", "onroad", "annie", "v2", "site_avgs", x, f))}) %>% bind_rows()
+  }) %>%
+  bind_rows()  
+
+
 # temporal adjustments
-## using a fixed site (UFP~NO2 model based on collocations)
+## using a fixed site (PTRAK UFP~NO2 model based on collocations) [this is different than the stationary temp adj!]
 temporal_adjustments1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-## using the underwrite approach
+## using the underwrite ptrak approach
 temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>%
   filter(background_adj == main_bg) %>%  
   select(names(temporal_adjustments1)) %>%
@@ -74,7 +77,10 @@ temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")
 
 rm(temporal_adjustments1)
 
-onroad0 <- bind_rows(onroad_ns, onroad_s) %>%
+
+
+
+onroad0 <- onroad0 %>% #bind_rows(onroad_ns, onroad_s) %>%
   bind_rows(temporal_adjustments) %>%
   rename(location=id,
          value = annual_mean) %>%
@@ -88,9 +94,15 @@ onroad0 <- bind_rows(onroad_ns, onroad_s) %>%
 ##################################################################################################
 message("creating model crosswalks")
 
+#--> CHECK THAT CROSSWALK INCLUDES ROUTES & MAKES OK SENSE
+
+# distinct(onroad0, spatial_code, design, version, visits, campaign, adjusted, cluster_type) %>% View()
+
 cw <- onroad0 %>%
-  distinct(spatial_code, design, version, visits, campaign, adjusted, cluster_type) %>%
-  arrange(spatial_code, design, version, visits, campaign, adjusted, cluster_type) %>%
+  distinct(#spatial_code, 
+           design, version, visits, campaign, adjusted, cluster_type) %>%
+  arrange(#spatial_code, 
+    design, version, visits, campaign, adjusted, cluster_type) %>%
   mutate(
     #cluster_code = ifelse(is.na(cluster_type), "cNA", cluster_type),
     cluster_code = gsub("luster", "", cluster_type),
@@ -102,12 +114,12 @@ cw <- onroad0 %>%
       design=="sensible" ~ "sen",
       design=="unsensible" ~ "unsen",
       design=="road_type" ~ "road",
-      design=="route" ~ "route",
-    ),
+      design=="route" ~ "route"),
 
     version_code = case_when(
       grepl("all", version) ~ "al",
       grepl("business", version) ~ "bh"),
+    #version_code = ifelse(grepl("route", version) ~ paste0(version_code, "_route"), version_code),
 
     visit_code = readr::parse_number(visits),
     visit_code = str_pad(visit_code, 2, pad = "0"),
@@ -116,7 +128,6 @@ cw <- onroad0 %>%
     adjusted_code = ifelse(adjusted=="adjusted", "adj", "unadj"),
 
     model = paste("r",
-                  #spatial_code,
                   design_code,
                   cluster_code,
                   version_code,

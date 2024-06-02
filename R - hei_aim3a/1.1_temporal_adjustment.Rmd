@@ -75,7 +75,7 @@ theme_update(legend.position = "bottom")
 # 2019 report: https://pscleanair.gov/DocumentCenter/View/4164/Air-Quality-Data-Summary-2019 
 # study dates: "2019-02-22" "2020-03-17"
 
-nox <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox.rda")) %>%
+nox <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox.rda")) %>%  
   mutate(
     # NOTE: daylight savings (3/10/2019 & 3/10/2020 @ 2 AM) get dropped. why are these readings included in this dataset? are they duplicates? 
     time = paste(date_local, time_local),
@@ -249,6 +249,7 @@ print("the hour functions look non-linear")
 par(mfrow = c(3, 3))
 plot(missing_no2_lm)
 par(mfrow = c(1, 1))
+
 
 predicted_no2 <- predict(missing_no2_lm, 
                          newdata = nox %>% mutate(hour = as.numeric(as.character(hour)))) %>% 

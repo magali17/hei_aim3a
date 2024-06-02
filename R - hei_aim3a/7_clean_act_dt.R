@@ -81,6 +81,9 @@ if(file.exists(health_dt_path)) {
 
 exclusion_table <- count_remaining_sample(health0, description. = "Full dataset")
 
+
+# --> TEMP?: will need to add latest models to this
+
 # exposure predictions from different models
 exposure_dt_path <- file.path("data", "issue_17", "issue_017_rerun20231020.rda")
 
@@ -189,7 +192,6 @@ exclusion_table <- count_remaining_sample(health, description. = "High exposure 
 
 model_covars <- c("visit_age_centered75", "year2", "male", "degree"#, 
                   #"apoe"#, dropping this requirement b/c drops ~ 16% of people (post 2018) w/o APOE genotyping. this is different from Nancy's work, but OK since this is not a confounder anyway so results should be similar
-                  #"race_white" , "nses_z_cx"
                   )
 saveRDS(model_covars, file.path(output_data_path, "model_covars.rda"))
 

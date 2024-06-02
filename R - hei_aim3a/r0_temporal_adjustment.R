@@ -1,4 +1,4 @@
-# script temporally adjusts onroad data
+# script pulls in all business hours visit campaigns and temporally adjusts the visits; calculates annual averages
 
 # --> TO DO: SEARCH FOR 'TEMP/TO DO' (E.G., remove things that helped run code faster)
 
@@ -82,23 +82,34 @@ add_progress_notes("loading visit data")
 #if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
 fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
   # use ptrak-based temporal adjustment  
-  select(time, 
-         #ufp_adjustment2 = diff_adjustment_winsorize,
-           ufp_adjustment = diff_adjustment_winsorize_ptrak,
-           )
-#}
+  select(time, ufp_adjustment = diff_adjustment_winsorize_ptrak)
 
 # BH samples
-bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
-  grep("business", value = T, .) %>%
-  # don't include cluster 3 (annie's original clusters)?
-  grep("_cluster3", ., value = T, invert = T)
+# bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
+#   grep("business", value = T, .) #%>%
+#   # # don't include cluster 3 (annie's original clusters)?
+#   # grep("_cluster3", ., value = T, invert = T)
 
-if(testing_mode==TRUE) {bh_visit_files <- bh_visit_files[1:2]}
 
-# --> or keep separate files? 
+
+# --> START HERE - CHECK THAT separate files WORK
+#design_types <- c("nonspatial", "clustered", "routes")
+design_types <- readRDS(file.path(dt_pt, "design_types_list.rds"))
+
+#if(testing_mode==TRUE) {bh_visit_files <- bh_visit_files[1:2]}
+
 # x=bh_visit_files[1]
-visits <- lapply(bh_visit_files, function(x){ readRDS(file.path(dt_pt, "visits", x) )}) %>% 
+#visits <- lapply(bh_visit_files, function(x){readRDS(file.path(dt_pt, "visits", x) )}) %>% 
+visits <- lapply(design_types, function(x){
+  
+  file_names <- list.files(file.path(dt_pt, "visits", x)) %>%
+    grep("business", value = T, .)
+  
+  if(testing_mode==TRUE){file_names <- file_names[1]}
+  
+  lapply(file_names, function(f){readRDS(file.path(dt_pt, "visits", x, f))}) %>% bind_rows()
+  
+  }) %>%  
   bind_rows() %>%
   ungroup() %>%
   select(id, date, hour, median_value, adjusted, cluster_type, cluster_value, actual_visits, campaign, design, visits, version)
@@ -258,8 +269,8 @@ if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds
    overwrite_fixed_site_temporal_adjustment == TRUE) {
   message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
-  visits_adj1 <- visits %>%
-    mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
+  visits_adj1 <- visits %>% 
+    mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%  
     # add temporal adjustment
     left_join(fixed_site_temp_adj, by="time") %>%
     mutate(median_value_adjusted = median_value + ufp_adjustment,
@@ -278,6 +289,11 @@ if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds
 } #else {
 #   annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
 # }
+
+##################################################################################################
+# --> ? add random temporal adjustment?
+
+
 
 ##################################################################################################
 # 2. UNDERWRITE FN: PSEUDO FIXED SITE FROM COLLECTED UFP MEASURES
@@ -329,6 +345,10 @@ message("running underwrite temporal adjustment for non-highway data")
 add_progress_notes("running underwrite tmeporal adjustment for non-highway data")
 road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy, file_label="_no_hwy")
 saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hwy.rda")) 
+
+# QC - check that tz is still correct.
+# test_road_dt_no_hwy <- calculate_rolling_quantile(dt=road_dt_no_hwy, file_label="_no_hwy", windows.=10800, quantiles.=0.01)
+# test_road_dt_no_hwy$times[1]
 
 ##################################################################################################
 # note: some hours don't have UFP but still have hourly adjustments b/c rm.na=T for rolling window calculations
