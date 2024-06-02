@@ -25,7 +25,7 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 load(file.path(dt_path, "uk_workspace.rdata"))
 if(!dir.exists(file.path(dt_path, "UK Predictions"))){dir.create(file.path(dt_path, "UK Predictions"))}
 
-use_cores <- 4#1
+use_cores <- 4 
 set.seed(1)
 
 ##################################################################################################

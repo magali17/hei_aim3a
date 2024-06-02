@@ -46,7 +46,7 @@ overwrite_fixed_site_temporal_adjustment <- TRUE # true when e.g., update the vi
 # speed thigns up
 testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
 
-use_cores <- 6 #8 
+use_cores <- 1#6  
 
 ##################################################################################################
 # FUNCTIONS
