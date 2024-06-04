@@ -43,7 +43,7 @@ overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is update
 
 overwrite_fixed_site_temporal_adjustment <- TRUE # true when e.g., update the visit designs
 # speed thigns up
-testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
+testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
 use_cores <- 6  
 
@@ -311,7 +311,6 @@ if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1_random.rds")) |
   )
   )
 }
-
 
 ##################################################################################################
 # 2. UNDERWRITE FN: PSEUDO FIXED SITE FROM COLLECTED UFP MEASURES
