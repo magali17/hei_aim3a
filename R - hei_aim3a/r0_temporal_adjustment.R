@@ -24,10 +24,8 @@ dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
 if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
-#if(!dir.exists(file.path(dt_out, "visits"))){dir.create(file.path(dt_out, "visits"), recursive = T)}
 
 lapply(c("visits", "site_avgs"), function(d){if(!dir.exists(file.path(dt_pt2, d))){dir.create(file.path(dt_pt2, d), recursive = T)}} )
-#if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 
 set.seed(1)
 
@@ -45,9 +43,9 @@ overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is update
 
 overwrite_fixed_site_temporal_adjustment <- TRUE # true when e.g., update the visit designs
 # speed thigns up
-testing_mode <- TRUE #FALSE #e.g., reduce visit designs & windows/quantile combinations
+testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
 
-use_cores <- 1#6  
+use_cores <- 6  
 
 ##################################################################################################
 # FUNCTIONS
@@ -264,14 +262,11 @@ if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) |
     # add temporal adjustment
     left_join(fixed_site_temp_adj, by="time") %>%
     mutate(median_value_adjusted = median_value + ufp_adjustment,
-           #version = paste(bh_version, "temp adj 1")
-           version = paste(version, "temp adj 1")
-           )
+           version = paste(version, "temp adj 1"))
 
   message("...saving adjusted visits")
   saveRDS(visits_adj1, #file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds")
-          file.path(dt_pt2, "visits", "temp_adj1.rds")
-          )
+          file.path(dt_pt2, "visits", "temp_adj1.rds"))
 
   annual_adj1 <- visits_adj1 %>%
     group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
@@ -286,8 +281,36 @@ if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) |
 }
 
 ##################################################################################################
-# --> ? add random temporal adjustment?
+# RANDOM temporal adjustment
+# does a random adjustment more/less produce similar results b/c of how inaccurate the adjustments may be to begin with?
 
+if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1_random.rds")) | 
+   overwrite_fixed_site_temporal_adjustment == TRUE) {
+  
+  set.seed(2)
+  fixed_site_temp_adj <-  fixed_site_temp_adj %>%
+    mutate(ufp_adjustment_random = sample(ufp_adjustment, replace = T))
+  
+  visits_adj1 <- visits %>% 
+    mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%  
+    # add RANDOM temporal adjustment
+    left_join(fixed_site_temp_adj, by="time") %>%
+    mutate(median_value_adjusted = median_value + ufp_adjustment_random,
+           version = paste(version, "temp adj 1 random"))
+  
+  message("...saving adjusted visits")
+  saveRDS(visits_adj1, file.path(dt_pt2, "visits", "temp_adj1_random.rds"))
+  
+  annual_adj1 <- visits_adj1 %>%
+    group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+    summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+    ungroup() %>% suppressMessages()
+  
+  message("...saving annual averages")
+  saveRDS(annual_adj1, file.path(dt_pt2, "site_avgs", "temp_adj1_random.rds"
+  )
+  )
+}
 
 
 ##################################################################################################
@@ -370,7 +393,7 @@ get_hourly_adjustment <- function(dt) {
 }
 
 ##################################################################################################
-message("estimating hourly adjustments")
+message("...estimating hourly adjustments")
 add_progress_notes("estimating hourly adjustments")
 
 underwrite_adj <- get_hourly_adjustment(road_dt)
@@ -380,7 +403,7 @@ underwrite_adj_no_hwy <- get_hourly_adjustment(road_dt_no_hwy)
 saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda"))
 
 ##################################################################################################
-message("applying temporal adjustment using all segments")
+message("...applying temporal adjustment using all segments")
 add_progress_notes("applying temporal adjustment using all segments")
 
 visits_adj2 <- visits %>%
@@ -391,9 +414,7 @@ visits_adj2 <- visits %>%
   left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time" #multiple = "all" #receive warning message w/o this 
             ) %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
-         #version = paste(bh_version, "temp adj 2")
-         version = paste(version, "temp adj 1")
-         )
+         version = paste(version, "temp adj 2"))
 
 saveRDS(visits_adj2, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw.rds"
                                "visits", "temp_adj2.rds"
@@ -405,7 +426,7 @@ saveRDS(visits_adj2, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw.rd
 #   saveRDS(file.path(dt_pt2, paste0("bh_visits_fixed_site_temporal_adj_uw_", file_label, ".rda")))
 #   })
 
-message("estimating location annual averages using all segments")
+message("...estimating location annual averages using all segments")
 add_progress_notes("estimating location annual averages using all segments")
 
 annual_adj2 <- visits_adj2 %>%
@@ -418,7 +439,31 @@ saveRDS(annual_adj2, file.path(dt_pt2, #"site_avgs_uw_adj.rds"
                                ))
 
 ##################################################################################################
-message("applying temporal adjustment to non-hwy segments")
+# RANDOM all segments underwrite 
+## randomly sample the entire temporal adjustment dataset
+set.seed(2)
+underwrite_adj <- underwrite_adj %>%
+  mutate(avg_hourly_adj_random = sample(avg_hourly_adj, replace = T))
+
+visits_adj2 <- visits %>%
+  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
+  # add temporal adjustment
+  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj_random), by="time" #multiple = "all" #receive warning message w/o this 
+  ) %>% 
+  mutate(median_value_adjusted = median_value + avg_hourly_adj_random,
+         version = paste(version, "temp adj 2 random"))
+
+saveRDS(visits_adj2, file.path(dt_pt2, "visits", "temp_adj2_random.rds")) 
+
+annual_adj2 <- visits_adj2 %>%
+  group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+  ungroup()  %>% suppressMessages()
+
+saveRDS(annual_adj2, file.path(dt_pt2, "site_avgs", "temp_adj2_random.rds"))
+
+##################################################################################################
+message("...applying temporal adjustment to non-hwy segments")
 add_progress_notes("applying temporal adjustment using non-hwy segments")
 
 visits_adj2_no_hwy <- visits %>%
@@ -426,9 +471,7 @@ visits_adj2_no_hwy <- visits %>%
   # add temporal adjustment
   left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj), by="time") %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
-         #version = paste(bh_version, "temp adj 2"),
-         version = paste(version, "temp adj 1")
-         )
+         version = paste(version, "temp adj 2"))
 
 saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds"
                                       "visits", "temp_adj2_no_hwy.rds"
@@ -439,7 +482,7 @@ saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_ad
 #   saveRDS(file.path(dt_pt2, paste0("bh_visits_fixed_site_temporal_adj_uw_no_hwy_", file_label, ".rda")))
 # })
 
-message("estimating location annual averages using non-hwy segments")
+message("...estimating location annual averages using non-hwy segments")
 add_progress_notes("estimating location annual averages using non-hwy segments")
 annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
   group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
@@ -449,6 +492,31 @@ annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
 saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, #"site_avgs_uw_adj_no_hwy.rds"
                                       "site_avgs", "temp_adj2_no_hwy.rds"
                                       ))
+
+##################################################################################################
+# RANDOM ADJUSTMENT FOR NON-HWY DATA 
+
+## randomly sample the entire temporal adjustment dataset
+set.seed(2)
+underwrite_adj_no_hwy <- underwrite_adj_no_hwy %>%
+  mutate(avg_hourly_adj_random = sample(avg_hourly_adj, replace = T))
+
+visits_adj2_no_hwy <- visits %>%
+  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
+  # add temporal adjustment
+  left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj_random), by="time") %>% 
+  mutate(median_value_adjusted = median_value + avg_hourly_adj_random,
+          version = paste(version, "temp adj 2 random"))
+
+saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds"
+                                      "visits", "temp_adj2_no_hwy_random.rds")) 
+
+annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
+  group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
+  ungroup()  %>% suppressMessages()
+
+saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, "site_avgs", "temp_adj2_no_hwy_random.rds"))
 
 ##################################################################################################
 # DONE

@@ -36,7 +36,7 @@ lapply(design_types, function(f){if(!dir.exists(file.path(new_dt_pt, "site_avgs"
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 if(!dir.exists(file.path(image_path, "SI"))){dir.create(file.path(image_path, "SI"), recursive = T)}
 
-core_count <- 3 #6 sometimes crashes clustered sampling?
+core_count <- 4 #6 sometimes crashes clustered sampling?
 set.seed(21)
 
 ########################################################################################################
