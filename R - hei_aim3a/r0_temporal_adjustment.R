@@ -100,18 +100,18 @@ visits <- lapply(design_types, function(x){
   
   if(testing_mode==TRUE){file_names <- file_names[1]}
   
-  message(paste0("reading ", x, " visit files"))
+  message(paste0("...reading ", x, " visit files"))
   lapply(file_names, function(f){readRDS(file.path(dt_pt, "visits", x, f))}) %>% bind_rows()
   
   }) %>%  
   bind_rows() %>%
-  ungroup() %>%
+  ungroup() %>% suppressMessages() %>%
   select(id, date, hour, median_value, adjusted, cluster_type, cluster_value, actual_visits, campaign, design, visits, version)
 
 #bh_version <- "business hours" #unique(visits$version) %>% as.character()
 # grep("route", unique(visits$version), invert = T, value = T)
 
-visits <- select(visits, -version)
+#visits <- select(visits, -version)
 
 local_tz <- tz(fixed_site_temp_adj$time)
 
@@ -160,7 +160,7 @@ if(!file.exists(file.path(dt_pt2, "TEMP_road_dt.rda")) |
     road_dt0 <- road_dt0 %>%
       group_by(time) %>%
       slice(1) %>%
-      ungroup()  
+      ungroup()  %>% suppressMessages()
     missingness_table <- count_missingness(road_dt0, notes="only keep 1st location when same sec reading is assigned to 2")
     
     # drop roosevelt garage
@@ -276,7 +276,7 @@ if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) |
   annual_adj1 <- visits_adj1 %>%
     group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
     summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-    ungroup()
+    ungroup() %>% suppressMessages()
 
   message("...saving annual averages")
   saveRDS(annual_adj1, file.path(dt_pt2, #"TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"
@@ -359,7 +359,7 @@ get_hourly_adjustment <- function(dt) {
     summarize(bg_hour_avg = mean(background, na.rm = T),
               #bg_hour_median = median(background, na.rm = T)
               ) %>%
-    ungroup() %>%
+    ungroup() %>% suppressMessages() %>%
     mutate(avg_hourly_adj = bg_lta - bg_hour_avg,
            #median_hourly_adj = bg_lta - bg_hour_median,
            time = ymd_h(paste(date, hour), tz=local_tz)) %>%
@@ -411,7 +411,7 @@ add_progress_notes("estimating location annual averages using all segments")
 annual_adj2 <- visits_adj2 %>%
   group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-  ungroup()  
+  ungroup()  %>% suppressMessages()
 
 saveRDS(annual_adj2, file.path(dt_pt2, #"site_avgs_uw_adj.rds"
                                "site_avgs", "temp_adj2.rds"
@@ -444,7 +444,7 @@ add_progress_notes("estimating location annual averages using non-hwy segments")
 annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
   group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-  ungroup()  
+  ungroup()  %>% suppressMessages()
 
 saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, #"site_avgs_uw_adj_no_hwy.rds"
                                       "site_avgs", "temp_adj2_no_hwy.rds"
