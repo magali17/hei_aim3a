@@ -63,14 +63,11 @@ onroad0 <- lapply(design_types, function(x){
 
 # temporal adjustments
 ## using a fixed site (PTRAK UFP~NO2 model based on collocations) [this is different than the stationary temp adj!]
-temporal_adjustments1 <- readRDS(file.path(dt_pt2, #"TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"
+temporal_adjustments1 <- readRDS(file.path(dt_pt2, 
                                            "site_avgs", "temp_adj1.rds"
                                            ))
-## using the underwrite ptrak approach
-temporal_adjustments <- readRDS(file.path(dt_pt2, #"site_avgs_uw_adj_no_hwy.rds"
-                                          "site_avgs", "temp_adj2_no_hwy.rds"
-                                          )) %>%
-  filter(background_adj == main_bg) %>%  
+## using the underwrite ptrak approach (only load main analysis file)
+temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs", "temp_adj2_no_hwy_hr3_pct1.rds")) %>%
   select(names(temporal_adjustments1)) %>%
   bind_rows(temporal_adjustments1)
 
