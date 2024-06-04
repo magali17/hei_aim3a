@@ -26,8 +26,8 @@ load(file.path(dt_path, "uk_workspace.rdata"))
 
 set.seed(1)
 
-# underwrite temporal adjustment approach
-main_bg <- "hr3_pct1"
+# # main underwrite temporal adjustment approach
+# main_bg <- "hr3_pct1"
 ##################################################################################################
 # DATA
 ##################################################################################################

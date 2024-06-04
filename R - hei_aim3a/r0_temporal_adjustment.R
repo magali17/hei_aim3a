@@ -43,7 +43,7 @@ overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is update
 
 overwrite_fixed_site_temporal_adjustment <- TRUE # true when e.g., update the visit designs
 # speed thigns up
-testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
+testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
 
 use_cores <- 6  
 
@@ -81,13 +81,6 @@ fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox
   select(time, ufp_adjustment = diff_adjustment_winsorize_ptrak) %>%
   mutate(ufp_adjustment_random = sample(ufp_adjustment, replace = T))
 
-# BH samples
-# bh_visit_files <- list.files(file.path(dt_pt, "visits")) %>%
-#   grep("business", value = T, .) #%>%
-#   # # don't include cluster 3 (annie's original clusters)?
-#   # grep("_cluster3", ., value = T, invert = T)
-
-
 design_types <- readRDS(file.path(dt_pt, "design_types_list.rds"))
 
 message("loading visit data")
@@ -100,14 +93,13 @@ visits <- lapply(design_types, function(x){
   
   if(testing_mode==TRUE){file_names <- file_names[1]}
   
-  # ? why doesn't this print? 
   message(paste0("...reading ", x, " visit files"))
   
   lapply(file_names, function(f){readRDS(file.path(dt_pt, "visits", x, f))}) %>% bind_rows()
   
   }) %>%  
   bind_rows() %>%
-  ungroup() %>% suppressMessages() %>%
+  ungroup() %>%  
   select(id, date, hour, median_value, adjusted, cluster_type, cluster_value, actual_visits, campaign, design, visits, version)
 
 local_tz <- tz(fixed_site_temp_adj$time)

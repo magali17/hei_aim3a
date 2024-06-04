@@ -351,10 +351,9 @@ lapply(1:nrow(sampling_combos), function(x) {
   visit_file <- file.path(new_dt_pt, "visits", "nonspatial", paste0(design_label, ".rds"))
   annual_file <- file.path(new_dt_pt, "site_avgs", "nonspatial", paste0(design_label, ".rds"))
   
-  message(paste0(capture.output(temp), collapse = "\n"))
-  
   if(!file.exists(visit_file) | !file.exists(annual_file)) {
-    message("running sampling designs")
+    message(paste("running sampling design:", design_label))
+    #message(paste0(capture.output(temp), collapse = "\n"))
     
     # all vs business hours/days
     if(temp$hours == "all hours"){
@@ -386,7 +385,7 @@ lapply(1:nrow(sampling_combos), function(x) {
     saveRDS(annual_averages, annual_file)
     
   } else {
-    message("Files already exist")
+    message(paste("Files already exist for", design_label))
   }
   })  
 
@@ -475,12 +474,12 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
                                      visit_file <- file.path(new_dt_pt, "visits", "clustered", paste0(design_label, ".rds"))
                                      annual_file <- file.path(new_dt_pt, "site_avgs", "clustered", paste0(design_label, ".rds"))
 
-                                     message(paste0(capture.output(temp), collapse = "\n"))
+                                     #message(paste0(capture.output(temp), collapse = "\n"))
 
                                      if(!file.exists(visit_file) |
                                         !file.exists(annual_file)) {
 
-                                       message("running sampling designs")
+                                       message(paste("running sampling design:", design_label))
 
                                        # all vs business hours/days
                                        if(temp$hours == "all hours"){
@@ -516,7 +515,7 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
                                        saveRDS(my_samples, visit_file)
                                        saveRDS(annual_averages, annual_file)
                                      } else {
-                                       message("Files already exist")
+                                       message(paste("Files already exist for", design_label))
                                      }
                                    })
 
@@ -597,7 +596,7 @@ lapply(1:nrow(sampling_combos_routes), function(x) {
   message(paste0(capture.output(temp), collapse = "\n"))
   
   if(!file.exists(visit_file) | !file.exists(annual_file)) {
-    message("running sampling designs")
+    message(paste("running sampling design:", design_label))
     
     my_samples <- many_campaigns_by_route(df = pnc_med,
                                           adjusted. = temp$adjusted,
@@ -619,7 +618,7 @@ lapply(1:nrow(sampling_combos_routes), function(x) {
     saveRDS(annual_averages, annual_file)
     
   } else{
-    message("Files already exist")
+    message(paste("Files already exist for", design_label))
   }
 })  
 
