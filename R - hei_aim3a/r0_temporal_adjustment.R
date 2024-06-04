@@ -16,8 +16,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 pacman::p_load(tidyverse, lubridate, zoo,
                #DescTools, # Winsorize() #has issues downloading in the cluster
                parallel#, #mclapply()
-               #fst
-               )    
+                )    
 
 source("functions.R")
 dt_pt <- file.path("data", "onroad", "annie", "v2")
@@ -25,8 +24,10 @@ dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
 if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
-if(!dir.exists(file.path(dt_out, "visits"))){dir.create(file.path(dt_out, "visits"), recursive = T)}
-if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
+#if(!dir.exists(file.path(dt_out, "visits"))){dir.create(file.path(dt_out, "visits"), recursive = T)}
+
+lapply(c("visits", "site_avgs"), function(d){if(!dir.exists(file.path(dt_pt2, d))){dir.create(file.path(dt_pt2, d), recursive = T)}} )
+#if(!dir.exists(dt_pt2)){dir.create(dt_pt2, recursive = T)}
 
 set.seed(1)
 
@@ -75,11 +76,7 @@ add_progress_notes <- function(note) {
 ##################################################################################################
 # DATA
 ##################################################################################################
-message("loading visit data")
-add_progress_notes("loading visit data")
-
 # using fixedsite temporal adjustments previously developed in 1.1_temporal_adjustment.Rmd # using the winsorized adjusted values, as before
-#if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))) {
 fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox_temp_adjustment.rda")) %>%
   # use ptrak-based temporal adjustment  
   select(time, ufp_adjustment = diff_adjustment_winsorize_ptrak)
@@ -91,15 +88,11 @@ fixed_site_temp_adj <- readRDS(file.path("data", "epa_data_mart", "wa_county_nox
 #   # grep("_cluster3", ., value = T, invert = T)
 
 
-
-# --> START HERE - CHECK THAT separate files WORK
-#design_types <- c("nonspatial", "clustered", "routes")
 design_types <- readRDS(file.path(dt_pt, "design_types_list.rds"))
 
-#if(testing_mode==TRUE) {bh_visit_files <- bh_visit_files[1:2]}
-
-# x=bh_visit_files[1]
-#visits <- lapply(bh_visit_files, function(x){readRDS(file.path(dt_pt, "visits", x) )}) %>% 
+message("loading visit data")
+add_progress_notes("loading visit data")
+# x=design_types[1]
 visits <- lapply(design_types, function(x){
   
   file_names <- list.files(file.path(dt_pt, "visits", x)) %>%
@@ -260,7 +253,7 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 
-if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds")) | 
+if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) | 
    overwrite_fixed_site_temporal_adjustment == TRUE) {
   message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
@@ -272,7 +265,9 @@ if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds
            version = paste(bh_version, "temp adj 1"))
 
   message("...saving adjusted visits")
-  saveRDS(visits_adj1, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds"))
+  saveRDS(visits_adj1, #file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds")
+          file.path(dt_pt2, "visits", "temp_adj1.rds")
+          )
 
   annual_adj1 <- visits_adj1 %>%
     group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
@@ -280,10 +275,11 @@ if(!file.exists(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds
     ungroup()
 
   message("...saving annual averages")
-  saveRDS(annual_adj1, file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-} #else {
-#   annual_adj1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-# }
+  saveRDS(annual_adj1, file.path(dt_pt2, #"TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"
+                                 "site_avgs", "temp_adj1.rds"
+                                 )
+          )
+}
 
 ##################################################################################################
 # --> ? add random temporal adjustment?
@@ -355,11 +351,6 @@ get_hourly_adjustment <- function(dt) {
     mutate(bg_lta = mean(background, na.rm = T),
            date = date(time), # important!! don't use as.Date() - automatically sets date to UTC
            hour = hour(time)) %>%
-    
-    # # ~41 date-hours per window-quantile have multiple "runnames" (makeup routes?). Calcualte one hourly average here
-    # group_by(date, hour) %>%
-    # mutate(runname = first(runname)) %>% 
-      
     group_by(runname, date, hour, background_adj, bg_lta) %>%
     summarize(bg_hour_avg = mean(background, na.rm = T),
               #bg_hour_median = median(background, na.rm = T)
@@ -398,7 +389,9 @@ visits_adj2 <- visits %>%
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(bh_version, "temp adj 2"))
 
-saveRDS(visits_adj2, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw.rds")) 
+saveRDS(visits_adj2, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw.rds"
+                               "visits", "temp_adj2.rds"
+                               )) 
 # also save as separate files
 # x=group_split(visits_adj2, adjusted, visit_count, balanced, cluster_approach, cluster)[[1]]
 # lapply(group_split(visits_adj2, adjusted, visit_count, balanced, cluster_approach, cluster), function(x) {
@@ -414,7 +407,9 @@ annual_adj2 <- visits_adj2 %>%
   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
   ungroup()  
 
-saveRDS(annual_adj2, file.path(dt_pt2, "site_avgs_uw_adj.rds"))
+saveRDS(annual_adj2, file.path(dt_pt2, #"site_avgs_uw_adj.rds"
+                               "site_avgs", "temp_adj2.rds"
+                               ))
 
 ##################################################################################################
 message("applying temporal adjustment to non-hwy segments")
@@ -427,7 +422,9 @@ visits_adj2_no_hwy <- visits %>%
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
          version = paste(bh_version, "temp adj 2"))
 
-saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds")) 
+saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds"
+                                      "visits", "temp_adj2_no_hwy.rds"
+                                      )) 
 
 # lapply(group_split(visits_adj2_no_hwy, adjusted, visit_count, balanced, cluster_approach, cluster), function(x) {
 #   file_label <- paste(first(x$adjusted), first(x$visit_count), first(x$balanced), first(x$cluster_approach), first(x$cluster_type), sep="_")
@@ -441,7 +438,9 @@ annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
   summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
   ungroup()  
 
-saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds"))
+saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, #"site_avgs_uw_adj_no_hwy.rds"
+                                      "site_avgs", "temp_adj2_no_hwy.rds"
+                                      ))
 
 ##################################################################################################
 # DONE

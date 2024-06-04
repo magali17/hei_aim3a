@@ -68,6 +68,8 @@ make_dt_smaller <- function(dt) {
 
 # Load data 
 
+# --> TO DO: UPDATE FILE PATHS TO LATEST FILES FROM r0_temporal_adjustment.R
+
 ```{r}
 # adjusted annual averages (n=30 campaigns per design-version)
 ## underwrite adjusted annual avgs 

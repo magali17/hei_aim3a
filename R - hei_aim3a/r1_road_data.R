@@ -49,11 +49,6 @@ cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
 saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 
 ## 5874 locations
-# onroad_ns <- readRDS(file.path("data", "onroad", "annie", "v2", "nonspatial_site_avgs.rds")) %>%
-#   mutate(spatial_code = "sn")
-# onroad_s <- readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avgs.rds")) %>%
-#   mutate(spatial_code = "sy")
-
 
 # --> TO DO: CHECK THAT INDIVUDUAL FILES CODE WORKS & ROUTES ARE ADDED  [ACTUAL_VISITS IS OFF W/ TEMPORAL ADJ FILES]
 
@@ -68,9 +63,13 @@ onroad0 <- lapply(design_types, function(x){
 
 # temporal adjustments
 ## using a fixed site (PTRAK UFP~NO2 model based on collocations) [this is different than the stationary temp adj!]
-temporal_adjustments1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
+temporal_adjustments1 <- readRDS(file.path(dt_pt2, #"TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"
+                                           "site_avgs", "temp_adj1.rds"
+                                           ))
 ## using the underwrite ptrak approach
-temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>%
+temporal_adjustments <- readRDS(file.path(dt_pt2, #"site_avgs_uw_adj_no_hwy.rds"
+                                          "site_avgs", "temp_adj2_no_hwy.rds"
+                                          )) %>%
   filter(background_adj == main_bg) %>%  
   select(names(temporal_adjustments1)) %>%
   bind_rows(temporal_adjustments1)
@@ -80,7 +79,7 @@ rm(temporal_adjustments1)
 
 
 
-onroad0 <- onroad0 %>% #bind_rows(onroad_ns, onroad_s) %>%
+onroad0 <- onroad0 %>% 
   bind_rows(temporal_adjustments) %>%
   rename(location=id,
          value = annual_mean) %>%
