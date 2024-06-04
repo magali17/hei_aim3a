@@ -100,6 +100,7 @@ visits <- lapply(design_types, function(x){
   
   if(testing_mode==TRUE){file_names <- file_names[1]}
   
+  message(paste0("reading ", x, " visit files"))
   lapply(file_names, function(f){readRDS(file.path(dt_pt, "visits", x, f))}) %>% bind_rows()
   
   }) %>%  
@@ -107,7 +108,8 @@ visits <- lapply(design_types, function(x){
   ungroup() %>%
   select(id, date, hour, median_value, adjusted, cluster_type, cluster_value, actual_visits, campaign, design, visits, version)
 
-bh_version <- unique(visits$version) %>% as.character()
+#bh_version <- "business hours" #unique(visits$version) %>% as.character()
+# grep("route", unique(visits$version), invert = T, value = T)
 
 visits <- select(visits, -version)
 
@@ -262,7 +264,9 @@ if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) |
     # add temporal adjustment
     left_join(fixed_site_temp_adj, by="time") %>%
     mutate(median_value_adjusted = median_value + ufp_adjustment,
-           version = paste(bh_version, "temp adj 1"))
+           #version = paste(bh_version, "temp adj 1")
+           version = paste(version, "temp adj 1")
+           )
 
   message("...saving adjusted visits")
   saveRDS(visits_adj1, #file.path(dt_pt2, "bh_visits_fixed_site_temporal_adj.rds")
@@ -387,7 +391,9 @@ visits_adj2 <- visits %>%
   left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time" #multiple = "all" #receive warning message w/o this 
             ) %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
-         version = paste(bh_version, "temp adj 2"))
+         #version = paste(bh_version, "temp adj 2")
+         version = paste(version, "temp adj 1")
+         )
 
 saveRDS(visits_adj2, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw.rds"
                                "visits", "temp_adj2.rds"
@@ -420,7 +426,9 @@ visits_adj2_no_hwy <- visits %>%
   # add temporal adjustment
   left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj), by="time") %>% 
   mutate(median_value_adjusted = median_value + avg_hourly_adj,
-         version = paste(bh_version, "temp adj 2"))
+         #version = paste(bh_version, "temp adj 2"),
+         version = paste(version, "temp adj 1")
+         )
 
 saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds"
                                       "visits", "temp_adj2_no_hwy.rds"
