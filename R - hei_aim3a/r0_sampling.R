@@ -462,63 +462,63 @@ pnc_med_clusters <- pnc_med %>%
   left_join(segment_clusters, by="id") %>% 
   pivot_longer(cols = contains("cluster"), names_to = "cluster_type", values_to = "cluster_value")
 
-# message("running spatially clustered analyses")
-# 
-# set.seed(21)
-# # x=4
-# lapply(1:nrow(sampling_combos_random_clusters), function(x) {
-#                                      temp <- sampling_combos_random_clusters[x,]
-#                                      
-#                                      design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), first(temp$cluster_approach), first(temp$cluster_type), sep = "_") %>%
-#                                        gsub(" ", "", .)
-#                                      
-#                                      visit_file <- file.path(new_dt_pt, "visits", "clustered", paste0(design_label, ".rds"))
-#                                      annual_file <- file.path(new_dt_pt, "site_avgs", "clustered", paste0(design_label, ".rds"))
-#                                      
-#                                      message(paste0(capture.output(temp), collapse = "\n"))
-#                                      
-#                                      if(!file.exists(visit_file) | 
-#                                         !file.exists(annual_file)) {
-#                                        
-#                                        message("running sampling designs")
-#                                        
-#                                        # all vs business hours/days
-#                                        if(temp$hours == "all hours"){
-#                                          sampling_hours <- all_hours
-#                                          sampling_days <- all_days} 
-#                                        if(temp$hours == "business hours"){
-#                                          sampling_hours <- business_hours
-#                                          sampling_days <- business_days} 
-#                                        
-#                                        my_samples <- pnc_med_clusters %>%
-#                                          filter(adjusted == temp$adjusted,
-#                                                 hour %in% sampling_hours,
-#                                                 dow2 %in% sampling_days,
-#                                                 cluster_type == temp$cluster_type 
-#                                                 ) %>% 
-#                                          many_campaigns_clustered(df = ., visit_count = temp$visit_count, cluster_approach.=temp$cluster_approach) %>%
-#                                          mutate(
-#                                            adjusted = temp$adjusted,
-#                                            design = temp$cluster_approach,
-#                                            visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
-#                                            version = temp$hours,
-#                                            cluster_type = temp$cluster_type
-#                                            )
-#                                        
-#                                        annual_averages <- my_samples %>%
-#                                          group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-#                                          summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-#                                          ungroup() %>% suppressMessages()
-#                                        
-#                                         
-#                                        message("saving samples")
-#                                        # save separate files since this is large
-#                                        saveRDS(my_samples, visit_file)
-#                                        saveRDS(annual_averages, annual_file)
-#                                      } else {
-#                                        message("Files already exist")
-#                                      }
-#                                    }) 
+message("running spatially clustered analyses")
+
+set.seed(21)
+# x=4
+lapply(1:nrow(sampling_combos_random_clusters), function(x) {
+                                     temp <- sampling_combos_random_clusters[x,]
+
+                                     design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), first(temp$cluster_approach), first(temp$cluster_type), sep = "_") %>%
+                                       gsub(" ", "", .)
+
+                                     visit_file <- file.path(new_dt_pt, "visits", "clustered", paste0(design_label, ".rds"))
+                                     annual_file <- file.path(new_dt_pt, "site_avgs", "clustered", paste0(design_label, ".rds"))
+
+                                     message(paste0(capture.output(temp), collapse = "\n"))
+
+                                     if(!file.exists(visit_file) |
+                                        !file.exists(annual_file)) {
+
+                                       message("running sampling designs")
+
+                                       # all vs business hours/days
+                                       if(temp$hours == "all hours"){
+                                         sampling_hours <- all_hours
+                                         sampling_days <- all_days}
+                                       if(temp$hours == "business hours"){
+                                         sampling_hours <- business_hours
+                                         sampling_days <- business_days}
+
+                                       my_samples <- pnc_med_clusters %>%
+                                         filter(adjusted == temp$adjusted,
+                                                hour %in% sampling_hours,
+                                                dow2 %in% sampling_days,
+                                                cluster_type == temp$cluster_type
+                                                ) %>%
+                                         many_campaigns_clustered(df = ., visit_count = temp$visit_count, cluster_approach.=temp$cluster_approach) %>%
+                                         mutate(
+                                           adjusted = temp$adjusted,
+                                           design = temp$cluster_approach,
+                                           visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
+                                           version = temp$hours,
+                                           cluster_type = temp$cluster_type
+                                           )
+
+                                       annual_averages <- my_samples %>%
+                                         group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+                                         summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+                                         ungroup() %>% suppressMessages()
+
+
+                                       message("saving samples")
+                                       # save separate files since this is large
+                                       saveRDS(my_samples, visit_file)
+                                       saveRDS(annual_averages, annual_file)
+                                     } else {
+                                       message("Files already exist")
+                                     }
+                                   })
 
 ########################################################################################################
 # ROUTE SAMPLING
@@ -528,7 +528,6 @@ pnc_med_clusters <- pnc_med %>%
 # sampling designs
 sampling_combos_routes <- expand.grid(
   adjusted = adjusted_vars,
-  # --> TEMP?
   #visit_count = c(visit_count2, visit_count1),
   visit_count = seq(4,20,4),
   balanced = c("balanced"),
@@ -586,8 +585,6 @@ many_campaigns_by_route <- function(sims=sim_n, df, ...) {
 }
 ########################################################################################################
 message("running route sampling analyses")
-
-#core_count <- 1 # for routes only
 
 set.seed(1)
 # x=4
