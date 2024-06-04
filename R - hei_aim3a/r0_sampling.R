@@ -537,12 +537,13 @@ sampling_combos_routes <- expand.grid(
 saveRDS(sampling_combos_routes, file.path(new_dt_pt, "sampling_combos_routes_list.rda"))
 
 ########################################################################################################
-# visit_dt = pnc_med
-# adjusted. = temp$adjusted
-# hours = temp$hours #"all hours" #"business hours"
-# visit_count= temp$visit_count
-# bsns_coverage_threshold.=bsns_coverage_threshold
-# set.seed(1)
+visit_dt = pnc_med
+temp <- sampling_combos_routes[4,]
+adjusted. = temp$adjusted
+hours = temp$hours #"all hours" #"business hours"
+visit_count= temp$visit_count
+bsns_coverage_threshold.=bsns_coverage_threshold
+set.seed(1)
 
 one_campaign_by_route <- function(visit_dt, adjusted., hours, visit_count,
                                   bsns_coverage_threshold.=bsns_coverage_threshold #this becomes irrelevant if "all hours" design
@@ -560,8 +561,10 @@ one_campaign_by_route <- function(visit_dt, adjusted., hours, visit_count,
     group_by(route) %>%
     slice_sample(n= visit_count, replace=T)
   
-  visit_dt <- filter(visit_dt, adjusted == adjusted.) %>% 
-    left_join(sampling_routes, ., by="runname", relationship = "many-to-many") %>% 
+  visit_dt <- visit_dt %>% 
+    filter(adjusted == adjusted.,
+           runname %in% sampling_routes$runname) %>% 
+    left_join(sampling_routes, by="runname", relationship = "many-to-many") %>% 
     ungroup() %>%
     mutate(actual_visits = visit_count,
            segment_visits_per_campaign = n())
