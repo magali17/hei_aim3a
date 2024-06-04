@@ -40,10 +40,10 @@ overwrite_time_series <- FALSE #TRUE when make updates to the 1sec road file
 # rolling quantiles
 overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is updated
 
-overwrite_fixed_site_temporal_adjustment <- TRUE # true when e.g., update the visit designs
 # speed thigns up
-testing_mode <- TRUE #e.g., reduce visit designs & windows/quantile combinations
-overwrite_visits_adjusted <- FALSE #TRUE when update visits (e.g., testing_mode==TRUE)
+testing_mode <- TRUE #reduce visit files
+overwrite_fixed_site_adjusted_visits <- FALSE # TRUE when e.g., update visits
+overwrite_uw_adjusted_visits <- FALSE #TRUE when update visits (e.g., testing_mode==TRUE)
 
 use_cores <- 6  
 
@@ -244,7 +244,7 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) | 
-   overwrite_fixed_site_temporal_adjustment == TRUE) {
+   overwrite_fixed_site_adjusted_visits == TRUE) {
   message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
   visits_adj1 <- visits %>% 
@@ -390,7 +390,7 @@ lapply(group_split(underwrite_adj, background_adj), function(x){
   
   if(!file.exists(visit_file) |
      !file.exists(annual_file) |
-     overwrite_visits_adjusted == TRUE) {
+     overwrite_uw_adjusted_visits == TRUE) {
     
     visits_adj2 <- visits %>%
       mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
@@ -429,7 +429,7 @@ lapply(group_split(underwrite_adj_no_hwy, background_adj), function(x){
   
   if(!file.exists(visit_file) |
      !file.exists(annual_file) |
-     overwrite_visits_adjusted == TRUE) {
+     overwrite_uw_adjusted_visits == TRUE) {
     
   visits_adj2_no_hwy <- visits %>%
     mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
