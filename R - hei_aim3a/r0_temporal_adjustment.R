@@ -42,8 +42,8 @@ overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is update
 # speed thigns up
 testing_mode <- TRUE #reduce visit files
 
-overwrite_fixed_site_adjusted_visits <- FALSE # TRUE when update visits  (e.g., testing_mode==TRUE)
-overwrite_uw_adjusted_visits <- FALSE #TRUE when update visits (e.g., testing_mode==TRUE)
+overwrite_fixed_site_adjusted_visits <- TRUE # TRUE when update visits  (e.g., testing_mode==TRUE)
+overwrite_uw_adjusted_visits <- TRUE #TRUE when update visits (e.g., testing_mode==TRUE)
 
 use_cores <- 6  
 
