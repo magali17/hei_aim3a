@@ -584,7 +584,7 @@ message("running route sampling analyses")
 core_count <- 1 # for routes only
 
 set.seed(1)
-# x=2
+# x=4
 lapply(1:nrow(sampling_combos_routes), function(x) {
   temp <- sampling_combos_routes[x,]
   design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>% gsub(" ", "", .)
