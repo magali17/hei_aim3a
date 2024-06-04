@@ -14,13 +14,10 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 my_repo <- 'http://cran.r-project.org'
 if (!require("pacman")) {install.packages("pacman", repos = my_repo)}
 
-pacman::p_load(#knitr, data.table, ggplot2, kableExtra,
-               tidyverse,
-               #lubridate, 
+pacman::p_load(tidyverse,
                ggpubr, #ggarrange()
                tsibble, DescTools,
                parallel, #future.apply, purrr,
-               #psych, 
                sf#, tmap, mapview #added 2/29/24
                )
 
@@ -34,22 +31,14 @@ design_types <- c("nonspatial", "clustered", "routes")
 saveRDS(design_types, file.path(new_dt_pt, "design_types_list.rds"))
 
 lapply(design_types, function(f){if(!dir.exists(file.path(new_dt_pt, "visits", f))){dir.create(file.path(new_dt_pt, "visits", f), recursive = T)}})
-# if(!dir.exists(file.path(new_dt_pt, "visits", "nonspatial"))){dir.create(file.path(new_dt_pt, "visits", "nonspatial"), recursive = T)}
-# if(!dir.exists(file.path(new_dt_pt, "visits", "clustered"))){dir.create(file.path(new_dt_pt, "visits", "clustered"), recursive = T)}
-# if(!dir.exists(file.path(new_dt_pt, "visits", "routes"))){dir.create(file.path(new_dt_pt, "visits", "routes"), recursive = T)}
-
-
 lapply(design_types, function(f){if(!dir.exists(file.path(new_dt_pt, "site_avgs", f))){dir.create(file.path(new_dt_pt, "site_avgs", f), recursive = T)}})
-#if(!dir.exists(file.path(new_dt_pt, "nonspatial_site_avgs"))){dir.create(file.path(new_dt_pt, "nonspatial_site_avgs"), recursive = T)}
 
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 if(!dir.exists(file.path(image_path, "SI"))){dir.create(file.path(image_path, "SI"), recursive = T)}
 
-core_count <- 3#6  
+core_count <- 3 #6 sometimes crashes clustered sampling?
 set.seed(21)
 
-# # should QAQC stuff be run/saved (takes longer)?
-# qaqc_eval <- FALSE
 ########################################################################################################
 # COMMON VARIABLES
 ########################################################################################################
@@ -75,11 +64,6 @@ project_crs <- 4326  #lat/long
 ########################################################################################################
 # COMMON FUNCTIONS
 ########################################################################################################
-# med=log(visit_count)
-# sd=log(visit_sd)
-# n = cluster_n
-# max_value=28
-
 #med and sd should be on the log-scale
 log_normal_sample <- function(med, sd = visit_sd, max_value=28, n=1) {
   value <- rlnorm(n, med, sd) %>%
@@ -95,8 +79,6 @@ log_normal_sample <- function(med, sd = visit_sd, max_value=28, n=1) {
 ########################################################################################################
 # LOAD DATA
 ########################################################################################################\
-# cov_mm <- readRDS(file=file.path("/projects/rad/Transfer/Magali/hei_aim3a/R - hei_aim3a/data/onroad/annie/OnRoad Paper Code Data/data/", "cov_onroad_preprocessed.rds")) %>% 
-#   select(id, latitude, longitude)
 cov_mm <- readRDS(file=file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "cov_onroad_preprocessed.rds")) %>% 
   select(id, latitude, longitude)
 
@@ -259,40 +241,9 @@ cluster_road_type_rank <- segment_clusters_l %>%
   ungroup() %>%
   select(cluster_type, cluster_value, road_type_rank=rank)
    
-  
- 
-# assign_rank1 <- cluster_road_type %>% 
-#   # clusters w A2s
-#   filter(!is.na(A2)) %>% 
-#   group_by(cluster_type#, cluster_value
-#            ) %>%
-#   arrange(desc(A2)) %>% 
-#   #group_by(cluster_type) %>%
-#   mutate(rank = row_number())  
- 
 cluster1_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster1") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
 cluster2_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster2") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
 cluster3_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster3") %>% filter(road_type_rank==max(road_type_rank)) %>% pull(road_type_rank)
- 
-# assign_rank2 <- cluster_road_type %>% 
-#   # clusters w/o a prior rank
-#   filter(is.na(A2)) %>% 
-#   group_by(cluster_type#, cluster_value
-#            ) %>%
-#   arrange(desc(A3)) %>%  
-#   #ungroup() %>% 
-#   #group_by(cluster_type) %>%
-#   mutate(rank = row_number(), 
-#          #rank = rank+20
-#          
-#          rank = ifelse(cluster_type=="cluster", rank + cluster1_max_rank,
-#                        ifelse(cluster_type=="cluster2", rank + cluster2_max_rank,
-#                               ifelse(cluster_type=="cluster3", rank + cluster3_max_rank, NA)))
-#          ) 
-# 
-# cluster_road_type_rank <- bind_rows(assign_rank1, assign_rank2) %>% 
-#   select(cluster_type, cluster_value, road_type_rank=rank)
-
 
 # rank order clusters by average annual average 
 ## lower numbers are prioritized for more visits
@@ -359,14 +310,6 @@ saveRDS(sampling_combos, file.path(new_dt_pt, "nonspatial_sampling_combo_list.rd
 
 ################################################################################################
 # function samples a dataset and returns random samples (rows) following various designs
-
-# df <- pnc_med %>%
-#     filter(adjusted == temp$adjusted,
-#            hour %in% sampling_hours,
-#            dow2 %in% sampling_days)
-# visit_count <- temp$visit_count
-# balanced <- temp$balanced
-
 one_campaign <- function(df, 
                       visit_count,
                       balanced) {
@@ -405,14 +348,14 @@ set.seed(1)
 lapply(1:nrow(sampling_combos), function(x) {
   temp <- sampling_combos[x,]
   design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>% gsub(" ", "", .)
-  #visit_file <- file.path(new_dt_pt, "visits", "nonspatial", paste0("visits_nonspatial_", design_label, ".rds"))
-  #annual_file <- file.path(new_dt_pt, "nonspatial_site_avgs", paste0("nonspatial_site_avgs_", design_label, ".rds"))
   visit_file <- file.path(new_dt_pt, "visits", "nonspatial", paste0(design_label, ".rds"))
   annual_file <- file.path(new_dt_pt, "site_avgs", "nonspatial", paste0(design_label, ".rds"))
   
   message(paste0(capture.output(temp), collapse = "\n"))
   
   if(!file.exists(visit_file) | !file.exists(annual_file)) {
+    message("running sampling designs")
+    
     # all vs business hours/days
     if(temp$hours == "all hours"){
       sampling_hours <- all_hours
@@ -442,7 +385,9 @@ lapply(1:nrow(sampling_combos), function(x) {
     saveRDS(my_samples, visit_file)
     saveRDS(annual_averages, annual_file)
     
-    }
+  } else {
+    message("Files already exist")
+  }
   })  
 
 
@@ -461,13 +406,6 @@ sampling_combos_random_clusters <-expand.grid(
 saveRDS(sampling_combos_random_clusters, file.path(new_dt_pt, "clustered_sampling_combo_list.rda"))
 
 ########################################################################################################
-# df <- pnc_med_clusters %>%
-#   filter(adjusted == "adjusted",
-#          hour %in% c(0:23),
-#          #dow2 %in% sampling_days,
-#          cluster_type == "cluster2")
-# visit_count <- 4
-# cluster_approach. = "unsensible"
 
 one_campaign_clustered <- function(df, visit_count, cluster_approach.) {
   
@@ -500,7 +438,6 @@ one_campaign_clustered <- function(df, visit_count, cluster_approach.) {
     ungroup()
   
   # randomly select samples for each location at a time
-  # u=group_split(df, id)[[1]]
   one_sample <- lapply(group_split(df, id), function(u){
       
     cluster_visits <- unique(u$visit_samples)
@@ -525,90 +462,64 @@ pnc_med_clusters <- pnc_med %>%
   left_join(segment_clusters, by="id") %>% 
   pivot_longer(cols = contains("cluster"), names_to = "cluster_type", values_to = "cluster_value")
 
-
-# df <- pnc_med_clusters %>%
-#   filter(adjusted == "adjusted",
-#          hour %in% c(0:23),
-#          #dow2 %in% sampling_days,
-#          cluster_type == "cluster2")
-
-message("running spatially clustered analyses")
-
-set.seed(21)
-# x=4
-lapply(1:nrow(sampling_combos_random_clusters), function(x) {
-                                     temp <- sampling_combos_random_clusters[x,]
-                                     
-                                     design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), first(temp$cluster_approach), first(temp$cluster_type), sep = "_") %>%
-                                       gsub(" ", "", .)
-                                     
-                                     # visit_file <- file.path(new_dt_pt, "visits", paste0("visits_clustered_", design_label, ".rds")) 
-                                     # annual_file <- file.path(new_dt_pt, paste0("site_avgs_clustered_", design_label,".rds"))
-                                     visit_file <- file.path(new_dt_pt, "visits", "clustered", paste0(design_label, ".rds"))
-                                     annual_file <- file.path(new_dt_pt, "site_avgs", "clustered", paste0(design_label, ".rds"))
-                                     
-                                     message(paste0(capture.output(temp), collapse = "\n"))
-                                     
-                                     if(!file.exists(visit_file) | 
-                                        !file.exists(annual_file)) {
-                                       
-                                       # all vs business hours/days
-                                       if(temp$hours == "all hours"){
-                                         sampling_hours <- all_hours
-                                         sampling_days <- all_days} 
-                                       if(temp$hours == "business hours"){
-                                         sampling_hours <- business_hours
-                                         sampling_days <- business_days} 
-                                       
-                                       my_samples <- pnc_med_clusters %>%
-                                         filter(adjusted == temp$adjusted,
-                                                hour %in% sampling_hours,
-                                                dow2 %in% sampling_days,
-                                                cluster_type == temp$cluster_type 
-                                                ) %>% 
-                                         many_campaigns_clustered(df = ., visit_count = temp$visit_count, cluster_approach.=temp$cluster_approach) %>%
-                                         mutate(
-                                           adjusted = temp$adjusted,
-                                           design = temp$cluster_approach,
-                                           visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
-                                           version = temp$hours,
-                                           cluster_type = temp$cluster_type
-                                           )
-                                       
-                                       annual_averages <- my_samples %>%
-                                         group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-                                         summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-                                         ungroup() %>% suppressMessages()
-                                       
-                                        
-                                       message("saving samples")
-                                       # save separate files since this is large
-                                       saveRDS(my_samples, visit_file)
-                                       saveRDS(annual_averages, annual_file)
-                                     }
-                                   }) # %>%
-# #   bind_rows() %>%
-# #   ungroup()
-# # 
-# # message("saving samples")
-# # 
-# # saveRDS(cluster_visit_samples, file.path(new_dt_pt, "cluster_visit_samples.rds"))
+# message("running spatially clustered analyses")
 # 
-# # # check counts
-# # cluster_visit_samples %>%
-# #   filter(design==first(design)) %>%
-# #   distinct(id, dow2, adjusted, cluster_type, cluster_value, visit_samples, actual_visits, campaign, design, visits, version) %>%
-# #   group_by_at(vars(-id)) %>%
-# #   summarize(ids = length(unique(id))) %>% View()
-# 
-# # calculate annual averages
-# cluster_site_avgs <- cluster_visit_samples %>%
-#   group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-#   summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-#   ungroup()
-# 
-# saveRDS(cluster_site_avgs, file.path(new_dt_pt, "cluster_site_avgs.rds"))
- 
+# set.seed(21)
+# # x=4
+# lapply(1:nrow(sampling_combos_random_clusters), function(x) {
+#                                      temp <- sampling_combos_random_clusters[x,]
+#                                      
+#                                      design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), first(temp$cluster_approach), first(temp$cluster_type), sep = "_") %>%
+#                                        gsub(" ", "", .)
+#                                      
+#                                      visit_file <- file.path(new_dt_pt, "visits", "clustered", paste0(design_label, ".rds"))
+#                                      annual_file <- file.path(new_dt_pt, "site_avgs", "clustered", paste0(design_label, ".rds"))
+#                                      
+#                                      message(paste0(capture.output(temp), collapse = "\n"))
+#                                      
+#                                      if(!file.exists(visit_file) | 
+#                                         !file.exists(annual_file)) {
+#                                        
+#                                        message("running sampling designs")
+#                                        
+#                                        # all vs business hours/days
+#                                        if(temp$hours == "all hours"){
+#                                          sampling_hours <- all_hours
+#                                          sampling_days <- all_days} 
+#                                        if(temp$hours == "business hours"){
+#                                          sampling_hours <- business_hours
+#                                          sampling_days <- business_days} 
+#                                        
+#                                        my_samples <- pnc_med_clusters %>%
+#                                          filter(adjusted == temp$adjusted,
+#                                                 hour %in% sampling_hours,
+#                                                 dow2 %in% sampling_days,
+#                                                 cluster_type == temp$cluster_type 
+#                                                 ) %>% 
+#                                          many_campaigns_clustered(df = ., visit_count = temp$visit_count, cluster_approach.=temp$cluster_approach) %>%
+#                                          mutate(
+#                                            adjusted = temp$adjusted,
+#                                            design = temp$cluster_approach,
+#                                            visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
+#                                            version = temp$hours,
+#                                            cluster_type = temp$cluster_type
+#                                            )
+#                                        
+#                                        annual_averages <- my_samples %>%
+#                                          group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+#                                          summarize(annual_mean = mean(median_value, na.rm=T)) %>%
+#                                          ungroup() %>% suppressMessages()
+#                                        
+#                                         
+#                                        message("saving samples")
+#                                        # save separate files since this is large
+#                                        saveRDS(my_samples, visit_file)
+#                                        saveRDS(annual_averages, annual_file)
+#                                      } else {
+#                                        message("Files already exist")
+#                                      }
+#                                    }) 
+
 ########################################################################################################
 # ROUTE SAMPLING
 ########################################################################################################
@@ -617,8 +528,9 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
 # sampling designs
 sampling_combos_routes <- expand.grid(
   adjusted = adjusted_vars,
-  #visit_count = c(visit_count2, visit_count1),
-  visit_count = seq(4,20,4),
+  # --> TEMP?
+  visit_count = c(visit_count2, visit_count1),
+  #visit_count = seq(4,20,4),
   balanced = c("balanced"),
   hours = c("all hours", "business hours")) 
 
@@ -674,15 +586,13 @@ set.seed(1)
 lapply(1:nrow(sampling_combos_routes), function(x) {
   temp <- sampling_combos_routes[x,]
   design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>% gsub(" ", "", .)
-  # visit_file <- file.path(new_dt_pt, "visits", paste0("visits_route_", design_label, ".rds"))
-  # annual_file <- file.path(new_dt_pt, paste0("route_site_avgs_", design_label, ".rds"))
   visit_file <- file.path(new_dt_pt, "visits", "routes", paste0(design_label, ".rds"))
   annual_file <- file.path(new_dt_pt, "site_avgs", "routes", paste0(design_label, ".rds"))
-  
-  
+
   message(paste0(capture.output(temp), collapse = "\n"))
   
   if(!file.exists(visit_file) | !file.exists(annual_file)) {
+    message("running sampling designs")
     
     my_samples <- many_campaigns_by_route(df = pnc_med,
                                           adjusted. = temp$adjusted,
@@ -705,6 +615,8 @@ lapply(1:nrow(sampling_combos_routes), function(x) {
     # save separate files since this is large
     saveRDS(annual_averages, annual_file)
     
+  } else{
+    message("Files already exist")
   }
 })  
 

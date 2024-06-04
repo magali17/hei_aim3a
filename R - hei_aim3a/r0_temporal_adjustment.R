@@ -123,11 +123,6 @@ local_tz <- tz(fixed_site_temp_adj$time)
 ##################################################################################################
 # COMMON VARIABLES
 ##################################################################################################
-# sampling_combos <- readRDS(file.path(dt_pt, "nonspatial_sampling_combo_list.rda")) %>%
-#   filter(hours == bh_version)  
-# 
-# sampling_combos_clustered <- readRDS(file.path(dt_pt, "clustered_sampling_combo_list.rda")) %>%
-#   filter(hours == bh_version)
 
 ##################################################################################################
 
