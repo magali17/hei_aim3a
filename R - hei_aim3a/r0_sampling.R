@@ -45,10 +45,7 @@ lapply(design_types, function(f){if(!dir.exists(file.path(new_dt_pt, "site_avgs"
 image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
 if(!dir.exists(file.path(image_path, "SI"))){dir.create(file.path(image_path, "SI"), recursive = T)}
 
-
-
-# --> UPDATE
-core_count <- 6  
+core_count <- 3#6  
 set.seed(21)
 
 # # should QAQC stuff be run/saved (takes longer)?
@@ -236,7 +233,6 @@ unadj_pnc_summary_map <- unadj_pnc_summary %>%
 # tm_shape(pts) +
 #   tm_dots(col = "cluster")
 # 
-# # --> adds background map; can zoom in
 # mapview(pts, zcol="cluster")
 
 
@@ -289,7 +285,6 @@ cluster3_max_rank <- filter(cluster_road_type_rank, cluster_type=="cluster3") %>
 #   mutate(rank = row_number(), 
 #          #rank = rank+20
 #          
-#     # --> UPDATE CLUSTER TO CLUSTER1  
 #          rank = ifelse(cluster_type=="cluster", rank + cluster1_max_rank,
 #                        ifelse(cluster_type=="cluster2", rank + cluster2_max_rank,
 #                               ifelse(cluster_type=="cluster3", rank + cluster3_max_rank, NA)))
@@ -403,7 +398,6 @@ many_campaigns <- function(sims=sim_n, df, ...) {
 
 ################################################################################################
 # x=16
-# --> could separate each design & set a unique seed for each "design"
 message("running non-spatially clustered analyses")
 
 set.seed(1)
@@ -445,7 +439,7 @@ lapply(1:nrow(sampling_combos), function(x) {
     
     message("saving samples")
     # save separate files since this is large
-    saveRDS(my_samples, file.path(visit_file))
+    saveRDS(my_samples, visit_file)
     saveRDS(annual_averages, annual_file)
     
     }
@@ -460,10 +454,9 @@ sampling_combos_random_clusters <-expand.grid(
   visit_count = c(visit_count2, visit_count1),
   balanced = c("unbalanced"),  
   hours = c("all hours", "business hours"),
-  #design = c("clustered", "sensible spatial", "unsensible spatial", "road type")
   cluster_approach = c("random", "sensible", "unsensible", "road_type"),
   cluster_type = unique(segment_clusters_l$cluster_type)
-  ) # %>% slice_sample(n = 10)
+  )  
 
 saveRDS(sampling_combos_random_clusters, file.path(new_dt_pt, "clustered_sampling_combo_list.rda"))
 
@@ -539,11 +532,10 @@ pnc_med_clusters <- pnc_med %>%
 #          #dow2 %in% sampling_days,
 #          cluster_type == "cluster2")
 
-# x=5
 message("running spatially clustered analyses")
 
 set.seed(21)
-#cluster_visit_samples <- 
+# x=4
 lapply(1:nrow(sampling_combos_random_clusters), function(x) {
                                      temp <- sampling_combos_random_clusters[x,]
                                      
@@ -574,7 +566,7 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
                                                 dow2 %in% sampling_days,
                                                 cluster_type == temp$cluster_type 
                                                 ) %>% 
-                                         many_campaigns_clustered(df = ., visit_count = temp$visit_count,cluster_approach.=temp$cluster_approach) %>%
+                                         many_campaigns_clustered(df = ., visit_count = temp$visit_count, cluster_approach.=temp$cluster_approach) %>%
                                          mutate(
                                            adjusted = temp$adjusted,
                                            design = temp$cluster_approach,
@@ -586,7 +578,7 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
                                        annual_averages <- my_samples %>%
                                          group_by(id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
                                          summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-                                         ungroup()
+                                         ungroup() %>% suppressMessages()
                                        
                                         
                                        message("saving samples")
@@ -594,8 +586,7 @@ lapply(1:nrow(sampling_combos_random_clusters), function(x) {
                                        saveRDS(my_samples, visit_file)
                                        saveRDS(annual_averages, annual_file)
                                      }
-                                     
-                                   })# %>%
+                                   }) # %>%
 # #   bind_rows() %>%
 # #   ungroup()
 # # 
@@ -676,7 +667,6 @@ many_campaigns_by_route <- function(sims=sim_n, df, ...) {
     bind_rows()
 }
 ########################################################################################################
-
 message("running route sampling analyses")
 
 set.seed(1)
@@ -709,7 +699,7 @@ lapply(1:nrow(sampling_combos_routes), function(x) {
     annual_averages <- my_samples %>%
       group_by(id, adjusted, actual_visits, segment_visits_per_campaign, campaign, design, visits, version) %>%
       summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-      ungroup()
+      ungroup() %>% suppressMessages()
     
     message("saving samples")
     # save separate files since this is large
