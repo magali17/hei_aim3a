@@ -29,11 +29,14 @@ set.seed(1)
 # # main underwrite temporal adjustment approach
 # main_bg <- "hr3_pct1"
 ##################################################################################################
+# speed thigns up
+testing_mode <- TRUE #reduce visit files
+
+##################################################################################################
 # DATA
 ##################################################################################################
 message("loading datasets")
 
-#road_locations_used <- readRDS(file.path("data", "onroad", "annie", "cov_onroad_preprocessed.rds")) %>% pull(native_id)
 ids_included <- readRDS(file.path("data", "onroad", "annie", "v2", "ids_included.rds"))
 road_locations_used <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
   distinct(id, native_id) %>%
@@ -52,10 +55,13 @@ saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 
 # --> TO DO: CHECK THAT INDIVUDUAL FILES CODE WORKS & ROUTES ARE ADDED  [ACTUAL_VISITS IS OFF W/ TEMPORAL ADJ FILES]
 
-design_types <- readRDS(file.path(dt_pt, "design_types_list.rds"))
-
+design_types <- readRDS(file.path("data", "onroad", "annie", "v2", "design_types_list.rds"))
+# x=design_types[1]
 onroad0 <- lapply(design_types, function(x){
   file_names <- list.files(file.path("data", "onroad", "annie", "v2", "site_avgs", x))  
+  
+  if(testing_mode==TRUE){file_names <- file_names[1]}
+  
   lapply(file_names, function(f){readRDS(file.path("data", "onroad", "annie", "v2", "site_avgs", x, f))}) %>% bind_rows()
   }) %>%
   bind_rows()  

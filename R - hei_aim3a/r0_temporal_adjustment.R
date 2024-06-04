@@ -41,7 +41,8 @@ overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is update
 
 # speed thigns up
 testing_mode <- TRUE #reduce visit files
-overwrite_fixed_site_adjusted_visits <- FALSE # TRUE when e.g., update visits
+
+overwrite_fixed_site_adjusted_visits <- FALSE # TRUE when update visits  (e.g., testing_mode==TRUE)
 overwrite_uw_adjusted_visits <- FALSE #TRUE when update visits (e.g., testing_mode==TRUE)
 
 use_cores <- 6  
@@ -262,7 +263,16 @@ if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) |
     summarize(annual_mean = mean(median_value_adjusted, na.rm=T),
               annual_mean_random = mean(median_value_adjusted_random, na.rm=T),) %>%
     ungroup() %>% suppressMessages()
-
+    
+  # save wide format
+  saveRDS(annual_adj1, file.path(dt_pt2, "site_avgs", "temp_adj1_wide.rds"))
+  
+  annual_adj1 <- annual_adj1 %>%
+    pivot_longer(cols = contains("annual_mean"), values_to = "annual_mean" ) %>% 
+    mutate(version = ifelse(grepl("random", name), paste(version, "random"), version))  %>% 
+    select(-name)
+      
+  # save long format
   message("...saving annual averages")
   saveRDS(annual_adj1, file.path(dt_pt2, "site_avgs", "temp_adj1.rds"))
 }
@@ -410,10 +420,18 @@ lapply(group_split(underwrite_adj, background_adj), function(x){
     annual_adj2 <- visits_adj2 %>%
       group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
       summarize(annual_mean = mean(median_value_adjusted, na.rm=T),
-                annual_mean_random = mean(median_value_adjusted_random, na.rm=T),
-                ) %>%
+                annual_mean_random = mean(median_value_adjusted_random, na.rm=T)) %>%
       ungroup()  %>% suppressMessages()
     
+    # save wide format
+    saveRDS(annual_adj2, gsub(".rds", "_wide.rds", annual_file))
+    
+    annual_adj2 <- annual_adj2 %>%
+      pivot_longer(cols = contains("annual_mean"), values_to = "annual_mean" ) %>% 
+      mutate(version = ifelse(grepl("random", name), paste(version, "random"), version))  %>% 
+      select(-name)
+    
+    # save long format
     saveRDS(annual_adj2, annual_file)
     }
   })
@@ -452,6 +470,15 @@ lapply(group_split(underwrite_adj_no_hwy, background_adj), function(x){
               annual_mean_random = mean(median_value_adjusted_random, na.rm=T)) %>%
     ungroup()  %>% suppressMessages()
   
+  # save wide format
+  saveRDS(annual_adj2_no_hwy, gsub(".rds", "_wide.rds", annual_file))
+  
+  annual_adj2_no_hwy <- annual_adj2_no_hwy %>%
+    pivot_longer(cols = contains("annual_mean"), values_to = "annual_mean" ) %>% 
+    mutate(version = ifelse(grepl("random", name), paste(version, "random"), version))  %>% 
+    select(-name)
+  
+  # save long format
   saveRDS(annual_adj2_no_hwy, annual_file)
   }
 })
