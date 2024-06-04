@@ -405,117 +405,79 @@ saveRDS(underwrite_adj_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda
 message("...applying temporal adjustment using all segments")
 add_progress_notes("applying temporal adjustment using all segments")
 
-visits_adj2 <- visits %>%
-
-#lapply(group_split(visits, ))
-  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
-  # add temporal adjustment
-  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj), by="time" #multiple = "all" #receive warning message w/o this 
-            ) %>% 
-  mutate(median_value_adjusted = median_value + avg_hourly_adj,
-         version = paste(version, "temp adj 2"))
-
-saveRDS(visits_adj2, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw.rds"
-                               "visits", "temp_adj2.rds"
-                               )) 
-# also save as separate files
-# x=group_split(visits_adj2, adjusted, visit_count, balanced, cluster_approach, cluster)[[1]]
-# lapply(group_split(visits_adj2, adjusted, visit_count, balanced, cluster_approach, cluster), function(x) {
-#   file_label <- paste(first(x$adjusted), first(x$visit_count), first(x$balanced), first(x$cluster_approach), first(x$cluster_type), sep="_")
-#   saveRDS(file.path(dt_pt2, paste0("bh_visits_fixed_site_temporal_adj_uw_", file_label, ".rda")))
-#   })
-
-message("...estimating location annual averages using all segments")
-add_progress_notes("estimating location annual averages using all segments")
-
-annual_adj2 <- visits_adj2 %>%
-  group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-  ungroup()  %>% suppressMessages()
-
-saveRDS(annual_adj2, file.path(dt_pt2, #"site_avgs_uw_adj.rds"
-                               "site_avgs", "temp_adj2.rds"
-                               ))
-
-##################################################################################################
-# RANDOM all segments underwrite 
 ## randomly sample the entire temporal adjustment dataset
 set.seed(2)
 underwrite_adj <- underwrite_adj %>%
-  mutate(avg_hourly_adj_random = sample(avg_hourly_adj, replace = T))
+  group_by(background_adj) %>%
+  mutate(avg_hourly_adj_random = sample(avg_hourly_adj, replace = T)) %>%
+  ungroup()
 
-visits_adj2 <- visits %>%
-  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
-  # add temporal adjustment
-  left_join(select(underwrite_adj, time, background_adj, avg_hourly_adj_random), by="time" #multiple = "all" #receive warning message w/o this 
-  ) %>% 
-  mutate(median_value_adjusted = median_value + avg_hourly_adj_random,
-         version = paste(version, "temp adj 2 random"))
 
-saveRDS(visits_adj2, file.path(dt_pt2, "visits", "temp_adj2_random.rds")) 
-
-annual_adj2 <- visits_adj2 %>%
-  group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-  ungroup()  %>% suppressMessages()
-
-saveRDS(annual_adj2, file.path(dt_pt2, "site_avgs", "temp_adj2_random.rds"))
+lapply(group_split(underwrite_adj, background_adj), function(x){
+  background_adj_label <- first(underwrite_adj$background_adj)
+  message(paste0("......", background_adj_label))
+  
+  visits_adj2 <- visits %>%
+    mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
+    # add temporal adjustment
+    left_join(select(x, time, background_adj, avg_hourly_adj, avg_hourly_adj_random), by="time") %>% 
+    mutate(median_value_adjusted = median_value + avg_hourly_adj,
+           median_value_adjusted_random = median_value + avg_hourly_adj_random,
+           version = paste(version, "temp adj 2"))
+  
+  saveRDS(visits_adj2, file.path(dt_pt2, "visits", paste0("temp_adj2_", background_adj_label, ".rds")))
+  
+  message("...estimating location annual averages using all segments")
+  add_progress_notes("estimating location annual averages using all segments")
+  
+  annual_adj2 <- visits_adj2 %>%
+    group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+    summarize(annual_mean = mean(median_value_adjusted, na.rm=T),
+              annual_mean_random = mean(median_value_adjusted_random, na.rm=T),
+              ) %>%
+    ungroup()  %>% suppressMessages()
+  
+  saveRDS(annual_adj2, file.path(dt_pt2, "site_avgs", paste0("temp_adj2_", background_adj_label, ".rds")))
+  })
 
 ##################################################################################################
 message("...applying temporal adjustment to non-hwy segments")
 add_progress_notes("applying temporal adjustment using non-hwy segments")
 
-visits_adj2_no_hwy <- visits %>%
-  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
-  # add temporal adjustment
-  left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj), by="time") %>% 
-  mutate(median_value_adjusted = median_value + avg_hourly_adj,
-         version = paste(version, "temp adj 2"))
-
-saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds"
-                                      "visits", "temp_adj2_no_hwy.rds"
-                                      )) 
-
-# lapply(group_split(visits_adj2_no_hwy, adjusted, visit_count, balanced, cluster_approach, cluster), function(x) {
-#   file_label <- paste(first(x$adjusted), first(x$visit_count), first(x$balanced), first(x$cluster_approach), first(x$cluster_type), sep="_")
-#   saveRDS(file.path(dt_pt2, paste0("bh_visits_fixed_site_temporal_adj_uw_no_hwy_", file_label, ".rda")))
-# })
-
-message("...estimating location annual averages using non-hwy segments")
-add_progress_notes("estimating location annual averages using non-hwy segments")
-annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
-  group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-  ungroup()  %>% suppressMessages()
-
-saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, #"site_avgs_uw_adj_no_hwy.rds"
-                                      "site_avgs", "temp_adj2_no_hwy.rds"
-                                      ))
-
-##################################################################################################
-# RANDOM ADJUSTMENT FOR NON-HWY DATA 
-
 ## randomly sample the entire temporal adjustment dataset
 set.seed(2)
 underwrite_adj_no_hwy <- underwrite_adj_no_hwy %>%
-  mutate(avg_hourly_adj_random = sample(avg_hourly_adj, replace = T))
+  group_by(background_adj) %>%
+  mutate(avg_hourly_adj_random = sample(avg_hourly_adj, replace = T)) %>%
+  ungroup()
 
-visits_adj2_no_hwy <- visits %>%
-  mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
-  # add temporal adjustment
-  left_join(select(underwrite_adj_no_hwy, time, background_adj, avg_hourly_adj_random), by="time") %>% 
-  mutate(median_value_adjusted = median_value + avg_hourly_adj_random,
-          version = paste(version, "temp adj 2 random"))
-
-saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds"
-                                      "visits", "temp_adj2_no_hwy_random.rds")) 
-
-annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
-  group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
-  summarize(annual_mean = mean(median_value_adjusted, na.rm=T)) %>%
-  ungroup()  %>% suppressMessages()
-
-saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, "site_avgs", "temp_adj2_no_hwy_random.rds"))
+lapply(group_split(underwrite_adj_no_hwy, background_adj), function(x){
+  background_adj_label <- first(underwrite_adj_no_hwy$background_adj)
+  message(paste0("......", background_adj_label))
+  
+  visits_adj2_no_hwy <- visits %>%
+    mutate(time = ymd_h(paste(date, hour), tz=local_tz)) %>%
+    # add temporal adjustment
+    left_join(select(x, time, background_adj, avg_hourly_adj, avg_hourly_adj_random), by="time") %>% 
+    mutate(median_value_adjusted = median_value + avg_hourly_adj,
+           median_value_adjusted_random = median_value + avg_hourly_adj_random,
+           version = paste(version, "temp adj 2"))
+  
+  saveRDS(visits_adj2_no_hwy, file.path(dt_pt2, #"bh_visits_fixed_site_temporal_adj_uw_no_hwy.rds"
+                                        "visits", paste0("temp_adj2_no_hwy_", background_adj_label, ".rds")))
+                                         
+  
+  message("...estimating location annual averages using non-hwy segments")
+  add_progress_notes("estimating location annual averages using non-hwy segments")
+  annual_adj2_no_hwy <- visits_adj2_no_hwy %>%
+    group_by(background_adj, id, adjusted, actual_visits, campaign, design, visits, version, cluster_type, cluster_value) %>%
+    summarize(annual_mean = mean(median_value_adjusted, na.rm=T),
+              annual_mean_random = mean(median_value_adjusted_random, na.rm=T)) %>%
+    ungroup()  %>% suppressMessages()
+  
+  saveRDS(annual_adj2_no_hwy, file.path(dt_pt2, #"site_avgs_uw_adj_no_hwy.rds"
+                                        "site_avgs", paste0("temp_adj2_no_hwy_", background_adj_label, ".rds")))
+})
 
 ##################################################################################################
 # DONE
