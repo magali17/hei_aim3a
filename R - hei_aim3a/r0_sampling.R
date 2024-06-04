@@ -581,6 +581,8 @@ many_campaigns_by_route <- function(sims=sim_n, df, ...) {
 ########################################################################################################
 message("running route sampling analyses")
 
+core_count <- 2 # for routes only
+
 set.seed(1)
 # x=1
 lapply(1:nrow(sampling_combos_routes), function(x) {
