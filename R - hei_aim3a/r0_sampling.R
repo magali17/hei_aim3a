@@ -529,8 +529,8 @@ pnc_med_clusters <- pnc_med %>%
 sampling_combos_routes <- expand.grid(
   adjusted = adjusted_vars,
   # --> TEMP?
-  visit_count = c(visit_count2, visit_count1),
-  #visit_count = seq(4,20,4),
+  #visit_count = c(visit_count2, visit_count1),
+  visit_count = seq(4,20,4),
   balanced = c("balanced"),
   hours = c("all hours", "business hours")) 
 
@@ -587,7 +587,7 @@ many_campaigns_by_route <- function(sims=sim_n, df, ...) {
 ########################################################################################################
 message("running route sampling analyses")
 
-core_count <- 1 # for routes only
+#core_count <- 1 # for routes only
 
 set.seed(1)
 # x=4
@@ -608,7 +608,7 @@ lapply(1:nrow(sampling_combos_routes), function(x) {
                                           visit_count=temp$visit_count)  %>%
       mutate(
         adjusted = temp$adjusted,
-        design = "route", #temp$balanced,
+        design = "route",  
         visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
         version = paste("by route", temp$hours))
     
