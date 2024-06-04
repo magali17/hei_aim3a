@@ -378,7 +378,7 @@ lapply(1:nrow(sampling_combos), function(x) {
     annual_averages <- my_samples %>%
       group_by(id, adjusted, actual_visits, campaign, design, visits, version) %>%
       summarize(annual_mean = mean(median_value, na.rm=T)) %>%
-      ungroup()
+      ungroup() %>% suppressMessages()
     
     message("saving samples")
     # save separate files since this is large
@@ -581,10 +581,10 @@ many_campaigns_by_route <- function(sims=sim_n, df, ...) {
 ########################################################################################################
 message("running route sampling analyses")
 
-core_count <- 2 # for routes only
+core_count <- 1 # for routes only
 
 set.seed(1)
-# x=1
+# x=2
 lapply(1:nrow(sampling_combos_routes), function(x) {
   temp <- sampling_combos_routes[x,]
   design_label <- paste(first(temp$adjusted), first(temp$visit_count), first(temp$balanced), first(temp$hours), sep = "_") %>% gsub(" ", "", .)
@@ -606,15 +606,13 @@ lapply(1:nrow(sampling_combos_routes), function(x) {
         visits = paste0(temp$visit_count, " visits"), #approximate visit count for unbalanced designs
         version = paste("by route", temp$hours))
     
-    saveRDS(my_samples, file.path(visit_file))
-    
     annual_averages <- my_samples %>%
       group_by(id, adjusted, actual_visits, segment_visits_per_campaign, campaign, design, visits, version) %>%
       summarize(annual_mean = mean(median_value, na.rm=T)) %>%
       ungroup() %>% suppressMessages()
     
     message("saving samples")
-    # save separate files since this is large
+    saveRDS(my_samples, visit_file)
     saveRDS(annual_averages, annual_file)
     
   } else{
