@@ -52,20 +52,18 @@ cov <- read.csv(file.path("data", "onroad", "dr0364d_20230331.txt")) %>%
 saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 
 ## 5874 locations
-
-# --> TO DO: CHECK THAT INDIVUDUAL FILES CODE WORKS & ROUTES ARE ADDED  [ACTUAL_VISITS IS OFF W/ TEMPORAL ADJ FILES]
-
 design_types <- readRDS(file.path("data", "onroad", "annie", "v2", "design_types_list.rds"))
 # x=design_types[1]
 onroad0 <- lapply(design_types, function(x){
   file_names <- list.files(file.path("data", "onroad", "annie", "v2", "site_avgs", x))  
-  
+  # 1 file per design group/type
   if(testing_mode==TRUE){file_names <- file_names[1]}
   
   lapply(file_names, function(f){readRDS(file.path("data", "onroad", "annie", "v2", "site_avgs", x, f))}) %>% bind_rows()
   }) %>%
   bind_rows()  
 
+# onroad0 %>% filter(id==first(id)) %>% View()
 
 # temporal adjustments
 ## using a fixed site (PTRAK UFP~NO2 model based on collocations) [this is different than the stationary temp adj!]
@@ -77,9 +75,6 @@ temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs", "temp_adj2_no_hwy
 
 rm(temporal_adjustments1)
 
-
-
-
 onroad0 <- onroad0 %>% 
   bind_rows(temporal_adjustments) %>%
   rename(location=id,
@@ -89,6 +84,7 @@ onroad0 <- onroad0 %>%
          value = log(value),
          variable = "pnc_noscreen")
 
+# onroad0 %>% filter(location==first(location)) %>% View()
 ##################################################################################################
 #  MODEL CROSSWALK
 ##################################################################################################
@@ -96,15 +92,13 @@ message("creating model crosswalks")
 
 #--> CHECK THAT CROSSWALK INCLUDES ROUTES & MAKES OK SENSE
 
-# distinct(onroad0, spatial_code, design, version, visits, campaign, adjusted, cluster_type) %>% View()
+# distinct(onroad0, design, version, visits, campaign, adjusted, cluster_type) %>% View()
+# distinct(onroad0, design, version) %>% arrange(design, version)
 
 cw <- onroad0 %>%
-  distinct(#spatial_code, 
-           design, version, visits, campaign, adjusted, cluster_type) %>%
-  arrange(#spatial_code, 
-    design, version, visits, campaign, adjusted, cluster_type) %>%
+  distinct(design, version, visits, campaign, adjusted, cluster_type) %>%
+  arrange(design, version, visits, campaign, adjusted, cluster_type) %>%
   mutate(
-    #cluster_code = ifelse(is.na(cluster_type), "cNA", cluster_type),
     cluster_code = gsub("luster", "", cluster_type),
 
     design_code = case_when(

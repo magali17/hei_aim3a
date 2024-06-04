@@ -334,7 +334,6 @@ saveRDS(road_dt_no_hwy, file.path(dt_pt2, "underwrite_temp_adj_all_1s_data_no_hw
 
 ##################################################################################################
 # note: some hours don't have UFP but still have hourly adjustments b/c rm.na=T for rolling window calculations
-## dt=road_dt
 get_hourly_adjustment <- function(dt) {
   temp <- dt %>%
     group_by(background_adj) %>%
