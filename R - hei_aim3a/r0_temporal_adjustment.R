@@ -13,9 +13,8 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(tidyverse, lubridate, zoo,
+pacman::p_load(tidyverse, lubridate, zoo, parallel#, #mclapply()
                #DescTools, # Winsorize() #has issues downloading in the cluster
-               parallel#, #mclapply()
                 )    
 
 source("functions.R")
@@ -351,9 +350,10 @@ get_hourly_adjustment <- function(dt) {
 message("...estimating hourly adjustments")
 add_progress_notes("estimating hourly adjustments")
 
-if(!file.exists(file.path(dt_pt2, "underwrite_temp_adj.rda")) |
-   overwrite_existing_background_file == TRUE) {
-  
+if(file.exists(file.path(dt_pt2, "underwrite_temp_adj.rda")) &
+   overwrite_existing_background_file == FALSE) {
+  underwrite_adj <- readRDS(file.path(dt_pt2, "underwrite_temp_adj.rda"))
+  } else { 
   set.seed(2)
   underwrite_adj <- get_hourly_adjustment(road_dt) %>%
     # randomly sample the entire temporal adjustment dataset
@@ -362,11 +362,13 @@ if(!file.exists(file.path(dt_pt2, "underwrite_temp_adj.rda")) |
     ungroup()
   
   saveRDS(underwrite_adj, file.path(dt_pt2, "underwrite_temp_adj.rda"))
-  }
+}  
 
-if(!file.exists(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda")) |
-   overwrite_existing_background_file == TRUE) {
-  
+
+if(file.exists(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda")) &
+   overwrite_existing_background_file == FALSE) {
+  underwrite_adj_no_hwy <- readRDS(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda"))
+  } else { 
   set.seed(2)
   underwrite_adj_no_hwy <- get_hourly_adjustment(road_dt_no_hwy)%>%
     # randomly sample the entire temporal adjustment dataset

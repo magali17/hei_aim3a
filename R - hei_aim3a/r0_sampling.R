@@ -15,11 +15,14 @@ my_repo <- 'http://cran.r-project.org'
 if (!require("pacman")) {install.packages("pacman", repos = my_repo)}
 
 pacman::p_load(tidyverse,
-               ggpubr, #ggarrange()
-               tsibble, DescTools,
+               #ggpubr, #ggarrange() # has issues in Brain
+               tsibble, 
+               #DescTools, #has issues in Brain
                parallel, #future.apply, purrr,
                sf#, tmap, mapview #added 2/29/24
                )
+
+# pacman::p_load(tsibble,  parallel, sf)
 
 dt_path <- file.path("data", "onroad", "annie", "Additional Sampling")
 
