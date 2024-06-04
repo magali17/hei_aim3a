@@ -566,7 +566,8 @@ one_campaign_by_route <- function(visit_dt, adjusted., hours, visit_count,
            runname %in% sampling_routes$runname) #%>% 
   
   # some sampling routes may be sampled twice (& segments are sometimes sampled multiple times in one route)
-  visit_dt <- left_join(sampling_routes, visit_dt, by="runname", relationship = "many-to-many") %>% 
+  visit_dt <- left_join(sampling_routes, visit_dt, by="runname"#, relationship = "many-to-many"
+                        ) %>% 
     ungroup() %>%
     mutate(actual_visits = visit_count,
            segment_visits_per_campaign = n())
