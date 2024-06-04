@@ -833,8 +833,6 @@ nox %>%
 ```{r}
 # save data
 rbind(dt1, dt2) %>% 
-  #rbind(annual_adj2) %>%
-                      # output, v3_____    
   saveRDS(., file.path(dt_path, "temporal_adjustment.rda"))
 
 ```

@@ -45,7 +45,7 @@ overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is update
 
 overwrite_fixed_site_temporal_adjustment <- TRUE # true when e.g., update the visit designs
 # speed thigns up
-testing_mode <- FALSE #e.g., reduce visit designs & windows/quantile combinations
+testing_mode <- TRUE #FALSE #e.g., reduce visit designs & windows/quantile combinations
 
 use_cores <- 1#6  
 
