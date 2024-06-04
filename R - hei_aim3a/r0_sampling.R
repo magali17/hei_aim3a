@@ -563,8 +563,10 @@ one_campaign_by_route <- function(visit_dt, adjusted., hours, visit_count,
   
   visit_dt <- visit_dt %>% 
     filter(adjusted == adjusted.,
-           runname %in% sampling_routes$runname) %>% 
-    left_join(sampling_routes, by="runname", relationship = "many-to-many") %>% 
+           runname %in% sampling_routes$runname) #%>% 
+  
+  # some sampling routes may be sampled twice, so left_join
+  visit_dt <- left_join(sampling_routes, visit_dt, by="runname", relationship = "many-to-one") %>% 
     ungroup() %>%
     mutate(actual_visits = visit_count,
            segment_visits_per_campaign = n())
