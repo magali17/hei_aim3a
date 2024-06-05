@@ -33,24 +33,27 @@ use_cores <- 4
 set.seed(1)
 
 ##################################################################################################
+# speed thigns up
+testing_mode <- FALSE # TRUE if want to reduce models
+
+##################################################################################################
 # DATA
 ##################################################################################################
 message("loading data")
+
+# errors out if you try to load the full file "all.rda" at once
 file_names <- list.files(file.path(dt_path_onroad, "modeling_data")) %>%
   grep("all.rda", ., invert = T, value = T)
-
  
+if(testing_mode==TRUE){file_names <- file_names[1]}
+
 onroad <- lapply(file_names, function(f) {
   f_name <- file.path(dt_path_onroad, "modeling_data", f)
-  # print(f_name)
-  # print(file.exists(f_name))
+  message(paste("loading", f_name))
+
   readRDS(f_name)
   }) %>%
   bind_rows()
-
-#stop()
-
-#onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,
@@ -62,8 +65,9 @@ stationary <- filter(annual,
 ##################################################################################################
 message("Generating predictions at stop locations")
 
-stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = use_cores, 
-                                   function(x) {
+stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = use_cores, function(x) {
+  
+  message(first(x$model))
   
   uk_pls(modeling_data = x, new_data = stationary) %>%
     #fn has binding issues later if don't drop geom 
@@ -100,8 +104,6 @@ saveRDS(predictions, file.path(dt_path_onroad, "model_eval", "oos_predictions_at
 ##################################################################################################
 # CV STATS FUNCTION
 ##################################################################################################
-message("calculating performance statistics")
-
 validation_stats <- function(dt, prediction, reference){
   
   # MSE of predictions
@@ -126,6 +128,8 @@ validation_stats <- function(dt, prediction, reference){
   
   return(result)
 }
+
+message("calculating performance statistics")
 
 model_perf0 <- mclapply(group_split(predictions, model, out_of_sample), 
                         mc.cores = use_cores,

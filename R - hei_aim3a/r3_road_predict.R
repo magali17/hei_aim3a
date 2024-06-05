@@ -1,5 +1,12 @@
-# this script is almost identical to 5_prediction_program.R but slightly shorter for mobile data
-# since QC, new covariate development are not needed
+# this script is almost identical to 5_prediction_program.R but slightly shorter for mobile data since QC, new covariate development are not needed
+
+# Rscript r3_road_predict.R balanced.rda 
+# Rscript r3_road_predict.R random.rda 
+# Rscript r3_road_predict.R road_type.rda 
+# Rscript r3_road_predict.R route.rda 
+# Rscript r3_road_predict.R sensible.rda 
+# Rscript r3_road_predict.R unbalanced.rda 
+# Rscript r3_road_predict.R unsensible.rda 
 
 ################################################################################
 # SETUP
@@ -40,9 +47,10 @@ modeling_data <- readRDS(file.path(dt_path_onroad, "modeling_data", modeling_dt)
 dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda")) 
 
 #where predictions should be saved
-new_prediction_location <- user_arguments[2]
+#new_prediction_location <- user_arguments[2]
 
-prediction_directory <- file.path(dt_path_onroad, "predictions", new_prediction_location)
+prediction_directory <- file.path(dt_path_onroad, "predictions"#, new_prediction_location
+                                  )
 ## create the directory if it does not already exists
 if(!dir.exists(prediction_directory)) {dir.create(prediction_directory, recursive = T)}
 
@@ -100,21 +108,23 @@ predictions <- predictions0 %>%
 
 message("saving predictions")
 
-saveRDS(predictions, file.path(prediction_directory, paste0("onroad_predictions_", p_name, "_",Sys.Date(),".rda")))
+file_name <- file.path(prediction_directory, paste0(Sys.Date(), "_predictions_", p_name, ".rda"))
+
+saveRDS(predictions, file_name)
 
 predictions %>%
   select(-variable) %>%
-  write_csv(., file.path(prediction_directory, paste0("onroad_predictions_", p_name, "_", Sys.Date(),".csv")))
+  write_csv(., gsub(".rda", ".csv", file_name))
 
 ###########################################################################################
 # QC CHECKS
 ###########################################################################################
-qc <- TRUE
+print_prediction_summary <- TRUE
 
 #if(qc==TRUE) {stop}
 
 # summary of predictions
-if(qc==TRUE) {
+if(print_prediction_summary==TRUE) {
   message("QC Summary")
   
   print("distribution of predictions. N = models x cohort locations")
