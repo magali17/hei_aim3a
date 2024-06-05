@@ -30,7 +30,7 @@ set.seed(1)
 
 ##################################################################################################
 # speed thigns up
-testing_mode <- FALSE #reduce visit files
+testing_mode <- TRUE #reduce visit files
 save_new_cw <- FALSE #true when e.g., add new versions (e.g., include more visit files)
 run_qc <- FALSE # design counts etc.
 overwrite_modeling_data <- FALSE # TRUE when e.g. have new designs you want added
@@ -126,13 +126,12 @@ if(run_qc ==TRUE) {
   
 }
 
-
 ##################################################################################################
 #  MODEL CROSSWALK
 ##################################################################################################
-message("creating crosswalks")
 
 if(save_new_cw==TRUE) {
+  message("creating crosswalk")
   
   cw <- onroad0 %>%
     distinct(design, cluster_type, version, visits, adjusted, campaign) %>%
@@ -179,6 +178,7 @@ if(save_new_cw==TRUE) {
   write.csv(cw, file.path(dt_path_onroad, "onroad_model_cw.csv"), row.names = F)
   
 } else {
+  message("loading crosswalk")
   cw <- read.csv(file.path(dt_path_onroad, "onroad_model_cw.csv"))
   }
 
@@ -215,18 +215,26 @@ if(!file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) |
 ##################################################################################################
 # SEPARATE DATA FOR MODELING LATER
 ##################################################################################################
-lapply(group_split(onroad0, design_code), function(x) {
-#lapply(group_split(onroad, design_code), function(x) {
-  design <- first(x$design_code)
+message("separating modeling files")
+
+lapply(group_split(onroad0, design), function(x) {
+  #lapply(group_split(onroad0, design_code), function(x) {
+  #design <- first(x$design_code)
+  design <- first(x$design)
   message(design)
   
   if(!file.exists(file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda"))) |
      overwrite_modeling_data ==TRUE) {
-    temp <- left_join(x, cov, by="location") %>%
+    
+    temp <- left_join(x, cw) %>%
+      select(location, value, model, variable, design_code) %>%
+      
+      left_join(., cov, by="location") %>%
       # prep for modeling
       st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
       st_transform(m_crs)
 
+    message("...saving file")
     saveRDS(temp, file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda")))
     
     # x %>%
