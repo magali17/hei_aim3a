@@ -45,7 +45,8 @@ onroad <- lapply(file_names, function(f) {
   # print(f_name)
   # print(file.exists(f_name))
   readRDS(f_name)
-  })
+  }) %>%
+  bind_rows()
 
 #stop()
 
