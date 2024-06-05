@@ -19,11 +19,13 @@ source("functions.R")
 ## removed original 2nd temporal adj. decided not to apply the UW approach b/c its currently based on ptrak data AND from 'onroad' data which we have said we don't trust as much
 temp_adj_predictions <- readRDS(file.path(prediction_directory, "temp_adj", "predictions_2024-05-16.rda"))
 
+#check model names
+unique(substr(temp_adj_predictions$model, 1, nchar(temp_adj_predictions$model)-3))
+
 # added temporal adjustment (had to rerun & save BH), updated the clusters, added route-based sampling
-onroad_predictions <- readRDS(file.path(dt_path, "UK Predictions", "cohort", "onroad_pnc_noscreen", 
-                                        # --> TO DO
-                                        #"predictions_2024-05-16.rda"
-                                        ))
+file_names <- list.files(file.path(dt_path, "onroad", "predictions", "cohort", "pnc_noscreen"))
+
+onroad_predictions <- lapply(file_names, function(f){readRDS(file.path(dt_path, "onroad", "predictions", "cohort", "pnc_noscreen", f))}) 
 
 predictions_20240520 <- rbind(temp_adj_predictions, onroad_predictions)
 

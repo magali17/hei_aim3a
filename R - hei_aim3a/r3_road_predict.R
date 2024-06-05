@@ -19,6 +19,7 @@ pacman::p_load(tidyverse, pls, tools, parallel,
                lubridate)
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+dt_path_onroad <- file.path(dt_path, "onroad")
 
 set.seed(1)
 
@@ -34,16 +35,21 @@ modeling_dt <- user_arguments[1]
 message("loading data")
 
 # new covariate file
-# modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data.rda"))
-modeling_data <- readRDS(file.path(dt_path, "Selected Campaigns", modeling_dt))
-
+modeling_data <- readRDS(file.path(dt_path_onroad, "modeling_data", modeling_dt))
 
 dt <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_prepped.rda")) 
 
 #where predictions should be saved
-prediction_directory <- file.path(dt_path, "UK Predictions", "cohort", "onroad_pnc_noscreen")
+new_prediction_location <- user_arguments[2]
+
+prediction_directory <- file.path(dt_path_onroad, "predictions", new_prediction_location)
 ## create the directory if it does not already exists
 if(!dir.exists(prediction_directory)) {dir.create(prediction_directory, recursive = T)}
+
+# --> UPDATE FILE NAME NAME
+# prediction file label
+#p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
+p_name <- substr(modeling_dt, 1, nchar(modeling_dt)-4)
 
 ###########################################################################################
 # Universal Kriging - Partial Least Squares Model function
@@ -72,9 +78,9 @@ predictions0 <- lapply(group_split(modeling_data, model), #[1:2], #mc.cores = 1,
   }) %>%
   bind_rows()  
 
-p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
-message("saving TEMPORARY predictions")
-saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_onroad_predictions_", p_name, "_", Sys.Date(),".rda")))
+
+# message("saving TEMPORARY predictions")
+# saveRDS(predictions0, file.path(prediction_directory, paste0("TEMP_onroad_predictions_", p_name, "_", Sys.Date(),".rda")))
 
 ###########################################################################################
 # CLEAN DATA FOR KP

@@ -1,6 +1,8 @@
 # script generates onroad out-of-sample model predictions at stop locations
 # evaluates each model 
 
+# RESULTS are in: Output/v3_20230321/onroad/model_eval
+
 ##################################################################################################
 # SETUP
 ##################################################################################################
@@ -20,10 +22,13 @@ pacman::p_load(tidyverse,
 
 source("functions.R")
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+dt_path_onroad <- file.path(dt_path, "onroad")
+#if(!dir.exists(file.path(dt_path_onroad, "predictions"))){dir.create(file.path(dt_path_onroad, "predictions"), recursive = T)}
+if(!dir.exists(file.path(dt_path_onroad, "model_eval"))){dir.create(file.path(dt_path_onroad, "model_eval"), recursive = T)}
 
 #load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
-if(!dir.exists(file.path(dt_path, "onroad", "predictions"))){dir.create(file.path(dt_path, "onroad", "predictions"), recursive = T)}
+
 
 use_cores <- 4 
 set.seed(1)
@@ -32,7 +37,7 @@ set.seed(1)
 # DATA
 ##################################################################################################
 message("loading data")
-onroad <- readRDS(file.path(dt_path, "onroad", "modeling_data", "all.rda"))
+onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,
@@ -77,7 +82,7 @@ predictions <- predictions %>%
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
 
 message("saving predictions")
-saveRDS(predictions, file.path(dt_path, "onroad", "predictions", "predictions_20240604.rda"))
+saveRDS(predictions, file.path(dt_path_onroad, "model_eval", "oos_predictions_at_stationary_sites.rda"))
 
 ##################################################################################################
 # CV STATS FUNCTION
@@ -116,7 +121,7 @@ model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
 
 ##################################################################################################
 message("saving model evaluation statistics")
-saveRDS(model_perf0, file.path(dt_path, "onroad", "onroad_model_eval_20240604.rda"))
+saveRDS(model_perf0, file.path(dt_path_onroad, "model_eval", "model_eval.rda"))
 
 ##################################################################################################
 # DONE

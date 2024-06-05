@@ -1,5 +1,7 @@
 # script samples visit-level on-road data following different sampling designs; calculates segment annual averages
 
+# RESULTS are in: data/onroad/annie/v2/, .../visits, and .../site_avgs directories
+
 ########################################################################################################
 # SETUP
 ########################################################################################################

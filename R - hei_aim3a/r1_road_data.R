@@ -1,4 +1,6 @@
-# script creates a model crosswalk & preps modeling files (adds covariates etc.)   
+# script creates a model crosswalk & modeling_data files (adds covariates etc.)   
+
+# RESULTS are in: Output/v3_20230321/onroad/ and .../modeling_data/ subdirectory
 
 ##################################################################################################
 # setup
@@ -11,17 +13,15 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(tidyverse,
-               # parallel, #mclapply; detectCores()
-               # pls, gstat, 
-               sf # UK-PLS MODEL
+pacman::p_load(tidyverse, sf # UK-PLS MODEL
 )    
 
 source("functions.R")
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-if(!dir.exists(file.path(dt_path, "onroad"))){dir.create(file.path(dt_path, "onroad"), recursive = T)}
+dt_path_onroad <- file.path(dt_path, "onroad")
+if(!dir.exists(file.path(dt_path_onroad, "modeling_data"))){dir.create(file.path(dt_path_onroad, "modeling_data"), recursive = T)}
 
-dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
+temp_adj_path <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 
 # load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
@@ -54,7 +54,7 @@ saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 
 ## 5874 locations
 design_types <- readRDS(file.path("data", "onroad", "annie", "v2", "design_types_list.rds"))
-# x=design_types[1]
+# x=design_types[3]
 onroad0 <- lapply(design_types, function(x){
   file_names <- list.files(file.path("data", "onroad", "annie", "v2", "site_avgs", x))  
   # 1 file per design group/type
@@ -64,16 +64,20 @@ onroad0 <- lapply(design_types, function(x){
   }) %>%
   bind_rows()  
 
+# unique(onroad0$version)
 # onroad0 %>% filter(id==first(id), campaign==first(campaign)) %>% View()
 
 # temporal adjustments
 ## using a fixed site (PTRAK UFP~NO2 model based on collocations) [this is different than the stationary temp adj!]
-temporal_adjustments1 <- readRDS(file.path(dt_pt2, "site_avgs", "temp_adj1.rds"))
+temporal_adjustments1 <- readRDS(file.path(temp_adj_path, "site_avgs", "temp_adj1.rds"))
 ## using the underwrite ptrak approach (only load main analysis file) # "hr3_pct1"
-temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs", "temp_adj2_no_hwy_hr3_pct1.rds")) %>%
+temporal_adjustments <- readRDS(file.path(temp_adj_path, "site_avgs", "temp_adj2_no_hwy_hr3_pct1.rds")) %>%
   select(names(temporal_adjustments1)) %>%
-  bind_rows(temporal_adjustments1)
-# temporal_adjustments %>% filter(id==first(id), campaign==first(campaign)) %>% View()
+  bind_rows(temporal_adjustments1) %>%
+  
+  #--> TEMP, shouldnt matter later
+  mutate(version = gsub("by route ", "", version))
+
 rm(temporal_adjustments1)
 
 onroad0 <- onroad0 %>% 
@@ -85,25 +89,49 @@ onroad0 <- onroad0 %>%
          value = log(value),
          variable = "pnc_noscreen")
 
-#onroad0 <- mutate(onroad0, version = gsub("by route ", "", version))
+##################################################################################################
+#  QC - check that model #s etc. make sense
+##################################################################################################
 
-# onroad0 %>% filter(location==first(location)) %>% View()
+# --> check that numbers make sense after r0_temporal_adjustment.R finishes
+
+design_counts1 <- onroad0 %>% 
+  #slice(1:1e6) %>%
+  group_by(design) %>% 
+  summarize(no_clusters = length(unique(cluster_type)),
+            clusters = paste(unique(cluster_type), collapse = ", "),
+            
+            no_versions = length(unique(version)),
+            version = paste(unique(version), collapse = ", "),
+            
+            no_visits = length(unique(visits)),
+            visits = paste(unique(visits), collapse = ", ") %>% gsub(" visits", "", .),
+            
+            no_adjusted = length(unique(adjusted)),
+            adjusted = paste(unique(adjusted), collapse = ", "))
+
+write.csv(design_counts1, file.path(dt_path_onroad, "design_counts1.csv"), row.names = F)
+
+# looks good. segment & campaign #s are stable
+design_counts2 <- onroad0 %>%
+  #slice(1:1e6) %>%
+  group_by(design, cluster_type, version, visits, adjusted) %>%
+  summarize(no_segments = length(unique(location)),
+            no_campaigns = length(unique(campaign)),
+            no_rows=n())
+
+write.csv(design_counts2, file.path(dt_path_onroad, "design_counts2.csv"), row.names = F)
+
 ##################################################################################################
 #  MODEL CROSSWALK
 ##################################################################################################
 message("creating model crosswalks")
 
-#--> CHECK THAT CROSSWALK INCLUDES ROUTES & MAKES OK SENSE
-
-# distinct(onroad0, design, version, visits, campaign, adjusted, cluster_type) %>% View()
-# onroad0 %>% distinct(design, version) %>% View()
-
 cw <- onroad0 %>%
-  distinct(design, version, visits, campaign, adjusted, cluster_type) %>%
-  arrange(design, version, visits, campaign, adjusted, cluster_type) %>%
+  distinct(design, cluster_type, version, visits, adjusted, campaign) %>%
+  arrange(design, cluster_type, version, visits, adjusted, campaign) %>%
+  #arrange(design, version, visits, campaign, adjusted, cluster_type) %>%
   mutate(
-    cluster_code = gsub("luster", "", cluster_type),
-
     design_code = case_when(
       design=="balanced" ~ "bal",
       design=="unbalanced" ~ "random",
@@ -112,10 +140,9 @@ cw <- onroad0 %>%
       design=="unsensible" ~ "unsen",
       design=="road_type" ~ "road",
       design=="route" ~ "route"),
-
-    # version_code = case_when(
-    #   grepl("all", version) ~ "al",
-    #   grepl("business", version) ~ "bh"),
+    
+    cluster_code = gsub("luster", "", cluster_type),
+    
     version_code = case_when(
       grepl("all", version) ~ "al",
       version == "business hours" ~ "bh",
@@ -124,10 +151,8 @@ cw <- onroad0 %>%
       version == "business hours temp adj 2" ~ "bhadj2",
       version == "business hours temp adj 2 random" ~ "bhadj2r",
       TRUE ~ version),
-    
     version_code = gsub(" ", "", version_code),
     
-
     visit_code = readr::parse_number(visits),
     visit_code = str_pad(visit_code, 2, pad = "0"),
     visit_code = paste0("v", visit_code),
@@ -144,9 +169,9 @@ cw <- onroad0 %>%
                   sep = "_"),
     model_no = row_number())
 
-# View(cw %>% filter(campaign==1))
+# View(cw %>% filter(campaign==1)) #270 combinations (x30 each)
 
-if(save_new_cw==TRUE) {write.csv(cw, file.path(dt_path, "onroad_model_cw_20240604.csv"), row.names = F)}
+if(save_new_cw==TRUE) {write.csv(cw, file.path(dt_path_onroad, "onroad_model_cw.csv"), row.names = F)}
 
 onroad0 <- left_join(onroad0, cw) %>%
   select(location, value, model, variable, design_code) 
@@ -160,7 +185,7 @@ onroad <- onroad1 %>%
   st_transform(m_crs)
 
 message("saving onroad modeling data")
-saveRDS(onroad, file.path(dt_path, "onroad", "modeling_data", "all.rda"))
+saveRDS(onroad, file.path(dt_path_onroad, "modeling_data", "all.rda"))
 
 ##################################################################################################
 # SEPARATE DATA FOR MODELING LATER
@@ -174,7 +199,7 @@ lapply(group_split(onroad0, design_code), function(x) {
     st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
     st_transform(m_crs)
     
-  saveRDS(temp, file.path(dt_path, "onroad", "modeling_data", paste0(design, ".rda")))
+  saveRDS(temp, file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda")))
 })
 
 
