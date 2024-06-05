@@ -32,8 +32,9 @@ set.seed(1)
 # DATA
 ##################################################################################################
 message("loading data")
-onroad <- readRDS(file.path(dt_path, "Selected Campaigns",  #"onroad_modeling_data_20240313.rda"
-                            "onroad_modeling_data_20240507.rda"))
+onroad <- readRDS(file.path(dt_path, #"Selected Campaigns",  #"onroad_modeling_data_20240313.rda" "onroad_modeling_data_20240604.rda" #"onroad_modeling_data_20240507.rda"
+                            "onroad", "modeling_data", "all.rda"
+                            ))
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,

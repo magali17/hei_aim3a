@@ -19,6 +19,8 @@ pacman::p_load(tidyverse,
 
 source("functions.R")
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
+if(!dir.exists(file.path(dt_path, "onroad"))){dir.create(file.path(dt_path, "onroad"), recursive = T)}
+
 dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
 
 # load the prediction workspace
@@ -31,6 +33,7 @@ set.seed(1)
 ##################################################################################################
 # speed thigns up
 testing_mode <- TRUE #reduce visit files
+save_new_cw <- TRUE #true when e.g., add new versions (e.g., include more visit files)
 
 ##################################################################################################
 # DATA
@@ -84,6 +87,8 @@ onroad0 <- onroad0 %>%
          value = log(value),
          variable = "pnc_noscreen")
 
+#onroad0 <- mutate(onroad0, version = gsub("by route ", "", version))
+
 # onroad0 %>% filter(location==first(location)) %>% View()
 ##################################################################################################
 #  MODEL CROSSWALK
@@ -93,7 +98,7 @@ message("creating model crosswalks")
 #--> CHECK THAT CROSSWALK INCLUDES ROUTES & MAKES OK SENSE
 
 # distinct(onroad0, design, version, visits, campaign, adjusted, cluster_type) %>% View()
-# distinct(onroad0, design, version) %>% arrange(design, version)
+# onroad0 %>%distinct(version)  
 
 cw <- onroad0 %>%
   distinct(design, version, visits, campaign, adjusted, cluster_type) %>%
@@ -110,10 +115,20 @@ cw <- onroad0 %>%
       design=="road_type" ~ "road",
       design=="route" ~ "route"),
 
+    # version_code = case_when(
+    #   grepl("all", version) ~ "al",
+    #   grepl("business", version) ~ "bh"),
     version_code = case_when(
       grepl("all", version) ~ "al",
-      grepl("business", version) ~ "bh"),
-    #version_code = ifelse(grepl("route", version) ~ paste0(version_code, "_route"), version_code),
+      version == "business hours" ~ "bh",
+      version == "business hours temp adj 1" ~ "bhadj1",
+      version == "business hours temp adj 1 random" ~ "bhadj1r",
+      version == "business hours temp adj 2" ~ "bhadj2",
+      version == "business hours temp adj 2 random" ~ "bhadj2r",
+      TRUE ~ version),
+    
+    version_code = gsub(" ", "", version_code),
+    
 
     visit_code = readr::parse_number(visits),
     visit_code = str_pad(visit_code, 2, pad = "0"),
@@ -133,12 +148,13 @@ cw <- onroad0 %>%
 
 # View(cw %>% filter(campaign==1))
 
-save_new_cw <- TRUE
-if(save_new_cw==TRUE) {write.csv(cw, file.path(dt_path, "onroad_model_cw_20240507.csv"), row.names = F)}
+if(save_new_cw==TRUE) {write.csv(cw, file.path(dt_path, "onroad_model_cw_20240604.csv"), row.names = F)}
 
-onroad1 <- left_join(onroad0, cw) %>%
-  select(location, value, model, variable, design_code) %>%
-  left_join(cov)
+onroad0 <- left_join(onroad0, cw) %>%
+  select(location, value, model, variable, design_code) 
+
+onroad1 <- onroad0 %>%
+  left_join(cov, by="location")
 
 onroad <- onroad1 %>%
   # prep for modeling
@@ -146,13 +162,34 @@ onroad <- onroad1 %>%
   st_transform(m_crs)
 
 message("saving onroad modeling data")
-saveRDS(onroad, file.path(dt_path, "Selected Campaigns", #"onroad_modeling_data_20240313.rda"
-                          "onroad_modeling_data_20240507.rda"
-                          ))
+saveRDS(onroad, file.path(dt_path, #"Selected Campaigns", #"onroad_modeling_data_20240313.rda" "onroad_modeling_data_20240604.rda"
+                          "onroad", "modeling_data", "all.rda"))
 
 ##################################################################################################
 # SEPARATE DATA FOR MODELING LATER
 ##################################################################################################
+
+
+lapply(group_split(onroad0, design_code), function(x) {
+  design <- first(x$design_code)
+  message(design)
+  
+  temp <- left_join(x, cov, by="location") %>%
+    # prep for modeling
+    st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
+    st_transform(m_crs)
+    
+  #saveRDS(temp, file.path(dt_path, "Selected Campaigns", paste0("onroad_modeling_data_", design, ".rda") ))
+  saveRDS(temp, file.path(dt_path, "onroad", "modeling_data", paste0(design, ".rda")))
+})
+
+  
+
+
+
+
+
+
 # test <- onroad %>%
 #   mutate(spatial = ifelse(grepl("r_sy_", model), TRUE, FALSE),
 #          adjusted = ifelse(grepl("adjy_", model), TRUE, FALSE)) 
@@ -176,18 +213,18 @@ saveRDS(onroad, file.path(dt_path, "Selected Campaigns", #"onroad_modeling_data_
 #     }
 #   }
 ##################################################################################################
-# message("loading onroad_modeling_data_20240313.rda")
-# onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data_20240313.rda"))
-
-message("saving smaller onroad files")
-
-lapply(group_split(onroad, design_code), function(x) {
-  design <- unique(x$design_code)
-  
-  message(design)
-  
-  saveRDS(x, file.path(dt_path, "Selected Campaigns", paste0("onroad_modeling_data_", design, ".rda") ))
-})
+# # message("loading onroad_modeling_data_20240313.rda")
+# # onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data_20240313.rda"))
+# 
+# message("saving smaller onroad files")
+# 
+# lapply(group_split(onroad, design_code), function(x) {
+#   design <- unique(x$design_code)
+#   
+#   message(design)
+#   
+#   saveRDS(x, file.path(dt_path, "Selected Campaigns", paste0("onroad_modeling_data_", design, ".rda") ))
+# })
 
 ##################################################################################################
 # DONE

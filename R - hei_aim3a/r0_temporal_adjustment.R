@@ -40,7 +40,7 @@ overwrite_time_series <- FALSE #TRUE when make updates to the 1sec road file
 overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is updated
 
 # speed thigns up
-testing_mode <- TRUE #reduce visit files
+testing_mode <- FALSE #reduce visit files
 
 overwrite_fixed_site_adjusted_visits <- TRUE # TRUE when update visits  (e.g., testing_mode==TRUE)
 overwrite_uw_adjusted_visits <- TRUE #TRUE when update visits (e.g., testing_mode==TRUE)
