@@ -43,7 +43,7 @@ overwrite_existing_background_file <- FALSE #TRUE when e.g., 1sec file is update
 testing_mode <- FALSE #reduce visit files
 
 overwrite_fixed_site_adjusted_visits <- FALSE # TRUE when update visits  (e.g., testing_mode==TRUE)
-overwrite_uw_adjusted_visits <- TRUE #TRUE when update visits (e.g., testing_mode==TRUE)
+overwrite_uw_adjusted_visits <- FALSE #TRUE when update visits (e.g., testing_mode==TRUE)
 
 use_cores <- 1  #cluster crashed w/ 4-6? there's not much parallel processing either way
 
