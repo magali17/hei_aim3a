@@ -42,7 +42,7 @@ testing_mode <- FALSE #reduce visit files
 overwrite_fixed_site_adjusted_visits <- TRUE # TRUE when update visits  (e.g., testing_mode==TRUE)
 overwrite_uw_adjusted_visits <- TRUE #TRUE when update visits (e.g., testing_mode==TRUE)
 
-use_cores <- 6  
+use_cores <- 4  #crashed w/ 6?
 
 ##################################################################################################
 # FUNCTIONS
@@ -237,6 +237,7 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
 if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) | 
+   !file.exists(file.path(dt_pt2, "visits", "temp_adj1.rds")) | 
    overwrite_fixed_site_adjusted_visits == TRUE) {
   message("running fixed site temporal adjustment from predicted UFP based on NO2")
 
