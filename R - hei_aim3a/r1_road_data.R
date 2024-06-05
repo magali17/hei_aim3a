@@ -186,14 +186,14 @@ if(save_new_cw==TRUE) {
 # View(cw %>% filter(campaign==1)) #270 combinations (x30 each)
 
 
-if(file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) & 
-   overwrite_modeling_data ==FALSE) {
+if(!file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) | 
+   overwrite_modeling_data ==TRUE) {
   
-  message("loading all modeling data")
-  
-  onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
-  
-  } else {
+  # message("loading all modeling data")
+  # 
+  # onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
+  # 
+  # } else {
     message("creating modeling data")
     
     onroad0 <- left_join(onroad0, cw) %>%
@@ -215,21 +215,22 @@ if(file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) &
 ##################################################################################################
 # SEPARATE DATA FOR MODELING LATER
 ##################################################################################################
-#lapply(group_split(onroad0, design_code), function(x) {
-lapply(group_split(onroad, design_code), function(x) {
+lapply(group_split(onroad0, design_code), function(x) {
+#lapply(group_split(onroad, design_code), function(x) {
   design <- first(x$design_code)
   message(design)
   
   if(!file.exists(file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda"))) |
      overwrite_modeling_data ==TRUE) {
-    # temp <- left_join(x, cov, by="location") %>%
-    #   # prep for modeling
-    #   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
-    #   st_transform(m_crs)
-    # 
-    # saveRDS(temp, file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda")))
-    x %>%
-      saveRDS(., file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda")))
+    temp <- left_join(x, cov, by="location") %>%
+      # prep for modeling
+      st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
+      st_transform(m_crs)
+
+    saveRDS(temp, file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda")))
+    
+    # x %>%
+    #   saveRDS(., file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda")))
   }
   
  
