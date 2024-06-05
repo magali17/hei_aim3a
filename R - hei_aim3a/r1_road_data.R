@@ -227,7 +227,7 @@ lapply(group_split(onroad0, design), function(x) {
      overwrite_modeling_data ==TRUE) {
     
     temp <- left_join(x, cw) %>%
-      select(location, value, model, variable, design_code) %>%
+      select(location, value, model, variable, design_code, by = join_by(adjusted, campaign, design, visits, version, cluster_type)) %>%
       
       left_join(., cov, by="location") %>%
       # prep for modeling
