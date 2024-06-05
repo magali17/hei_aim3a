@@ -96,11 +96,10 @@ onroad0 <- onroad0 %>%
 ##################################################################################################
 message("summary/QC checks")
 
-# --> check that numbers make sense after r0_temporal_adjustment.R finishes
+# check that numbers make sense after r0_temporal_adjustment.R finishes. # looks good?
 if(run_qc ==TRUE) {
   
   design_counts1 <- onroad0 %>% 
-    #slice(1:1e6) %>%
     group_by(design) %>% 
     summarize(no_clusters = length(unique(cluster_type)),
               clusters = paste(unique(cluster_type), collapse = ", "),
@@ -118,7 +117,6 @@ if(run_qc ==TRUE) {
   
   # looks good. segment & campaign #s are stable
   design_counts2 <- onroad0 %>%
-    #slice(1:1e6) %>%
     group_by(design, cluster_type, version, visits, adjusted) %>%
     summarize(no_segments = length(unique(location)),
               no_campaigns = length(unique(campaign)),
@@ -190,9 +188,14 @@ if(save_new_cw==TRUE) {
 
 if(file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) & 
    overwrite_modeling_data ==FALSE) {
-  onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
-  } else {
   
+  message("loading all modeling data")
+  
+  onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
+  
+  } else {
+    message("creating modeling data")
+    
     onroad0 <- left_join(onroad0, cw) %>%
       select(location, value, model, variable, design_code) 
     
