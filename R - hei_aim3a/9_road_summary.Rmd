@@ -15,6 +15,8 @@ editor_options:
   chunk_output_type: console
 ---
 
+# --> update file paths 
+
 # Setup 
 
 ```{r setup, include=FALSE}
@@ -125,7 +127,9 @@ saveRDS(onroad_cov, file.path("data", "onroad", "dr0364d_20230331_modified_with_
 
 
 # crosswalks
-cw <- read.csv(file.path(dt_path, "onroad_model_cw.csv")) %>%
+# --> UPDATE
+cw <- read.csv(file.path(dt_path, "onroad_model_cw ______.csv"
+                         )) %>%
   
   # #drop non-balanced segment level designs
   # filter(!grepl("sn_baln", model)) %>%

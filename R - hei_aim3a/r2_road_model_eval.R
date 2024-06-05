@@ -23,7 +23,7 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 
 #load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
-if(!dir.exists(file.path(dt_path, "UK Predictions"))){dir.create(file.path(dt_path, "UK Predictions"))}
+if(!dir.exists(file.path(dt_path, "onroad", "predictions"))){dir.create(file.path(dt_path, "onroad", "predictions"), recursive = T)}
 
 use_cores <- 4 
 set.seed(1)
@@ -32,9 +32,7 @@ set.seed(1)
 # DATA
 ##################################################################################################
 message("loading data")
-onroad <- readRDS(file.path(dt_path, #"Selected Campaigns",  #"onroad_modeling_data_20240313.rda" "onroad_modeling_data_20240604.rda" #"onroad_modeling_data_20240507.rda"
-                            "onroad", "modeling_data", "all.rda"
-                            ))
+onroad <- readRDS(file.path(dt_path, "onroad", "modeling_data", "all.rda"))
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,
@@ -79,7 +77,7 @@ predictions <- predictions %>%
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
 
 message("saving predictions")
-saveRDS(predictions, file.path(dt_path, "UK Predictions", "onroad_predictions_20240313.rda"))
+saveRDS(predictions, file.path(dt_path, "onroad", "predictions", "predictions_20240604.rda"))
 
 ##################################################################################################
 # CV STATS FUNCTION
@@ -118,7 +116,7 @@ model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
 
 ##################################################################################################
 message("saving model evaluation statistics")
-saveRDS(model_perf0, file.path(dt_path, "onroad_model_eval_20240313.rda"))
+saveRDS(model_perf0, file.path(dt_path, "onroad", "onroad_model_eval_20240604.rda"))
 
 ##################################################################################################
 # DONE

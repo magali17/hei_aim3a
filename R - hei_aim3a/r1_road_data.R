@@ -1,4 +1,4 @@
-# script creates the onroad modeling dataset needed later & a model crosswalk
+# script creates a model crosswalk & preps modeling files (adds covariates etc.)   
 
 ##################################################################################################
 # setup
@@ -28,11 +28,9 @@ load(file.path(dt_path, "uk_workspace.rdata"))
 
 set.seed(1)
 
-# # main underwrite temporal adjustment approach
-# main_bg <- "hr3_pct1"
 ##################################################################################################
 # speed thigns up
-testing_mode <- TRUE #reduce visit files
+testing_mode <- FALSE #reduce visit files
 save_new_cw <- TRUE #true when e.g., add new versions (e.g., include more visit files)
 
 ##################################################################################################
@@ -60,7 +58,7 @@ design_types <- readRDS(file.path("data", "onroad", "annie", "v2", "design_types
 onroad0 <- lapply(design_types, function(x){
   file_names <- list.files(file.path("data", "onroad", "annie", "v2", "site_avgs", x))  
   # 1 file per design group/type
-  if(testing_mode==TRUE){file_names <- file_names[1:3]}
+  if(testing_mode==TRUE){file_names <- file_names[3:6]}
   
   lapply(file_names, function(f){readRDS(file.path("data", "onroad", "annie", "v2", "site_avgs", x, f))}) %>% bind_rows()
   }) %>%
@@ -71,7 +69,7 @@ onroad0 <- lapply(design_types, function(x){
 # temporal adjustments
 ## using a fixed site (PTRAK UFP~NO2 model based on collocations) [this is different than the stationary temp adj!]
 temporal_adjustments1 <- readRDS(file.path(dt_pt2, "site_avgs", "temp_adj1.rds"))
-## using the underwrite ptrak approach (only load main analysis file)
+## using the underwrite ptrak approach (only load main analysis file) # "hr3_pct1"
 temporal_adjustments <- readRDS(file.path(dt_pt2, "site_avgs", "temp_adj2_no_hwy_hr3_pct1.rds")) %>%
   select(names(temporal_adjustments1)) %>%
   bind_rows(temporal_adjustments1)
@@ -98,7 +96,7 @@ message("creating model crosswalks")
 #--> CHECK THAT CROSSWALK INCLUDES ROUTES & MAKES OK SENSE
 
 # distinct(onroad0, design, version, visits, campaign, adjusted, cluster_type) %>% View()
-# onroad0 %>%distinct(version)  
+# onroad0 %>% distinct(design, version) %>% View()
 
 cw <- onroad0 %>%
   distinct(design, version, visits, campaign, adjusted, cluster_type) %>%
@@ -162,14 +160,11 @@ onroad <- onroad1 %>%
   st_transform(m_crs)
 
 message("saving onroad modeling data")
-saveRDS(onroad, file.path(dt_path, #"Selected Campaigns", #"onroad_modeling_data_20240313.rda" "onroad_modeling_data_20240604.rda"
-                          "onroad", "modeling_data", "all.rda"))
+saveRDS(onroad, file.path(dt_path, "onroad", "modeling_data", "all.rda"))
 
 ##################################################################################################
 # SEPARATE DATA FOR MODELING LATER
 ##################################################################################################
-
-
 lapply(group_split(onroad0, design_code), function(x) {
   design <- first(x$design_code)
   message(design)
@@ -179,52 +174,9 @@ lapply(group_split(onroad0, design_code), function(x) {
     st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
     st_transform(m_crs)
     
-  #saveRDS(temp, file.path(dt_path, "Selected Campaigns", paste0("onroad_modeling_data_", design, ".rda") ))
   saveRDS(temp, file.path(dt_path, "onroad", "modeling_data", paste0(design, ".rda")))
 })
 
-  
-
-
-
-
-
-
-# test <- onroad %>%
-#   mutate(spatial = ifelse(grepl("r_sy_", model), TRUE, FALSE),
-#          adjusted = ifelse(grepl("adjy_", model), TRUE, FALSE)) 
-# 
-# # sp = TRUE
-# # adj = TRUE
-# 
-# for(sp in c(TRUE, FALSE)) {
-#   for(adj in c(TRUE, FALSE)) {
-#     
-#     test %>%
-#       filter(spatial==sp,
-#              adjusted==adj) %>%
-#       group_by(model) %>%
-#       mutate(model_no2 = cur_group_id()) %>%
-#       
-#       ungroup() %>%
-#       arrange(desc(model_no2)) %>%
-#       
-#       saveRDS(file.path(dt_path, "Selected Campaigns", paste0("onroad_modeling_data_SP_",sp, "_ADJ_", adj, ".rda") ))
-#     }
-#   }
-##################################################################################################
-# # message("loading onroad_modeling_data_20240313.rda")
-# # onroad <- readRDS(file.path(dt_path, "Selected Campaigns", "onroad_modeling_data_20240313.rda"))
-# 
-# message("saving smaller onroad files")
-# 
-# lapply(group_split(onroad, design_code), function(x) {
-#   design <- unique(x$design_code)
-#   
-#   message(design)
-#   
-#   saveRDS(x, file.path(dt_path, "Selected Campaigns", paste0("onroad_modeling_data_", design, ".rda") ))
-# })
 
 ##################################################################################################
 # DONE
