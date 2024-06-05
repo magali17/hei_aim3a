@@ -39,17 +39,15 @@ message("loading data")
 file_names <- list.files(file.path(dt_path_onroad, "modeling_data")) %>%
   grep("all.rda", ., invert = T, value = T)
 
-# --> TEMP - check that all.rds is gone
-file_names
-
+ 
 onroad <- lapply(file_names, function(f) {
   f_name <- file.path(dt_path_onroad, "modeling_data", f)
-  print(f_name)
-  print(file.exists(f_name))
-  #readRDS(file.path(dt_path_onroad, "modeling_data", f))
+  # print(f_name)
+  # print(file.exists(f_name))
+  readRDS(f_name)
   })
 
-stop()
+#stop()
 
 #onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
 
