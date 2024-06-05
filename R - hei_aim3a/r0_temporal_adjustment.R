@@ -42,7 +42,7 @@ testing_mode <- FALSE #reduce visit files
 overwrite_fixed_site_adjusted_visits <- TRUE # TRUE when update visits  (e.g., testing_mode==TRUE)
 overwrite_uw_adjusted_visits <- TRUE #TRUE when update visits (e.g., testing_mode==TRUE)
 
-use_cores <- 4  #crashed w/ 6?
+use_cores <- 1  #crashed w/ 4-6?
 
 ##################################################################################################
 # FUNCTIONS
@@ -236,6 +236,8 @@ quantiles <- c(0.01, 0.03, 0.05, 0.10)
 ##################################################################################################
 # 1. TEMPORAL ADJUSTMENT: PSEUDO FIXED SITES (FROM PREDICTED UFP)
 ##################################################################################################
+add_progress_notes("running temporal adjustment using fixed site adjustmen")
+
 if(!file.exists(file.path(dt_pt2, "site_avgs", "temp_adj1.rds")) | 
    !file.exists(file.path(dt_pt2, "visits", "temp_adj1.rds")) | 
    overwrite_fixed_site_adjusted_visits == TRUE) {
@@ -479,7 +481,7 @@ lapply(group_split(underwrite_adj_no_hwy, background_adj), function(x){
 # DONE
 ##################################################################################################
 message("DONE RUNNING R0_TEMPORAL_ADJUSTMENT.R")
-add_progress_notes("DONE RUNNING R0_TEMPORAL_ADJUSTMENT.R")
+add_progress_notes("finished RUNNING R0_TEMPORAL_ADJUSTMENT.R")
 
 ##################################################################################################
 # APPENDIX
