@@ -37,7 +37,7 @@ set.seed(1)
 ##################################################################################################
 message("loading data")
 file_names <- list.files(file.path(dt_path_onroad, "modeling_data")) %>%
-  grep("all.rds", ., invert = T, value = T)
+  grep("all.rda", ., invert = T, value = T)
 
 # --> TEMP - check that all.rds is gone
 file_names
@@ -45,7 +45,7 @@ file_names
 onroad <- lapply(file_names, function(f) {
   f_name <- file.path(dt_path_onroad, "modeling_data", f)
   print(f_name)
-  file.exists(f_name)
+  print(file.exists(f_name))
   #readRDS(file.path(dt_path_onroad, "modeling_data", f))
   })
 
