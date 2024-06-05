@@ -29,7 +29,6 @@ if(!dir.exists(file.path(dt_path_onroad, "model_eval"))){dir.create(file.path(dt
 #load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
 
-
 use_cores <- 4 
 set.seed(1)
 
@@ -37,7 +36,12 @@ set.seed(1)
 # DATA
 ##################################################################################################
 message("loading data")
-onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
+file_names <- list.files(file.path(dt_path_onroad, "modeling_data")) %>%
+  grep("all.rds", ., invert = T, value = T)
+
+onroad <- lapply(file_names, function(f) {readRDS(file.path(dt_path_onroad, "modeling_data", f))})
+
+#onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,
