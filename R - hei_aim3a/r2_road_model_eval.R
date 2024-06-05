@@ -45,6 +45,7 @@ file_names
 onroad <- lapply(file_names, function(f) {
   f_name <- file.path(dt_path_onroad, "modeling_data", f)
   print(f_name)
+  file.exists(f_name)
   #readRDS(file.path(dt_path_onroad, "modeling_data", f))
   })
 
