@@ -587,7 +587,7 @@ lapply(1:nrow(sampling_combos_routes), function(x) {
   visit_file <- file.path(new_dt_pt, "visits", "routes", paste0(design_label, ".rds"))
   annual_file <- file.path(new_dt_pt, "site_avgs", "routes", paste0(design_label, ".rds"))
 
-  if(!file.exists(visit_file) | !file.exists(annual_file)) {
+  #if(!file.exists(visit_file) | !file.exists(annual_file)) {
     message(paste("running sampling design:", design_label))
     
     my_samples <- many_campaigns_by_route(df = pnc_med,
@@ -609,9 +609,9 @@ lapply(1:nrow(sampling_combos_routes), function(x) {
     saveRDS(my_samples, visit_file)
     saveRDS(annual_averages, annual_file)
     
-  } else{
-    message(paste("Files already exist for", design_label))
-  }
+  # } else{
+  #   message(paste("Files already exist for", design_label))
+  # }
 })  
 
 ########################################################################################################

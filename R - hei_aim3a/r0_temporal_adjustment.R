@@ -1,7 +1,4 @@
 # script pulls in all business hours visit campaigns and temporally adjusts the visits; calculates annual averages
-
-# --> TO DO: SEARCH FOR 'TEMP/TO DO' (E.G., remove things that helped run code faster)
-
 ##################################################################################################
 # SETUP
 ##################################################################################################
@@ -103,10 +100,6 @@ visits <- lapply(design_types, function(x){
   select(id, date, hour, median_value, adjusted, cluster_type, cluster_value, actual_visits, campaign, design, visits, version)
 
 local_tz <- tz(fixed_site_temp_adj$time)
-
-##################################################################################################
-# COMMON VARIABLES
-##################################################################################################
 
 ##################################################################################################
 
@@ -372,7 +365,6 @@ if(file.exists(file.path(dt_pt2, "underwrite_temp_adj.rda")) &
   
   saveRDS(underwrite_adj, file.path(dt_pt2, "underwrite_temp_adj.rda"))
 }  
-
 
 if(file.exists(file.path(dt_pt2, "underwrite_temp_adj_no_hwy.rda")) &
    overwrite_existing_background_file == FALSE) {
