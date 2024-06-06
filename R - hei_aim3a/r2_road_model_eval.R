@@ -3,6 +3,8 @@
 
 # RESULTS are in: Output/v3_20230321/onroad/model_eval
 
+# --> TO DO: MAKE THIS INTO A PROGRAM & SAVE INDIVIDUAL/SMALLER FILES? 
+
 ##################################################################################################
 # SETUP
 ##################################################################################################
@@ -29,11 +31,11 @@ if(!dir.exists(file.path(dt_path_onroad, "model_eval"))){dir.create(file.path(dt
 #load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
 
-use_cores <- 1 #4 Brain crashes w/ 4?
+use_cores <- 1 #4 Braincluster crashes w/ 4?
 set.seed(1)
 
 ##################################################################################################
-# speed thigns up
+# speed things up
 testing_mode <- FALSE # TRUE if want to reduce models
 
 ##################################################################################################
@@ -49,7 +51,7 @@ if(testing_mode==TRUE){file_names <- file_names[1]}
 
 onroad <- lapply(file_names, function(f) {
   f_name <- file.path(dt_path_onroad, "modeling_data", f)
-  message(paste("loading", f_name))
+  message(paste("...", f_name))
 
   readRDS(f_name)
   }) %>%

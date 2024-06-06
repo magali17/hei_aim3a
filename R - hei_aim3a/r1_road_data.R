@@ -218,8 +218,7 @@ if(!file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) |
 message("separating modeling files")
 
 lapply(group_split(onroad0, design), function(x) {
-  #lapply(group_split(onroad0, design_code), function(x) {
-  #design <- first(x$design_code)
+
   design <- first(x$design)
   message(design)
   
@@ -236,9 +235,7 @@ lapply(group_split(onroad0, design), function(x) {
 
     message("...saving file")
     saveRDS(temp, file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda")))
-    
-    # x %>%
-    #   saveRDS(., file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda")))
+     
   }
   
  
