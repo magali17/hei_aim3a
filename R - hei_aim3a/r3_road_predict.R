@@ -54,10 +54,11 @@ prediction_directory <- file.path(dt_path_onroad, "predictions"#, new_prediction
 ## create the directory if it does not already exists
 if(!dir.exists(prediction_directory)) {dir.create(prediction_directory, recursive = T)}
 
-# --> UPDATE FILE NAME NAME
 # prediction file label
 #p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
 p_name <- substr(modeling_dt, 1, nchar(modeling_dt)-4)
+
+message(p_name)
 
 ###########################################################################################
 # Universal Kriging - Partial Least Squares Model function
