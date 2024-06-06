@@ -31,7 +31,7 @@ if(!dir.exists(file.path(dt_path_onroad, "model_eval"))){dir.create(file.path(dt
 #load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
 
-use_cores <- 3 #4 Braincluster crashes w/ 4?
+use_cores <- 3 #running w/ smp 10  #4 Braincluster crashes w/ 4?
 set.seed(1)
 
 ##################################################################################################
