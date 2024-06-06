@@ -81,7 +81,7 @@ mclapply(group_split(modeling_data, model), mc.cores = use_cores, function(x){
   if(!file.exists(file_name)){
     
     predictions <- dt %>%
-      mutate(model = first(x$model),
+      mutate(model = this_model,
              variable = first(x$variable)) %>%
       uk_pls(new_data = ., modeling_data = x) %>%
       
