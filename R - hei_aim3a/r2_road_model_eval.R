@@ -77,8 +77,8 @@ stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = use_co
                                      }) %>%
   bind_rows()  
 
-# message("saving TEMP predictions")
-# saveRDS(stationary_predictions, file.path(dt_path, "UK Predictions", "TEMP_onroad_predictions.rda"))
+message("saving TEMP predictions")
+saveRDS(stationary_predictions, file.path(dt_path_onroad, "model_eval", "TEMP_onroad_predictions.rda"))
 ##################################################################################################
 # COMBINE PREDICTIONS; FORMAT DF 
 ##################################################################################################
