@@ -24,7 +24,7 @@ dt_path_onroad <- file.path(dt_path, "onroad")
 
 set.seed(1)
 
-use_cores <- 2 # running w/ smp 20 #works or crashes?
+use_cores <- 4 # running w/ smp 20 #works or crashes?
 
 # QC
 print_prediction_summary <- FALSE # TRUE when want to check a few models. 
