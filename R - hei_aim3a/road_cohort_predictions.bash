@@ -2,8 +2,18 @@
 
 # run rscripts
 
+## compute node 1
 Rscript r3_road_predict.R route.rda 20240605
+
+
+## compute node 8
 Rscript r3_road_predict.R random.rda 20240605
+
+
+
+########################################################
+# TO DO
+
 Rscript r3_road_predict.R road_type.rda 20240605
 Rscript r3_road_predict.R sensible.rda 20240605
 Rscript r3_road_predict.R unsensible.rda 20240605
