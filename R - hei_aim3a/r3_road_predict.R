@@ -33,15 +33,13 @@ print_prediction_summary <- FALSE # TRUE when want to check a few models.
 ################################################################################
 #allow R to take input from the command line
 user_arguments <- commandArgs(trailingOnly = TRUE)
-# user_arguments <- "onroad_modeling_data_SP_FALSE_ADJ_FALSE.rda" 
 
 modeling_dt <- user_arguments[1]
 
 # prediction file label
-#p_name <- substr(modeling_dt, 21, nchar(modeling_dt)-4)
 p_name <- substr(modeling_dt, 1, nchar(modeling_dt)-4)
 
-message(p_name)
+message(paste("prediction label:", p_name))
 
 message("loading data")
 

@@ -2,11 +2,13 @@
 
 # run rscripts
 
-## compute node 1
-Rscript r3_road_predict.R route.rda 20240605
+## compute node 1 
+### 4 cores
+Rscript r3_road_predict.R route.rda 20240605 
 
 
 ## compute node 8
+### 2 cores
 Rscript r3_road_predict.R random.rda 20240605
 
 
