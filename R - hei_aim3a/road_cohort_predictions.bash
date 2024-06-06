@@ -7,7 +7,7 @@
 Rscript r3_road_predict.R route.rda 20240605 
 
 
-## compute node 8
+## compute node 14
 ### 2 cores
 Rscript r3_road_predict.R random.rda 20240605
 
