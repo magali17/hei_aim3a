@@ -75,10 +75,10 @@ uk_pls <- readRDS(file.path(dt_path, "UK Predictions", "uk_pls_model.rda"))
 ###########################################################################################
 message("Generating predictions at new locations")
 
-predictions0 <- lapply(group_split(modeling_data, model), #[1:2], #mc.cores = 1,# 4,
-  function(x) {
+predictions0 <- lapply(group_split(modeling_data, model), function(x) {
     
-    message(paste("model: " , first(x$model_no2), first(x$model)))
+    #message(paste("model: " , first(x$model_no2), first(x$model)))
+    message(first(x$model))
     
     temp <- dt %>%
       mutate(model = first(x$model),
