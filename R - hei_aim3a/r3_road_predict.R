@@ -99,9 +99,9 @@ mclapply(group_split(modeling_data, model), mc.cores = use_cores, function(x){
  
     saveRDS(predictions, file_name)
     
-    predictions %>%
-      select(-variable) %>%
-      write_csv(., gsub(".rda", ".csv", file_name))
+    # predictions %>%
+    #   select(-variable) %>%
+    #   write_csv(., gsub(".rda", ".csv", file_name))
     
     
     #########################################################
