@@ -27,7 +27,7 @@ set.seed(1)
 use_cores <- 4 # works or crashes?
 
 # QC
-print_prediction_summary <- TRUE
+print_prediction_summary <- FALSE # TRUE when want to check a few models. 
 ################################################################################
 # DATA
 ################################################################################
