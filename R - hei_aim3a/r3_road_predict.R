@@ -1,14 +1,6 @@
 # this script is almost identical to 5_prediction_program.R but slightly shorter for mobile data since QC, new covariate development are not needed
 
 # Rscript r3_road_predict.R balanced.rda 20240605
-# Rscript r3_road_predict.R random.rda 
-# Rscript r3_road_predict.R road_type.rda 
-# Rscript r3_road_predict.R route.rda 
-# Rscript r3_road_predict.R sensible.rda 
-# Rscript r3_road_predict.R unsensible.rda 
-
-# non-clustered are last priority? model CV would be diff though
-# Rscript r3_road_predict.R unbalanced.rda 
 
 ################################################################################
 # SETUP
@@ -64,7 +56,7 @@ prediction_date <- user_arguments[2]
 prediction_directory <- file.path(dt_path_onroad, "predictions", prediction_date, p_name)
 ## create the directory if it does not already exists
 if(!dir.exists(prediction_directory)) {dir.create(prediction_directory, recursive = T)}
-
+message(paste("predictions will be stored here:", prediction_directory))
 
 ###########################################################################################
 # for Universal Kriging - Partial Least Squares Model function

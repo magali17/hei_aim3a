@@ -1,6 +1,6 @@
-# to run this script in the terminal, enter: other_designs_cohort_predictions.bash
+# to run this script in the terminal, enter: bash road_cohort_predictions.bash
 
-## run rscripts
+# run rscripts
 
 Rscript r3_road_predict.R route.rda 20240605
 Rscript r3_road_predict.R random.rda 20240605
