@@ -33,7 +33,6 @@ set.seed(1)
 source("functions.R")
 out_path <- file.path(dt_path, "9_comparisons")
 
-
 ##################################################################################################
 # LOAD DATA
 ##################################################################################################
@@ -56,7 +55,7 @@ coef_lcm_all <- readRDS(file.path(dt_path, "models_lcm_all.rda")) %>%
   filter(grepl("full_", model) |
            
            # --> TEMP: LS would prefer to report the exact models chris used. these are Slightly different and will be updated 
-           model %in% c("no22_1", "no2_SP_2_1", #gold w/o historical - all monitors
+           model %in% c("no22_1", "no2_SP_2_1", #gold w/o historical - all monitors, ST & SP models
                         "no26_1", "no2_SP_6_1" #no homes - AQS + 3 snapshot
                         ))
 

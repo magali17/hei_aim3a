@@ -13,24 +13,18 @@ source("functions.R")
 
 ##################################################################################################
 # 2024-05-16: roadside paper - fixed the temporal adjustment 1 (UTM hour merging issue); added p-trak adjusted
-# --> ADD: onroad paper - 
+# note that onroad predictions are separate (Output/v3_20230321/onroad/predictions/kp)
 ##################################################################################################
 # fixed the temporal adjustment 1 (UTM hour merging issue); added p-trak temporally adjusted
 ## removed original 2nd temporal adj. decided not to apply the UW approach b/c its currently based on ptrak data AND from 'onroad' data which we have said we don't trust as much
-temp_adj_predictions <- readRDS(file.path(prediction_directory, "temp_adj", "predictions_2024-05-16.rda"))
+temp_adj_predictions <- readRDS(file.path(prediction_directory, "temp_adj", "predictions_2024-05-16.rda")) %>%
+  select(-variable)
 
 #check model names
 unique(substr(temp_adj_predictions$model, 1, nchar(temp_adj_predictions$model)-3))
 
-# added temporal adjustment (had to rerun & save BH), updated the clusters, added route-based sampling
-file_names <- list.files(file.path(dt_path, "onroad", "predictions", "cohort", "pnc_noscreen"))
-
-onroad_predictions <- lapply(file_names, function(f){readRDS(file.path(dt_path, "onroad", "predictions", "cohort", "pnc_noscreen", f))}) 
-
-predictions_20240520 <- rbind(temp_adj_predictions, onroad_predictions)
-
-saveRDS(predictions_20240520, file.path(kp_directory, paste0(Sys.Date(), "_temp_adj_and_onroad_predictions.rda")))
-write.csv(predictions_20240520, file.path(kp_directory, paste0(Sys.Date(), "_temp_adj_and_onroad_predictions.rda")))
+saveRDS(temp_adj_predictions, file.path(kp_directory, paste0(Sys.Date(), "_temp_adj_predictions.rda")))
+write.csv(temp_adj_predictions, file.path(kp_directory, paste0(Sys.Date(), "_temp_adj_predictions.csv")), row.names = F)
 
 
 ##################################################################################################
