@@ -36,8 +36,8 @@ use_cores <- 4
 testing_mode <- FALSE #reduce visit files
 save_new_cw <- FALSE #true when e.g., add new versions (e.g., include more visit files)
 run_qc <- FALSE # design counts etc.
-overwrite_modeling_data <- TRUE # TRUE when e.g. have new designs you want added
-
+overwrite_all.rda_modeling_file <- FALSE # TRUE when e.g. have new designs you want added to large file
+overwrite_individual_modeling_files <- TRUE #true when files have missing designs
 ##################################################################################################
 # DATA
 ##################################################################################################
@@ -59,7 +59,7 @@ saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 
 ## 5874 locations
 design_types <- readRDS(file.path("data", "onroad", "annie", "v2", "design_types_list.rds"))
-# x=design_types[3]
+# x=design_types[2]
 onroad0 <- mclapply(design_types, mc.cores = use_cores, function(x){
   file_names <- list.files(file.path("data", "onroad", "annie", "v2", "site_avgs", x))  
   # 1 file per design group/type
@@ -190,7 +190,7 @@ if(save_new_cw==TRUE) {
 
 
 if(!file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) | 
-   overwrite_modeling_data ==TRUE) {
+   overwrite_all.rda_modeling_file ==TRUE) {
   
   # message("loading all modeling data")
   # 
@@ -199,11 +199,16 @@ if(!file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) |
   # } else {
     message("creating modeling data")
     
-    onroad0 <- left_join(onroad0, cw) %>%
-      select(location, value, model, variable, design_code) 
-    
-    onroad1 <- onroad0 %>%
-      left_join(cov, by="location")
+    # onroad0 <- left_join(onroad0, cw) %>%
+    #   select(location, value, model, variable, design_code) 
+    # 
+    # onroad1 <- onroad0 %>%
+    #   left_join(cov, by="location")
+  onroad1 <- left_join(onroad0, cw) %>%
+    select(location, value, model, variable, design_code) 
+  
+  onroad1 <- onroad1 %>%
+    left_join(cov, by="location")
     
     onroad <- onroad1 %>%
       # prep for modeling
@@ -226,7 +231,7 @@ mclapply(group_split(onroad0, design), mc.cores = use_cores, function(x) {
   message(design)
   
   if(!file.exists(file.path(dt_path_onroad, "modeling_data", paste0(design, ".rda"))) |
-     overwrite_modeling_data ==TRUE) {
+     overwrite_individual_modeling_files ==TRUE) {
     
     temp <- left_join(x, cw) %>%
       select(location, value, model, variable, design_code, by = join_by(adjusted, campaign, design, visits, version, cluster_type)) %>%
