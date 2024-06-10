@@ -24,7 +24,7 @@ dt_path_onroad <- file.path(dt_path, "onroad")
 
 set.seed(1)
 
-use_cores <- 4 # running w/ smp 12 works. can i use more cores?
+use_cores <- 6 # 4 works w/ smp ~10+ 
 
 # QC
 print_prediction_summary <- FALSE # TRUE when want to check a few models. 
