@@ -45,6 +45,7 @@ message("loading data")
 
 # errors out if you try to load the full file "all.rda" at once
 file_names <- list.files(file.path(dt_path_onroad, "modeling_data")) %>%
+  # drop large file w/ ALL the models (would be repetitive)
   grep("all.rda", ., invert = T, value = T)
  
 if(testing_mode==TRUE){file_names <- file_names[1]}

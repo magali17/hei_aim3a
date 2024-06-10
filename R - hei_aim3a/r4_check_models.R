@@ -42,6 +42,7 @@ use_cores <- 4
 
 # QC
 run_QC <- TRUE  
+testing_mode <- FALSE # TRUE if want to reduce models
 override_qc_files <- TRUE # TRUE when e.g., uploading more prediction files
 override_kp_file <- TRUE # TRUE when e.g., adding different model predictions
 ################################################################################
@@ -58,21 +59,29 @@ cohort_n <- readRDS(file.path("data", "dr0357_cohort_covar_20220404_in_mm_area_p
 ################################################################################
 if(run_QC==TRUE){
   
+  message("running QC check")
+  
   if(file.exists(file.path(dt_path_qc, "prediction_summary.rda")) &
      override_qc_files ==FALSE){
+    
+    message("...reading in existing file")
     
     prediction_summary <- readRDS(file.path(dt_path_qc, "prediction_summary.rda"))
     
     }else{
+      message("...creating summary file")
       # predictions per file
       # f="road_type"
       prediction_summary <- lapply(prediction_folders, function(f){
         file_names <- list.files(file.path(prediction_path, f))
         
+        if(testing_mode==TRUE){file_names <- file_names[1:5]}
+        
         # x=file_names[1]
         lapply(file_names, function(x){
           model_name <- gsub(".rda", "", x)
           this_file <- file.path(file.path(prediction_path, f, x))
+          message(paste("reading:", this_file))
           
           readRDS(this_file) %>%
             group_by(variable) %>%
@@ -95,11 +104,14 @@ if(run_QC==TRUE){
       }) %>%
         bind_rows()
     
+      message("...saving prediction_summary.rda file")
       saveRDS(prediction_summary, file.path(dt_path_qc, "prediction_summary.rda"))
   }
   
   ################################################################################
   # want to see nothing/0s for these. otherwise, delete & rerun specific model files
+  
+  message("check that no models/predictions are missing")
   
   ## check that no models are missing
   
@@ -155,7 +167,10 @@ lapply(prediction_folders, function(f){
 
 
 
-
+################################################################################
+# SAVE
+################################################################################
+message("DONE WITH R4_check_models.R")
 
 
 
