@@ -192,11 +192,6 @@ if(save_new_cw==TRUE) {
 if(!file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) | 
    overwrite_all.rda_modeling_file ==TRUE) {
   
-  # message("loading all modeling data")
-  # 
-  # onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", "all.rda"))
-  # 
-  # } else {
     message("creating modeling data")
     
     # onroad0 <- left_join(onroad0, cw) %>%
@@ -234,7 +229,7 @@ mclapply(group_split(onroad0, design), mc.cores = use_cores, function(x) {
      overwrite_individual_modeling_files ==TRUE) {
     
     temp <- left_join(x, cw) %>%
-      select(location, value, model, variable, design_code, by = join_by(adjusted, campaign, design, visits, version, cluster_type)) %>%
+      select(location, value, model, variable, design_code) %>%
       
       left_join(., cov, by="location") %>%
       # prep for modeling
