@@ -2,7 +2,7 @@
 # 6/6/24
 ########################################################
 # run rscripts
-
+########################################################
 ## compute node 1  #20 smp # 4 cores 
 Rscript r3_road_predict.R route.rda 20240605 
 
@@ -19,13 +19,15 @@ Rscript r3_road_predict.R sensible.rda 20240605
 Rscript r3_road_predict.R unsensible.rda 20240605
 
 
-########################################################
+############ 
 # non-clustered are last priority? model CV would be diff though
+############ 
 
-## compute node 11 # 12 smp # 4 cores
+## compute node 00 # 12 smp # 4 cores
 Rscript r3_road_predict.R balanced.rda 20240605
 
-## compute node 00 # 10 smp # 4 cores
+## note: these models have _random_NA_ in the name
+## compute node 11 (ALSO??) # 12 smp # 4 cores
 Rscript r3_road_predict.R unbalanced.rda 20240605
 
 
