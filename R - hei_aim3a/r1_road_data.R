@@ -13,7 +13,8 @@ if (!is.null(sessionInfo()$otherPkgs)) {
            detach, character.only=TRUE, unload=TRUE, force=TRUE))
 }
 
-pacman::p_load(tidyverse, sf # UK-PLS MODEL
+pacman::p_load(tidyverse, sf, # UK-PLS MODEL
+               parallel
 )    
 
 source("functions.R")
@@ -28,12 +29,14 @@ load(file.path(dt_path, "uk_workspace.rdata"))
 
 set.seed(1)
 
+use_cores <- 4 
+
 ##################################################################################################
 # speed thigns up
-testing_mode <- TRUE #reduce visit files
+testing_mode <- FALSE #reduce visit files
 save_new_cw <- FALSE #true when e.g., add new versions (e.g., include more visit files)
 run_qc <- FALSE # design counts etc.
-overwrite_modeling_data <- FALSE # TRUE when e.g. have new designs you want added
+overwrite_modeling_data <- TRUE # TRUE when e.g. have new designs you want added
 
 ##################################################################################################
 # DATA
@@ -57,7 +60,7 @@ saveRDS(cov, file.path("data", "onroad", "dr0364d_20230331_modified.rda"))
 ## 5874 locations
 design_types <- readRDS(file.path("data", "onroad", "annie", "v2", "design_types_list.rds"))
 # x=design_types[3]
-onroad0 <- lapply(design_types, function(x){
+onroad0 <- mclapply(design_types, mc.cores = use_cores, function(x){
   file_names <- list.files(file.path("data", "onroad", "annie", "v2", "site_avgs", x))  
   # 1 file per design group/type
   if(testing_mode==TRUE){file_names <- file_names[3:6]}
@@ -217,7 +220,7 @@ if(!file.exists(file.path(dt_path_onroad, "modeling_data", "all.rda")) |
 ##################################################################################################
 message("separating modeling files")
 
-lapply(group_split(onroad0, design), function(x) {
+mclapply(group_split(onroad0, design), mc.cores = use_cores, function(x) {
 
   design <- first(x$design)
   message(design)
