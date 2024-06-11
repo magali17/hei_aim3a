@@ -153,7 +153,7 @@ lapply(prediction_folders, function(f){
     # x=file_names[1]
     predictions <- mclapply(file_names, mc.cores=use_cores, function(x){
       this_file <- file.path(file.path(prediction_path, f, x))
-      message(paste("reading in:", this_file))
+      message(paste("reading in for KP:", this_file))
 
       readRDS(this_file) %>%
         # drop pollutant label variable for KP
@@ -163,7 +163,7 @@ lapply(prediction_folders, function(f){
       bind_rows()
 
     # save predictions for each design type separately
-    message(paste("saving predictions:", file.path(dt_path_kp, gsub(".rda", "", new_prediction_file))))
+    message(paste("saving predictions for KP:", file.path(dt_path_kp, gsub(".rda", "", new_prediction_file))))
     saveRDS(predictions, file.path(dt_path_kp, new_prediction_file))
     write.csv(predictions, file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file)), row.names = F)
   }
