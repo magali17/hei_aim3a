@@ -43,7 +43,7 @@ use_cores <- 4
 # QC
 run_QC <- TRUE  
 testing_mode <- FALSE # TRUE if want to reduce models
-override_qc_files <- FALSE # TRUE when e.g., uploading more prediction files
+override_qc_files <- TRUE # TRUE when e.g., uploading more prediction files
 override_kp_file <- TRUE # TRUE when e.g., adding different model predictions
 ################################################################################
 # DATA
@@ -138,34 +138,34 @@ if(run_QC==TRUE){
 ################################################################################
 # SELECT MODELS/COMBINE PREDICTIONS
 ################################################################################
-message("combining design type files for KP")
-
-lapply(prediction_folders, function(f){
-  file_names <- list.files(file.path(prediction_path, f))
-  
-  new_prediction_file <- paste0(f, ".rda")
-  
-  if(!file.exists(file.path(dt_path_kp, new_prediction_file)) |
-     !file.exists(file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file))) |
-     override_kp_file ==TRUE){
-    
-    predictions <- lapply(file_names, function(x){
-      this_file <- file.path(file.path(prediction_path, f, x))
-      message(paste("reading in:", this_file))
-      
-      readRDS(this_file) %>%
-        # drop pollutant label variable for KP
-        select(-variable)
-      
-    }) %>%
-      bind_rows()
-    
-    message(paste("saving predictions:", file.path(dt_path_kp, gsub(".rda", "", new_prediction_file))))
-    saveRDS(predictions, file.path(dt_path_kp, new_prediction_file))
-    write.csv(predictions, file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file)), row.names = F)
-  }
-  
-})
+# message("combining design type files for KP")
+# 
+# lapply(prediction_folders, function(f){
+#   file_names <- list.files(file.path(prediction_path, f))
+#   
+#   new_prediction_file <- paste0(f, ".rda")
+#   
+#   if(!file.exists(file.path(dt_path_kp, new_prediction_file)) |
+#      !file.exists(file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file))) |
+#      override_kp_file ==TRUE){
+#     
+#     predictions <- lapply(file_names, function(x){
+#       this_file <- file.path(file.path(prediction_path, f, x))
+#       message(paste("reading in:", this_file))
+#       
+#       readRDS(this_file) %>%
+#         # drop pollutant label variable for KP
+#         select(-variable)
+#       
+#     }) %>%
+#       bind_rows()
+#     
+#     message(paste("saving predictions:", file.path(dt_path_kp, gsub(".rda", "", new_prediction_file))))
+#     saveRDS(predictions, file.path(dt_path_kp, new_prediction_file))
+#     write.csv(predictions, file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file)), row.names = F)
+#   }
+#   
+# })
 
 
 
