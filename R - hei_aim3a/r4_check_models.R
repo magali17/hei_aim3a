@@ -15,7 +15,7 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 
 # load the required libraries for: plotting, modeling, spatial features, script timing
 if (!require("pacman")) {install.packages("pacman")}
-pacman::p_load(tidyverse,   parallel)
+pacman::p_load(tidyverse, parallel)
 
 dt_path_onroad <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "onroad")
 prediction_path <- file.path(dt_path_onroad, "predictions", "20240605")
@@ -38,12 +38,12 @@ if(!dir.exists(dt_path_kp)){dir.create(dt_path_kp, recursive = T)}
 
 set.seed(1)
 
-use_cores <- 4 
+use_cores <- 6 
 
 # QC
 run_QC <- TRUE  
 testing_mode <- FALSE # TRUE if want to reduce models
-override_qc_files <- TRUE # TRUE when e.g., uploading more prediction files
+override_qc_files <- FALSE # TRUE when e.g., uploading more prediction files. FALSE when QC checks have passed
 override_kp_file <- TRUE # TRUE when e.g., adding different model predictions
 ################################################################################
 # DATA
@@ -78,7 +78,7 @@ if(run_QC==TRUE){
         if(testing_mode==TRUE){file_names <- file_names[1:5]}
         
         # x=file_names[1]
-        lapply(file_names, function(x){
+        mclapply(file_names, mc.cores=use_cores, function(x){
           model_name <- gsub(".rda", "", x)
           this_file <- file.path(file.path(prediction_path, f, x))
           message(paste("summarizing:", this_file))
@@ -138,34 +138,37 @@ if(run_QC==TRUE){
 ################################################################################
 # SELECT MODELS/COMBINE PREDICTIONS
 ################################################################################
-# message("combining design type files for KP")
-# 
-# lapply(prediction_folders, function(f){
-#   file_names <- list.files(file.path(prediction_path, f))
-#   
-#   new_prediction_file <- paste0(f, ".rda")
-#   
-#   if(!file.exists(file.path(dt_path_kp, new_prediction_file)) |
-#      !file.exists(file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file))) |
-#      override_kp_file ==TRUE){
-#     
-#     predictions <- lapply(file_names, function(x){
-#       this_file <- file.path(file.path(prediction_path, f, x))
-#       message(paste("reading in:", this_file))
-#       
-#       readRDS(this_file) %>%
-#         # drop pollutant label variable for KP
-#         select(-variable)
-#       
-#     }) %>%
-#       bind_rows()
-#     
-#     message(paste("saving predictions:", file.path(dt_path_kp, gsub(".rda", "", new_prediction_file))))
-#     saveRDS(predictions, file.path(dt_path_kp, new_prediction_file))
-#     write.csv(predictions, file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file)), row.names = F)
-#   }
-#   
-# })
+message("combining design type files for KP")
+
+# f=prediction_folders[1]
+lapply(prediction_folders, function(f){
+  file_names <- list.files(file.path(prediction_path, f))
+
+  new_prediction_file <- paste0(f, ".rda")
+
+  if(!file.exists(file.path(dt_path_kp, new_prediction_file)) |
+     !file.exists(file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file))) |
+     override_kp_file ==TRUE){
+
+    # x=file_names[1]
+    predictions <- mclapply(file_names, mc.cores=use_cores, function(x){
+      this_file <- file.path(file.path(prediction_path, f, x))
+      message(paste("reading in:", this_file))
+
+      readRDS(this_file) %>%
+        # drop pollutant label variable for KP
+        select(-variable)
+
+    }) %>%
+      bind_rows()
+
+    # save predictions for each design type separately
+    message(paste("saving predictions:", file.path(dt_path_kp, gsub(".rda", "", new_prediction_file))))
+    saveRDS(predictions, file.path(dt_path_kp, new_prediction_file))
+    write.csv(predictions, file.path(dt_path_kp, gsub(".rda", ".csv", new_prediction_file)), row.names = F)
+  }
+
+}) 
 
 
 
