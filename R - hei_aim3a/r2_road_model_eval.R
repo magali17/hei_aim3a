@@ -31,7 +31,7 @@ if(!dir.exists(file.path(dt_path_onroad, "model_eval"))){dir.create(file.path(dt
 #load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
 
-use_cores <- 3 #running w/ smp 10  #4 Braincluster crashes w/ 4?
+use_cores <- 6 #running w/ smp 10-20
 set.seed(1)
 
 ##################################################################################################
@@ -52,7 +52,7 @@ if(testing_mode==TRUE){file_names <- file_names[1]}
 
 onroad <- lapply(file_names, function(f) {
   f_name <- file.path(dt_path_onroad, "modeling_data", f)
-  message(paste("...", f_name))
+  message(paste0("...", f_name))
 
   readRDS(f_name)
   }) %>%
