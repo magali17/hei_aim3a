@@ -1,9 +1,8 @@
 # script generates onroad out-of-sample model predictions at stop locations
 # evaluates each model 
-
 # RESULTS are in: Output/v3_20230321/onroad/model_eval
 
-# --> TO DO: MAKE THIS INTO A PROGRAM & SAVE INDIVIDUAL/SMALLER FILES? 
+# Rscript r2_road_model_eval.R balanced.rda
 
 ##################################################################################################
 # SETUP
@@ -18,45 +17,50 @@ if (!is.null(sessionInfo()$otherPkgs)) {
 }
 
 pacman::p_load(tidyverse,
-               parallel, #mclapply; detectCores()
+               parallel, #mclapply() 
                pls, gstat, sf # UK-PLS MODEL
 )    
 
 source("functions.R")
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 dt_path_onroad <- file.path(dt_path, "onroad")
-#if(!dir.exists(file.path(dt_path_onroad, "predictions"))){dir.create(file.path(dt_path_onroad, "predictions"), recursive = T)}
-if(!dir.exists(file.path(dt_path_onroad, "model_eval"))){dir.create(file.path(dt_path_onroad, "model_eval"), recursive = T)}
+
+
+if(!dir.exists(file.path(dt_path_onroad, "model_eval", "predictions_at_stationary_sites"))){dir.create(file.path(dt_path_onroad, "model_eval", "predictions_at_stationary_sites"), recursive = T)}
 
 #load the prediction workspace
 load(file.path(dt_path, "uk_workspace.rdata"))
 
-use_cores <- 6 #running w/ smp 10-20
+use_cores <- 4 #6 receives warning w/ 20 smp for use all.rda
 set.seed(1)
 
 ##################################################################################################
 # speed things up
-testing_mode <- FALSE # TRUE if want to reduce models
+#testing_mode <- FALSE # TRUE if want to reduce models
 
 ##################################################################################################
 # DATA
 ##################################################################################################
+#allow R to take input from the command line
+user_arguments <- commandArgs(trailingOnly = TRUE)
+
+modeling_dt <- user_arguments[1]
+
+# prediction file label
+p_name <- substr(modeling_dt, 1, nchar(modeling_dt)-4)
+
+message(paste("prediction label:", p_name))
+
 message("loading data")
 
-# errors out if you try to load the full file "all.rda" at once
-file_names <- list.files(file.path(dt_path_onroad, "modeling_data")) %>%
-  # drop large file w/ ALL the models (would be repetitive)
-  grep("all.rda", ., invert = T, value = T)
- 
-if(testing_mode==TRUE){file_names <- file_names[1]}
-
-onroad <- lapply(file_names, function(f) {
-  f_name <- file.path(dt_path_onroad, "modeling_data", f)
-  message(paste0("...", f_name))
-
-  readRDS(f_name)
-  }) %>%
-  bind_rows()
+onroad <- readRDS(file.path(dt_path_onroad, "modeling_data", modeling_dt))
+# onroad <- lapply(file_names, function(f) {
+#   f_name <- file.path(dt_path_onroad, "modeling_data", f)
+#   message(paste0("...", f_name))
+# 
+#   readRDS(f_name)
+#   }) %>%
+#   bind_rows()
 
 # stationary data; for out-of-sample validation
 stationary <- filter(annual,
@@ -67,6 +71,8 @@ stationary <- filter(annual,
 # OUT-OF-SAMPLE VALIDATION AT 309 STOP LOCATIONS
 ##################################################################################################
 message("Generating predictions at stop locations")
+
+start_time <- Sys.time()
 
 stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = use_cores, function(x) {
   
@@ -80,8 +86,13 @@ stationary_predictions <- mclapply(group_split(onroad, model), mc.cores = use_co
                                      }) %>%
   bind_rows()  
 
-message("saving TEMP predictions")
-saveRDS(stationary_predictions, file.path(dt_path_onroad, "model_eval", "TEMP_onroad_predictions.rda"))
+end_time <- Sys.time()
+
+message("run time:")
+end_time-start_time
+        
+# message("saving TEMP predictions")
+# saveRDS(stationary_predictions, file.path(dt_path_onroad, "model_eval", "predictions_at_stationary_sites", paste0("TEMP_predictions_", p_name, ".rda")))
 ##################################################################################################
 # COMBINE PREDICTIONS; FORMAT DF 
 ##################################################################################################
@@ -102,7 +113,7 @@ predictions <- predictions %>%
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
 
 message("saving predictions")
-saveRDS(predictions, file.path(dt_path_onroad, "model_eval", "oos_predictions_at_stationary_sites.rda"))
+saveRDS(predictions, file.path(dt_path_onroad, "model_eval", "predictions_at_stationary_sites", paste0(p_name, ".rda")))
 
 ##################################################################################################
 # CV STATS FUNCTION
@@ -141,7 +152,9 @@ model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
 
 ##################################################################################################
 message("saving model evaluation statistics")
-saveRDS(model_perf0, file.path(dt_path_onroad, "model_eval", "model_eval.rda"))
+saveRDS(model_perf0, file.path(dt_path_onroad, "model_eval", #"model_eval.rda"
+                               paste0(p_name, "_model_eval_at_stationary_sites.rda")
+                               ))
 
 ##################################################################################################
 # DONE
