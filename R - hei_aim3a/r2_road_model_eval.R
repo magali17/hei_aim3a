@@ -49,7 +49,7 @@ modeling_dt <- user_arguments[1]
 # prediction file label
 p_name <- substr(modeling_dt, 1, nchar(modeling_dt)-4)
 
-message(paste("prediction label:", p_name))
+message(paste("prediction file label:", p_name))
 
 message("loading data")
 
@@ -112,8 +112,9 @@ predictions <- predictions %>%
   #put back on native scale before evaluating
   mutate_at(vars(contains("estimate"), prediction), ~exp(.)) 
 
-message("saving predictions")
-saveRDS(predictions, file.path(dt_path_onroad, "model_eval", "predictions_at_stationary_sites", paste0(p_name, ".rda")))
+predictions_path <- file.path(dt_path_onroad, "model_eval", "predictions_at_stationary_sites", paste0(p_name, ".rda"))
+message(paste("saving predictions:", predictions_path))
+saveRDS(predictions, predictions_path)
 
 ##################################################################################################
 # CV STATS FUNCTION
@@ -151,10 +152,10 @@ model_perf0 <- mclapply(group_split(predictions, model, out_of_sample),
   bind_rows()
 
 ##################################################################################################
-message("saving model evaluation statistics")
-saveRDS(model_perf0, file.path(dt_path_onroad, "model_eval", #"model_eval.rda"
-                               paste0(p_name, "_model_eval_at_stationary_sites.rda")
-                               ))
+model_eval_path <- file.path(dt_path_onroad, "model_eval", paste0(p_name, "_model_eval_at_stationary_sites.rda"))
+message(paste("saving model evaluation statistics:", model_eval_path))
+
+saveRDS(model_perf0, model_eval_path)
 
 ##################################################################################################
 # DONE
