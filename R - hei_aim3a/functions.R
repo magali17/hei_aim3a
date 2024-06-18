@@ -136,11 +136,12 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
         
         variable=="no2" ~ "NO2 (ppb)"),
       variable = factor(variable, 
-                        levels = c("NO2 (ppb)",
-                                   "Total",
-                                   
+                        levels = c("Total",
+                                   "10-420 nm",  
                                    "10-100 nm",  
                                    "20-1,000 nm",
+                                   
+                                   "NO2 (ppb)",
                                    
                                    "12 nm",  
                                    "15 nm",  
@@ -183,11 +184,13 @@ label_pollutants <- function(dt, label = "ufp_midpoint") {
         variable=="no2" ~ "NO2 (ppb)"),
       
       variable = factor(variable, 
-                        levels = c("NO2 (ppb)",
+                        levels = c("Total",
                                   "10-420 nm",
                                   
                                   "10-100 nm",
                                   "20-1,000 nm",
+                                  
+                                  "NO2 (ppb)",
                                   
                                   "10-13 nm",
                                   "13-18 nm",

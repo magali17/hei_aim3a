@@ -64,6 +64,8 @@ theme_update(legend.position = "bottom")
 ##################################################################################################
 all_pollutants <- readRDS(file.path(output_data_path, "main_pollutants.rda"))
 
+pollutant_levels <- c("Total", "10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")
+
 version_examples <- c("4", "12",  #visits/site
                       "1", #"3", #1 & 4 seasons
                       "Bus", "Rush", "Bus Adj", "Rush Adj",
@@ -96,8 +98,6 @@ uw_gold2 <- "#85754d"
 # exposure model crosswalks (cw)
 ## first set of designs
 
-# cw0 <- read.csv(file.path(dt_path, "other_designs_model_cw_20240516.csv"))
-
 cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
   filter(design %in% c("full", "fewer total stops") |
            # these sensitivity & secondary analyses don't have a temporal adjustment
@@ -129,29 +129,8 @@ cw <- bind_rows(cw, temp_cw) %>%
   mutate(model=gsub("adj1", "adj", model))
 
 
-# unique(test$model)[!unique(test$model) %in% cw$model] %>% as.data.frame() %>% filter(grepl("pncnoscreen_b", .)) 
-# test %>% filter(study_id==first(study_id), grepl("pnc", model)) %>% View()
-# 
-# test %>%
-#   filter(study_id==first(study_id)) %>%
-#   mutate(model = substr(model, 1, nchar(model)-3)) %>%  
-#   filter(!grepl("_all|_balsea|v_|sitetype", model),
-#          grepl("ns10100|pnc|nstot", model)
-#          ) %>% 
-#   
-#   distinct(model) %>% View()
-
-###################
-
-
-
 ##################################################################################################
-  
-# test <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns_v2.rda"))
-# model_eval <- readRDS(file.path(dt_path, "Selected Campaigns", 
-#                                            # "selected_campaigns_v2.rda" # where did this come from???
-#                                            "selected_campaigns.rda")) %>%
-
+ 
 # exposure MODEL EVAL
 # exposure model performances for other designs
 model_eval_other_designs0 <- readRDS(file.path(dt_path, "other_designs_model_eval_20240516.rda")) %>%
@@ -183,23 +162,18 @@ model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
 #rm(model_eval_other_designs0)
 
 ##################################################################################################  
-# --> will want to update this w/ new exposres: updated temporal adjustment (also includes pnc_noscreen)
-# test <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>% rename(exposure = avg_0_5_yr) 
-# test0 <- test %>% filter(study_id == first(study_id))
-# test0 %>% filter(grepl("bh", model)) %>% View()
-
-
-# test %>% left_join(select(cw, model, variable, design, version, campaign), by="model") %>% filter(is.na(design)) %>% View()
+# --> ??will want to update this w/ new exposres: updated temporal adjustment (also includes pnc_noscreen)
+model_covars_extended <- readRDS(file.path(output_data_path, "model_covars_extended.rda"))
 
 # --> TEMP there may still be a merging issue where some pnc_noscreen models have NAs..
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%
+  # only keep subjects in extended (main) health models
+  drop_na(all_of(model_covars_extended)) %>%
   
   # --> TEMP (CHANGE TO RIGHT_JOIN WHEN UPDATE)
   #right_join(select(cw, model, variable, design, version, campaign), by="model") %>%
-  left_join(select(cw, model, variable, design, version, campaign), by="model") %>% #filter(is.na(design)) %>% View()
-  
-  # new 5/17/14
+  left_join(select(cw, model, variable, design, version, campaign), by="model") %>% 
   label_pollutants() %>% label_designs() %>%
   
   ################################
@@ -211,13 +185,6 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")
          ) %>%
   drop_na(design)
  
-  ################################
-  
-# test2 <- cs %>% filter(study_id == first(study_id))
-# test2 %>% filter(grepl("tot", model)) %>% View()
-# test2 %>% filter(grepl("bh", model)) %>% View()
-# test2 %>% filter(is.na(design)) %>% View()
-
 ##################################################################################################
 model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
   # make sure the latest model performances are used
@@ -238,20 +205,10 @@ model_coefs <- model_coefs0 %>%
 # --> TO DO: Need NO2 results
 
 # sensitivity health analyses
-model_coefs_sensitivity <- readRDS(file.path(output_data_path, "model_coefs_sensitivity.rda")) %>% #View()
+model_coefs_extended <- readRDS(file.path(output_data_path, "model_coefs_extended.rda")) %>% #View()
   # make sure the latest model performances are used
   select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
   filter(model %in% unique(cs$model)) %>%
-  # filter(model %in% unique(cs$model), #model_eval$model,
-  #        # drop old/duplicate models
-  #        !grepl("nstot_bh|nstot_rh", model),
-  #        # just focus on the NS for now
-  #        grepl("total", variable)) %>%
-
-  #filter(grepl("s_nstot", model)) %>%
-  
-  
-  
   label_pollutants() %>% label_designs() %>%
    mutate(
     ref = ifelse((design == "Fewer Visits" & version == "12") |
@@ -264,6 +221,27 @@ exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table2024-05-
 #issue 12 reference models
 model_coefs_issue12 <- readRDS(file.path(output_data_path, "model_coefs_issue12.rda"))
 
+# for age-equivalent calculations
+ap_age_equivalents_reduced <- readRDS(file.path(output_data_path, "model_coefs_all.rda")) %>%
+  mutate(analysis="Reduced")
+
+ap_age_equivalents <- readRDS(file.path(output_data_path, "model_coefs_extended_all.rda")) %>%
+    mutate(analysis="Primary") %>%
+  rbind(ap_age_equivalents_reduced) %>%
+  filter(grepl("all_", model),
+         grepl("avg_0_5_yr|age", term)) %>%
+  mutate(term = ifelse(term == "avg_0_5_yr", "ap",
+                       ifelse(term == "visit_age_centered75", "age", term)),
+         label = paste0(round(est, 3), " (", round(lower, 3), ", ", round(upper, 3), ")")
+         ) %>%
+   select(analysis, term, est, label, model) %>% 
+  pivot_wider(names_from = term, values_from = c(est, label)) %>%
+  mutate(
+    ap_age_equivalent = est_ap/est_age,
+    ap_month_equivalent = ap_age_equivalent*12
+  ) %>% 
+  left_join(cw, by="model") %>%
+  label_pollutants() 
 
 ##################################################################################################
 # annual estimates
@@ -347,6 +325,7 @@ stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
 all_pollutants_labels <- unique(model_eval$variable)
 main_pollutants_labels <- all_pollutants_labels[str_detect(all_pollutants_labels, "Total")]
 sensitivity_pollutant_labels <- all_pollutants_labels[str_detect(all_pollutants_labels, "Total|10-100|100|20-1,000")]
+
 
 # x-axis labels for posters
 version_levels2 <- setdiff(levels(model_eval$version), c("Business", "Rush")) %>%
@@ -588,7 +567,7 @@ r2_plot <- function(dt=model_eval, y_variable, facet_variable = "10-420|Total", 
     facet_wrap(~design, scales = "free_x", switch = "x") + 
     geom_label(data=temp, aes(y=ref_r2, label=label), fill= "white",show.legend = F, size=3) +
     
-    scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name=paste(plot_y_label, "Exposure Model R2 (% of Reference Model)"), labels = scales::percent), position="right") +
+    scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name=paste(plot_y_label, "Exposure Model R2 (% of Reference Model)"), labels = scales::percent), position="left") +
       
     labs(y = paste(plot_y_label, "Exposure Model R2"), x = "Design", fill=NULL)
 }
@@ -622,8 +601,8 @@ r2_plot_multifacet <- function(dt=model_eval, y_variable, facet_variable) {
     geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
     geom_hline(yintercept = ref_r2, linetype=2, alpha=0.5, ) + 
     facet_grid(variable~design, scales = "free_x", switch = "both") +
-    scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name= NULL,# "Exposure Model R2 (% Difference)", 
-                                           labels = scales::percent), position="right") +
+    scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name= NULL, 
+                                           labels = scales::percent), position="left") +
     labs(x=NULL, y=NULL, fill=NULL)
 }
 
@@ -632,8 +611,8 @@ r2_plot_multifacet <- function(dt=model_eval, y_variable, facet_variable) {
 # y_variable= "MSE_based_R2"
 lapply(levels(refs1$variable), function(x) {r2_plot_multifacet(y_variable= "MSE_based_R2", facet_variable=x)}) %>%
   ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
-  annotate_figure(left = "Exposure Model R2 (% of Reference Model)",
-                  right = "Exposure Model R2",
+  annotate_figure(right = "Exposure Model R2 (% of Reference Model)",
+                  left = "Exposure Model R2",
                   bottom = "Design")
 
 ggsave(file.path(image_path, "SI", "r2_sensitivity.png"), width = 12, height = 12)
@@ -641,8 +620,8 @@ ggsave(file.path(image_path, "SI", "r2_sensitivity.png"), width = 12, height = 1
 # regression-based R2
 lapply(levels(refs1$variable), function(x) {r2_plot_multifacet(y_variable= "reg_based_R2", facet_variable=x)}) %>%
   ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
-  annotate_figure(left = "Exposure Model R2 (% of Reference Model)",
-                  right = "Exposure Model R2 (Regression-Based)",
+  annotate_figure(right = "Exposure Model R2 (% of Reference Model)",
+                  left = "Exposure Model R2 (Regression-Based)",
                   bottom = "Design")
 
 ggsave(file.path(image_path, "SI", "r2_reg_based_sensitivity.png"), width = 12, height = 12)
@@ -664,7 +643,7 @@ model_eval %>%
     n=n(),
     median_est = median(MSE_based_R2),
     median_percent_of_ref = median(proportion)*100,
-    median_attenuation = median(proportion_different)*100,
+    median_percent_difference = median(proportion_different)*100,
   ) %>%
   kable(caption = "summary of each design's R2 as a proportion of the reference and difference", digits = 2) %>%
   kable_styling()
@@ -1057,7 +1036,7 @@ corr_table %>%
   facet_grid(variable~design, scales = "free_x", switch="both") + 
   labs(y = "Correlation (R)", x = "Design", col="Analysis", fill=NULL) #+ scale_x_discrete(guide = guide_axis(n.dodge=2))
 
-ggsave(file.path(image_path, "SI", "prediction_correlations2.png"), width = 12, height = 10)
+ggsave(file.path(image_path, "SI", "prediction_correlations.png"), width = 12, height = 14)
 
 ```
 
@@ -1220,26 +1199,27 @@ get_reference_betas <- function(dt) {
   }
 
 true_betas <- get_reference_betas(model_coefs)
-true_betas_sensitivity <- get_reference_betas(model_coefs_sensitivity)
+true_betas_extended <- get_reference_betas(model_coefs_extended)
  
 true_betas %>%
   select(-variable2) %>%
   mutate_if(is.numeric, ~round(., 3)) %>%
-  kable(caption = "coefficient health estiamtes from the all data campaign") %>%
+  kable(caption = "reduced model coefficient health estiamtes from the all data campaign") %>%
   kable_styling()
 
-true_betas_sensitivity %>%
+true_betas_extended %>%
   select(-variable2) %>%
   mutate_if(is.numeric, ~round(., 3)) %>%
-  kable(caption = "coefficient health estiamtes from the all data campaign") %>%
+  kable(caption = "Extended model health coefficient estimates from the all data campaign") %>%
   kable_styling()
 
 
-p_list <- unique(true_betas$variable)# %>% setdiff("NO2 (ppb)")# %>% as.character()
-# x = p_list[1]
+print("extended health models")
+p_list <- unique(true_betas_extended$variable)# %>% setdiff("NO2 (ppb)")# %>% as.character()
+# x = p_list[3]
 lapply(p_list, function(x){ 
     
-      p <- model_coefs %>%
+      p <- model_coefs_extended %>%
         mutate(variable = ifelse(grepl("Total", variable, ignore.case=T), "10-420 nm", as.character(variable)),
            variable = factor(variable, levels = c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")),
            analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity"),
@@ -1252,10 +1232,11 @@ lapply(p_list, function(x){
              design != "All Data",
              version %in% version_examples) %>% 
         
-        ggplot(aes(x=campaign, col=significant, shape=adjusted)) +
+        ggplot(aes(x=campaign, #col=significant, 
+                   shape=adjusted)) +
         geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-      geom_rect(inherit.aes = F, data=filter(true_betas, variable==x), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=rectangle_alpha) +
-      geom_hline(data=filter(true_betas, variable==x), aes(yintercept = est)) +
+      geom_rect(inherit.aes = F, data=filter(true_betas_extended, variable==x), aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=rectangle_alpha) +
+      geom_hline(data=filter(true_betas_extended, variable==x), aes(yintercept = est)) +
       geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.4, 
                       position=position_dodge(width=0.7)) +
       scale_x_continuous(breaks = c(1, seq(10,30,10))) +
@@ -1285,12 +1266,12 @@ model_coefs %>%
         digits = 2) %>%
   kable_styling()
 
-model_coefs_sensitivity %>% 
+model_coefs_extended %>% 
   group_by(design, version, variable) %>%
     summarize(n=n(),
               proportion_of_campaigns_significant = mean(significant)) %>%
     arrange(-proportion_of_campaigns_significant) %>%
-  kable(caption = "proportion of 'significant' estimates from campaigns. Sensitivity results w/ models extensively adjusted",
+  kable(caption = "extended models - proportion of 'significant' estimates from campaigns",
         digits = 2) %>%
   kable_styling()
 
@@ -1374,20 +1355,25 @@ ggsave(file.path(image_path, "other", "poster", paste0("betas.png")), width = 6,
 
 ## Beta Summary
 
-# --> START HERE: UPDATE FIGS
-
 ```{r}
 # keep this even though code below is the same to not show facet label for main analysis figure
 # true Coefficient estimate
 tot_pnc <- filter(true_betas, grepl("Total|10-420", variable)) %>%
   pull(est)
-tot_pnc_sensitivity <- filter(true_betas_sensitivity, grepl("Total|10-420", variable)) %>%
+tot_pnc_extended <- filter(true_betas_extended, grepl("Total|10-420", variable)) %>%
   pull(est)
 
-y_lims <- c(-0.018, 0.0005)
+#y_lims <- c(-0.018, 0.0005)
+y_lims <- rbind(model_coefs, model_coefs_extended) %>%# View()
+  filter(grepl("tot_", model)) %>%
+  pull(est) %>%
+  range()
+
+y_lims_pct <- seq(-2,2,1)
 
 # % attenuation (e.g., reported in abstract)
-model_coefs %>%
+#model_coefs %>%
+model_coefs_extended %>%
   filter(grepl(main_pollutants_labels, variable)) %>% 
   mutate(ref_est = est[grepl("_all_", model)],
          proportion_different = (est-ref_est)/-ref_est,
@@ -1397,7 +1383,7 @@ model_coefs %>%
     n=n(),
     median_est = median(est),
     median_percent_of_ref = median(proportion)*100,
-    median_attenuation = median(proportion_different)*100,
+    median_percent_difference = median(proportion_different)*100,
   ) %>%
   kable(caption = "summary of each design's beta as a proportion of the reference and difference", digits = 2) %>%
   kable_styling()
@@ -1410,7 +1396,7 @@ model_coefs %>%
 # true_betas.=true_betas
 # variable.="NO2"
 # facet_label="Reduced Model" 
-beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420", facet_label="Reduced Model") {
+beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420", facet_label="Reduced Health Model") {
   true_betas. <- filter(true_betas., grepl(variable., variable)) %>%
     mutate(design="All Data",
            design= factor(design, levels= levels(model_coefs$design)),
@@ -1430,12 +1416,14 @@ beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420", facet_l
   ggplot(aes(x=version, fill=ref)) +
   geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
   facet_grid(facet_label~design, scales="free_x", switch="both") +
-  geom_hline(yintercept = true_betas.$est, linetype=1, alpha=0.5) +
+  geom_hline(yintercept = true_betas.$est, linetype=1, #alpha=0.5, #col="darkgreen"
+             ) +
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
   scale_y_continuous(sec.axis = sec_axis(trans=~(.-true_betas.$est)/-true_betas.$est, 
-                                         name= NULL,# "Health Point Estimate (% Different from Reference)", 
-                                         labels = scales::percent),
-                     position="right") +
+                                         name= NULL, 
+                                         labels = scales::percent, 
+                                         breaks = y_lims_pct),
+                     position="left", limits = y_lims) +
   # scale_y_continuous(sec.axis = sec_axis(trans=~./true_betas.$est, name="Health Point Estimate (% of Reference Model)", labels = scales::percent),
   #                      position="right") +
     
@@ -1456,40 +1444,26 @@ beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420", facet_l
   print(p)
   }
 
-
-# --> TO DO: COMBINE reduced & extended 
 reduced_models <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas)
-extended_models <- beta_summary_plot(dt=model_coefs_sensitivity, true_betas.=true_betas_sensitivity, facet_label = "Primary Model")
-
-#ggsave(file.path(image_path, "beta_boxplots_main.png"), width = 10, height = 6)
+extended_models <- beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Primary Health Model")
 
 ggarrange(reduced_models,  extended_models, ncol = 1, common.legend = T, legend = "bottom") %>%
-  annotate_figure(right = "Health Point Estimate",
-                  left = "Health Point Estimate (% Different from Reference)", 
+  annotate_figure(left = "Health Point Estimate",
+                  right = "Health Point Estimate (% Different from Reference)", 
                   bottom = "Design")
-ggsave(file.path(image_path, "beta_boxplots_main_reduced.png"), width = 12, height = 6)
+ggsave(file.path(image_path, "beta_boxplots_main_reduced.png"), width = 12, height = 10)
 
+# SI - other pollutants
+y_lims_sensitivity <- range(model_coefs_extended$est)
+y_lims_sensitivity_pct <- seq(-2,2, 1)
 
-# # SI - sensitivity
-# beta_summary_plot(dt=model_coefs_sensitivity, true_betas.=true_betas_sensitivity)
-# ggsave(file.path(image_path, "SI", "beta_boxplots_sensitivity.png"), width = 10, height = 6)
-
-# # SI - NO2
-# beta_summary_plot(dt=model_coefs, true_betas.=true_betas, variable. = "NO2")
-# ggsave(file.path(image_path, "beta_boxplots_no2.png"), width = 12, height = 6)
-
-
-
-
-# SI - other PNC measures
-# x="10-420 nm" #all_pollutants_labels[3]
-
-# x= "NO2 (ppb)"
+print("extended health models")
 lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)"), 
        function(x) {
   
-  true_betas2 <- true_betas_sensitivity %>% 
-    filter(grepl(x, variable)
+  true_betas2 <- true_betas_extended %>% 
+    filter(#grepl(x, variable)
+      variable==x
       #variable2==x
            ) %>%
     mutate(variable = ifelse(variable == "10-420 nm", "10-420 nm (Primary)", as.character(variable)),
@@ -1499,13 +1473,15 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)"),
   # for second axis
   ref_conc <- true_betas2$est 
  
-  p <- model_coefs_sensitivity %>%
-    
-    mutate(variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
-           variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")))  %>%
-    filter(grepl(x, variable)
-      #variable==x
+  p <- model_coefs_extended %>%
+    mutate(variable = ifelse(grepl("Total", variable), "10-420 nm", as.character(variable))) %>%
+     filter(#grepl(x, variable)
+      variable==x,
+      design != "All Data"
            ) %>%
+    mutate(variable = ifelse(grepl("Total|10-420 nm", variable), "10-420 nm (Primary)", as.character(variable)),
+           variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")))  %>%
+   
   
     group_by(version, design, variable, ref) %>%
     summary_table(var = "est") %>%
@@ -1513,20 +1489,23 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)"),
     geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
     
     facet_grid(variable~design, scales="free", switch="both", space="free") + 
-    geom_hline(yintercept = ref_conc, linetype=1, alpha=0.5) +
+    geom_hline(yintercept = ref_conc, linetype=1,# alpha=0.5, 
+               #size=1.5
+               ) +
     geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-    scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_conc)/-ref_conc, name=NULL, labels = scales::percent), position="right") +
+    scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_conc)/-ref_conc, name=NULL, labels = scales::percent, breaks = y_lims_sensitivity_pct
+                                           ), position="left", limits = y_lims_sensitivity) +
     #scale_y_continuous(sec.axis = sec_axis(trans=~./ref_conc, name=NULL, labels = scales::percent), position="right") +
-    geom_label(inherit.aes = F, data=true_betas2, aes(x=1, y=est, label = round(est, 2))) +
+    #geom_label(inherit.aes = F, data=true_betas2, aes(x=1, y=est, label = round(est, 2))) +
   labs(y=NULL, x = "Design", fill=NULL)
   
   p
   }) %>%
   ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
-  annotate_figure(left = "Health Point Estimate (% Different from Reference)", 
-                  right = "Health Point Estimate")
+  annotate_figure(right = "Health Point Estimate (% Different from Reference)", 
+                  left = "Health Point Estimate")
   
-ggsave(file.path(image_path, "SI", "beta_boxplots.png"), width = 10, height = 10)
+ggsave(file.path(image_path, "SI", "beta_boxplots.png"), width = 10, height = 12)
 
 
 ```
@@ -1597,38 +1576,44 @@ ggsave(file.path(image_path, "other", "presentation", "beta_boxplots_main_large_
 
 
 ```{r}
-bias0 <- model_coefs %>%
+bias0 <- model_coefs_extended %>%
   group_by(variable) %>%
   mutate(ref = est[design == "All Data"],
          error = est - ref,
-         error_pct = round(error/abs(ref)*100, 1)) %>%
+         error_pct = round(error/abs(ref)*100, 1),
+         proportion_different = (est-ref)/ref,
+         percent_different = proportion_different*100
+         ) %>%
   filter(design != "All Data",
          variable %in% main_pollutants_labels) 
 
 
 bias <- bias0 %>%
   group_by(variable, design, version) %>%
-  alt_boxplot(var = "error") 
+  alt_boxplot(var="percent_different" #var = "error"
+              ) 
 
 bias %>% 
-  kable(caption = "Distribution of coefficient difference for each design", 
-        digits = 3) %>%
+  kable(caption = "extended models - Distribution of coefficient difference for each design", 
+        #digits = 3
+        digits=0
+        ) %>%
   kable_styling()
 
 #######################################
-bias0 %>%
-  filter(grepl("Visits|Seasons", design)) %>%
-  alt_boxplot(var = "error") %>%
-  mutate_if(is.numeric, ~round(., 3)) %>% 
-  kable(caption = "Distribution of Coefficient errors for fewer visits & seasons") %>%
-  kable_styling()
-
-bias0 %>%
-  filter(grepl("Fewer Hours", design)) %>%
-  alt_boxplot(var = "error") %>%
-  mutate_if(is.numeric, ~round(.,3)) %>%
-  kable(caption = "Distribution of Coefficient differences for fewer hours") %>%
-  kable_styling()
+# bias0 %>%
+#   filter(grepl("Visits|Seasons", design)) %>%
+#   alt_boxplot(var = "error") %>%
+#   mutate_if(is.numeric, ~round(., 3)) %>% 
+#   kable(caption = "Distribution of Coefficient errors for fewer visits & seasons") %>%
+#   kable_styling()
+# 
+# bias0 %>%
+#   filter(grepl("Fewer Hours", design)) %>%
+#   alt_boxplot(var = "error") %>%
+#   mutate_if(is.numeric, ~round(.,3)) %>%
+#   kable(caption = "Distribution of Coefficient differences for fewer hours") %>%
+#   kable_styling()
 
 ```
 
@@ -1637,33 +1622,52 @@ Percent error in the estimated betas (n=30 campaign models for each design-versi
 
 ```{r}
 
-bias_pct <- bias0 %>%
-  group_by(variable, design, version) %>%
-  alt_boxplot(var = "error_pct") 
-
-bias_pct %>% 
-  #select(-c(Qmin, Qmax)) %>%
-  mutate_if(is.numeric, ~round(.)) %>%
-  kable(caption = "Distribution of Coefficient difference (%) for each design") %>%
-  kable_styling()
+# bias_pct <- bias0 %>%
+#   group_by(variable, design, version) %>%
+#   alt_boxplot(var = "error_pct") 
+# 
+# bias_pct %>% 
+#   #select(-c(Qmin, Qmax)) %>%
+#   mutate_if(is.numeric, ~round(.)) %>%
+#   kable(caption = "Distribution of Coefficient difference (%) for each design") %>%
+#   kable_styling()
 
 
 #######################################
-bias0 %>%
-  filter(grepl("Visits|Seasons", design)) %>%
-  alt_boxplot(var = "error_pct") %>%
-  mutate_if(is.numeric, ~round(.)) %>%
-  kable(caption = "Distribution of Coefficient difference (%) for fewer visits & seasons") %>%
-  kable_styling()
-
-bias0 %>%
-  filter(grepl("Fewer Hours", design)) %>%
-  alt_boxplot(var = "error_pct") %>%
-  mutate_if(is.numeric, ~round(.)) %>%
-  kable(caption = "Distribution of Coefficient errors (%) for fewer hours") %>%
-  kable_styling()
+# bias0 %>%
+#   filter(grepl("Visits|Seasons", design)) %>%
+#   alt_boxplot(var = "error_pct") %>%
+#   mutate_if(is.numeric, ~round(.)) %>%
+#   kable(caption = "Distribution of Coefficient difference (%) for fewer visits & seasons") %>%
+#   kable_styling()
+# 
+# bias0 %>%
+#   filter(grepl("Fewer Hours", design)) %>%
+#   alt_boxplot(var = "error_pct") %>%
+#   mutate_if(is.numeric, ~round(.)) %>%
+#   kable(caption = "Distribution of Coefficient errors (%) for fewer hours") %>%
+#   kable_styling()
 
 ```
+
+
+## aging equivalents
+
+```{r}
+
+ap_age_equivalents %>%
+  select(analysis, variable, label_ap, est_age, ap_month_equivalent) %>%
+  arrange(variable) %>%
+  kable(caption = "Estimated associations between air pollutants (PNC [1,900 pt/cm3], NO2 [3 ppb]) and one year of aging with baseline CASI-IRT score based on all-data air pollution exposure models. Air pollution associations are scaled relative to the age association to contextualize their effects.",
+        digits=3, 
+        col.names = c("Model", "Pollutant", "Air Pollution Association", "Age Association", "Air Pollution Month Equivalent")
+        ) %>%
+  kable_styling()
+
+
+```
+
+
 
 
 # Appendix

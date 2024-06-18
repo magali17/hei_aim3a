@@ -32,7 +32,7 @@ main_pollutants <-c(
 saveRDS(main_pollutants, file.path(output_data_path, "main_pollutants.rda"))
 
 model_covars <- readRDS(file.path(output_data_path, "model_covars.rda"))
-# sensitivity analyses
+# extended adjusted models
 model_covars_extended <- readRDS(file.path(output_data_path, "model_covars_extended.rda"))
 ap_prediction <- "avg_0_5_yr"
 
@@ -251,8 +251,8 @@ model_coefs_all_issue12 <- get_model_results_all_coefs(models_issue12)
 saveRDS(model_coefs_all_issue12, file.path(output_data_path, "model_coefs_issue12_all.rda"))
 
 ####################################
-# 5/20/24. Sensitivity analyses - extended models
-message("running sensitivity models...")
+# 5/20/24. extended models
+message("running extended models...")
 models_extended <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
 saveRDS(models_extended, file.path(output_data_path, "models_extended.rda"))
 
@@ -281,8 +281,8 @@ models_r_all <- get_model_results_all_coefs(models_r)
 saveRDS(models_r_all, file.path(output_data_path, "models_r_all.rda")) #should be model_coefs_r_all.rda
 
 ####################################
-# 5/20/24. Sensitivity analyses - extended models
-message("running sensitivity models...")
+# 5/20/24. extended models
+message("running extended models...")
 models_r_extended <- mclapply(group_split(cs_r, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
 saveRDS(models_r_extended, file.path(output_data_path, "models_road_extended.rda"))
 
