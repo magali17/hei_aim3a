@@ -122,6 +122,8 @@ cs_issue12_models <- select(cs, -c(avg_0_5_yr, model, variable)) %>%
 
 #####################################################################################
 # NON-STATIONARY DATA
+
+# --> UPDATE FILE PATHS
 cw_r <- read.csv(file.path(dt_path, "onroad_model_cw.csv"))
 
 cs_r <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda")) %>%
@@ -251,17 +253,17 @@ saveRDS(model_coefs_all_issue12, file.path(output_data_path, "model_coefs_issue1
 ####################################
 # 5/20/24. Sensitivity analyses - extended models
 message("running sensitivity models...")
-models_sensitivity <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
-saveRDS(models_sensitivity, file.path(output_data_path, "models_sensitivity.rda"))
+models_extended <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
+saveRDS(models_extended, file.path(output_data_path, "models_extended.rda"))
 
 message("saving model coeficients...")
-model_coefs0_sensitivity <- get_model_results(models_sensitivity)
-model_coefs_sensitivity <- left_join(model_coefs0_sensitivity, campaign_descriptions)
-saveRDS(model_coefs_sensitivity, file.path(output_data_path, "model_coefs_sensitivity.rda"))
+model_coefs0_extended <- get_model_results(models_extended)
+model_coefs_extended <- left_join(model_coefs0_extended, campaign_descriptions)
+saveRDS(model_coefs_extended, file.path(output_data_path, "model_coefs_extended.rda"))
 
 # same as above but raw for all coefficients
-model_coefs_sensitivity_all <- get_model_results_all_coefs(models_sensitivity)
-saveRDS(model_coefs_sensitivity_all, file.path(output_data_path, "model_coefs_sensitivity_all.rda"))
+model_coefs_extended_all <- get_model_results_all_coefs(models_extended)
+saveRDS(model_coefs_extended_all, file.path(output_data_path, "model_coefs_extended_all.rda"))
 
 ######################################################################
 # NON-STATIONARY (ROAD) DATA
@@ -281,13 +283,13 @@ saveRDS(models_r_all, file.path(output_data_path, "models_r_all.rda")) #should b
 ####################################
 # 5/20/24. Sensitivity analyses - extended models
 message("running sensitivity models...")
-models_r_sensitivity <- mclapply(group_split(cs_r, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
-saveRDS(models_r_sensitivity, file.path(output_data_path, "models_road_sensitivity.rda"))
+models_r_extended <- mclapply(group_split(cs_r, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
+saveRDS(models_r_extended, file.path(output_data_path, "models_road_extended.rda"))
 
 message("saving model coeficients...")
-model_coefs_r_sensitivity <- get_model_results(models_r_sensitivity) %>%
+model_coefs_r_extended <- get_model_results(models_r_extended) %>%
   left_join(cw_r)
-saveRDS(model_coefs_r_sensitivity, file.path(output_data_path, "model_coefs_road_sensitivity.rda"))
+saveRDS(model_coefs_r_extended, file.path(output_data_path, "model_coefs_road_extended.rda"))
 
 ######################################################################
 # MACHINE LEARNING EXPOSURE MODELS

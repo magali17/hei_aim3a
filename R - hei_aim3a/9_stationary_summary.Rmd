@@ -106,8 +106,7 @@ cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
   bind_rows(read.csv(file.path(dt_path, "other_designs_model_cw_20240516.csv"))) %>%
   select(-model_no) %>%
   filter(variable %in% all_pollutants,
-         !grepl(drop_site_types, version)
-         )
+         !grepl(drop_site_types, version))
 
 ###################
 # --> TEMP FOR MERGING W/ existing (non-updated) 'cs' data
@@ -236,10 +235,13 @@ model_coefs <- model_coefs0 %>%
                    (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
 
 
+# --> TO DO: Need NO2 results
+
 # sensitivity health analyses
 model_coefs_sensitivity <- readRDS(file.path(output_data_path, "model_coefs_sensitivity.rda")) %>% #View()
   # make sure the latest model performances are used
   select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
+  filter(model %in% unique(cs$model)) %>%
   # filter(model %in% unique(cs$model), #model_eval$model,
   #        # drop old/duplicate models
   #        !grepl("nstot_bh|nstot_rh", model),
@@ -267,13 +269,13 @@ model_coefs_issue12 <- readRDS(file.path(output_data_path, "model_coefs_issue12.
 # annual estimates
 # annual estimates: site type
 annual_site_type <- readRDS(file.path(dt_path, "annual_site_type.rda")) %>%
-  select(-no2) %>%
+  #select(-no2) %>%
   # ? only visualize a few?
   filter(!grepl(drop_site_types, version)) 
 
 # annual estimates: fewer season
-annual_fixed_seasons <- readRDS(file.path(dt_path, "fixed_season_annual.rda"))  %>%
-  select(-no2)
+annual_fixed_seasons <- readRDS(file.path(dt_path, "fixed_season_annual.rda"))  #%>%
+  #select(-no2)
 
 # annual estimates: fewer hours & temporal adjustment (for total NS & P-TRAK (no 10-100 nm))
 annual_temp_adj <- readRDS(file.path(dt_path, "temporal_adjustment.rda")) %>%
@@ -450,7 +452,7 @@ stops_w %>%
 
 ```{r}
 annual_avgs <- annual_trainint_set %>%
-  pivot_longer(cols = starts_with(c("pnc_", "ns_")), names_to = "variable", values_to = "value") %>%
+  pivot_longer(cols = starts_with(c("pnc_", "ns_", "no2")), names_to = "variable", values_to = "value") %>%
   #temp adj is only for NS total
   drop_na(value) %>%
   filter(variable %in% all_pollutants) %>%
@@ -474,6 +476,7 @@ annual_avgs %>%
 
 print("distribution of annual average site estimates used to develop exposure models")
 annual_avgs %>%
+  filter(grepl("nm", variable)) %>%
   group_by(version, design, instrument, variable) %>%
   summary_table(var = "value") %>%  
   
@@ -490,12 +493,30 @@ annual_avgs %>%
 
 ggsave(file.path(image_path, "SI", "site_averages.png"), width = 8, height = 8)
 
+# NO2
+annual_avgs %>%
+  filter(grepl("no2", variable, ignore.case=T)) %>%
+  group_by(version, design, instrument, variable) %>%
+  summary_table(var = "value") %>%  
+  
+  mutate(
+    version = gsub("Bus", "Business", version),
+             version = gsub(" Adj 1", " \nTemporally\nAdjusted", version),
+             version = factor(version, levels= version_levels2)) %>% #View()
+  
+
+  ggplot(aes(x=version, #col=interaction(instrument, variable, sep = " ")
+             )) +
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  facet_wrap(~design, scales="free_x", switch = "x", ncol = 2)+
+  labs(y = "NO2 (ppb)", x="Version", col="Measure", fill="Analysis")
+
+ggsave(file.path(image_path, "SI", "site_averages_no2.png"), width = 8, height = 8)
+
 ```
 
 
 ## Model R2
-
-### --> why do model R2 tell diff story than betas? are exposure model reference values a different distribtuion than the cohort? e.g., are more ppl living near/away form locations where exposure predictions improve/worsen? i.e., what are the places that do particularly bad/good with temporal adjustment? 
 
 **do ppl do weighted avgs when calculationg model R2? weighted by amount of ppl near a location (i.e., how representative is a location relative to the cohort of interest?)**
 
@@ -518,10 +539,11 @@ print("dashed line is the All Data design performance")
 refs1 <- model_eval %>%
   filter(design=="All Data", 
          grepl("All", design),
-         variable %in% sensitivity_pollutant_labels) %>%
+         variable %in% all_pollutants_labels #sensitivity_pollutant_labels
+         ) %>%
   select(variable, MSE_based_R2, reg_based_R2) %>%
   mutate(variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
-         variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")))
+         variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")))
 
 # r2_ref <- refs1 %>%
 #   filter(grepl("Primary", variable, ignore.case=T)) %>%
@@ -540,22 +562,23 @@ temp <- data.frame(design=c("Fewer Visits"),
   
 # main analyses
 # dt=model_eval
-# y_variable="MSE_based_R2"
-# y_variable="reg_based_R2"
-r2_plot <- function(dt=model_eval, y_variable) {
+# y_variable="MSE_based_R2" # y_variable="reg_based_R2"
+# facet_variable = "no2"  
+# facet_variable = "10-420|Total" 
+r2_plot <- function(dt=model_eval, y_variable, facet_variable = "10-420|Total", plot_y_label="PNC") {
   ref_r2 <- refs1 %>%
-    filter(grepl("10-420", variable)) %>%
+    filter(grepl(facet_variable, variable, ignore.case=T)) %>%
     pull(get(y_variable))
   
   dt %>%
-    filter(variable %in% main_pollutants_labels,
+    filter(grepl(facet_variable, variable, ignore.case=T), #variable %in% main_pollutants_labels,
            design != "All Data") %>%
       mutate(version = gsub("Bus", "Business", version),
              version = gsub(" Adj", " \nTemporally\nAdjusted", version),
              version = factor(version, levels= version_levels2),
              
              variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
-             variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")),
+             variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")),
              analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity")) %>%
     group_by(version, design, ref) %>%
     summary_table(var = y_variable) %>%
@@ -565,25 +588,14 @@ r2_plot <- function(dt=model_eval, y_variable) {
     facet_wrap(~design, scales = "free_x", switch = "x") + 
     geom_label(data=temp, aes(y=ref_r2, label=label), fill= "white",show.legend = F, size=3) +
     
-    scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name="PNC Exposure Model R2 (% of Reference Model)", labels = scales::percent), position="right") +
+    scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name=paste(plot_y_label, "Exposure Model R2 (% of Reference Model)"), labels = scales::percent), position="right") +
       
-    labs(y = "PNC Exposure Model R2", x = "Design", fill=NULL)
+    labs(y = paste(plot_y_label, "Exposure Model R2"), x = "Design", fill=NULL)
 }
-
-# model_eval %>%
-#   mutate(version = gsub("Bus", "Business", version),
-#          version = gsub(" Adj", " \nTemporally\nAdjusted", version),
-#          version = factor(version, levels= version_levels2)) %>%
-#   r2_plot(dt=., y_variable = "MSE_based_R2")
-
 
 
 r2_plot(y_variable = "MSE_based_R2")
 ggsave(file.path(image_path, "r2.png"), width = 8, height = 7)
-
-# have this below
-# r2_plot(y_variable = "reg_based_R2")
-# ggsave(file.path(image_path, "SI", "r2_regression_based.png"), width = 8, height = 6)
 
 ################################################################################
 # SI Plots - sensitivity analyses
@@ -600,7 +612,7 @@ r2_plot_multifacet <- function(dt=model_eval, y_variable, facet_variable) {
              version = factor(version, levels= version_levels2),
             
              variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
-             variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")),
+             variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")),
              analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity")) %>%
     filter(variable == facet_variable) %>%
   
@@ -616,10 +628,12 @@ r2_plot_multifacet <- function(dt=model_eval, y_variable, facet_variable) {
 }
 
 # MSE-based R2
+# x=levels(refs1$variable)[4]
+# y_variable= "MSE_based_R2"
 lapply(levels(refs1$variable), function(x) {r2_plot_multifacet(y_variable= "MSE_based_R2", facet_variable=x)}) %>%
   ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
-  annotate_figure(left = "PNC Exposure Model R2 (% of Reference Model)",
-                  right = "PNC Exposure Model R2",
+  annotate_figure(left = "Exposure Model R2 (% of Reference Model)",
+                  right = "Exposure Model R2",
                   bottom = "Design")
 
 ggsave(file.path(image_path, "SI", "r2_sensitivity.png"), width = 12, height = 12)
@@ -627,39 +641,11 @@ ggsave(file.path(image_path, "SI", "r2_sensitivity.png"), width = 12, height = 1
 # regression-based R2
 lapply(levels(refs1$variable), function(x) {r2_plot_multifacet(y_variable= "reg_based_R2", facet_variable=x)}) %>%
   ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
-  annotate_figure(left = "PNC Exposure Model R2 (% of Reference Model)",
-                  right = "PNC Exposure Model R2",
+  annotate_figure(left = "Exposure Model R2 (% of Reference Model)",
+                  right = "Exposure Model R2 (Regression-Based)",
                   bottom = "Design")
 
 ggsave(file.path(image_path, "SI", "r2_reg_based_sensitivity.png"), width = 12, height = 12)
-
-################################################################################
-# SI - secondary analyses of NO2
-y_variable <- "MSE_based_R2"
-ref_r2 <- model_eval %>%
-  filter(design=="All Data", 
-         grepl("no2", model)) %>%
-  select(variable, MSE_based_R2, reg_based_R2) %>%
-  pull(get(y_variable))
-  
-model_eval %>%
-  filter(grepl("no2", model),
-         design != "All Data") %>%
-    mutate(version = gsub("Bus", "Business", version),
-            version = factor(version, levels= version_levels2)) %>% View()
-  group_by(version, design, ref) %>%
-  summary_table(var = y_variable) %>%
-  ggplot(aes(x=version, fill=ref)) +
-  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  geom_hline(yintercept = ref_r2, linetype=2, alpha=0.5, ) +
-  facet_wrap(~design, scales = "free_x", switch = "x") + 
-  geom_label(data=temp, aes(y=ref_r2, label=label), fill= "white",show.legend = F, size=3) +
-  
-  scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name="NO2 Exposure Model R2 (% of Reference Model)", labels = scales::percent), position="right") +
-    
-  labs(y = "NO2 Exposure Model R2", x = "Design", fill=NULL)
-
-ggsave(file.path(image_path, "SI", "r2_secondary_no2.png"), width = 12, height = 12)
 
 ```
 
@@ -688,7 +674,7 @@ model_eval %>%
 
 
 ### poster
-```{r}
+```{r, eval=F}
 # poster
 # main analyses
 model_eval %>%
@@ -914,20 +900,22 @@ t1 %>%
 # alt to above: scatterplots
 ref <- cs %>%
   filter(grepl("All Data", design),
-         variable %in% sensitivity_pollutant_labels) %>%
+         variable %in% all_pollutants_labels #sensitivity_pollutant_labels
+         ) %>%
   select(study_id, all_exposure = exposure, all_model = model, variable)
 
 samples <- cs %>%
   filter(!grepl("All Data", design),
-         variable %in% sensitivity_pollutant_labels,
+         variable %in% all_pollutants_labels, #sensitivity_pollutant_labels,
          #only show some examples
          version %in% version_examples
          ) %>%
   select(study_id, exposure,  model, variable, design, version, campaign)
 
 comp_exp <- left_join(ref, samples)
-# x=sensitivity_pollutant_labels[3]
-lapply(sensitivity_pollutant_labels, function(x) {
+# x=all_pollutants_labels[1]
+lapply(all_pollutants_labels, #sensitivity_pollutant_labels, 
+       function(x) {
   
   p <- comp_exp %>%
   filter(variable== x) %>%
@@ -996,182 +984,19 @@ ggsave(file.path(image_path, "other", "qc", "all_data_ns_ptrak_issue12_model.png
 
 ```
 
-## Predicted Exposure 'Error'
-
-5/30/24. decided not to do this b/c to look at this, we need to sho this is true after adjusting for potential confoundres
-
-```{r, eval=F}
-cs_ref <- cs %>%
-  filter(variable %in% main_pollutants_labels,
-         design == "All Data") %>%
-  select(study_id, casi_irt, all_data_exposure = exposure)
-
-mean_casi <- mean(cs_ref$casi_irt)
-
-prediction_comparison0 <- cs %>%
-  filter(variable %in% main_pollutants_labels,
-         design != "All Data",
-         #drop some of these
-         !version %in% c("H4 L20", "H6 L18", "H8 L16", "H10 L14", "H14 L10", "H16 L8", "H18 L6", "H20 L4")) %>%
-  left_join(cs_ref, by= c("study_id", "casi_irt")) %>%
-  mutate(prediction_diff = exposure - all_data_exposure,
-         prediction_diff_abs = abs(exposure - all_data_exposure))  
-
-# calculate avg prediction diff between designs
-prediction_comparison <- prediction_comparison0 %>%
-  group_by(study_id, casi_irt, variable, design, version) %>%
-  summarize(
-    n=n(),
-    # exposure=median(exposure),
-    # #exposure=mean(exposure)
-    
-    # prediction_diff = mean(prediction_diff),
-    # prediction_diff_abs = mean(prediction_diff_abs),
-    prediction_diff = median(prediction_diff),
-    prediction_diff_abs = median(prediction_diff_abs),
-    prediction_sd = sd(exposure)
-    )  %>%
-  
-  # --> TEMP. shoudn't need to do this later
-  drop_na(casi_irt)
-
-
-
-print("predicted exposure difference for each campaign and study_id vs CASI-IRT. thin transparant lines are lm fits for each campaign") 
-print("no strong evidence that exposure assessment error is differentially distributed across CASI-IRT")
-
-# exposure on x-axis 
-# x=design_labels[3]
-lapply(design_labels, function(x) {
-  
-  # #prediction_comparison %>%
-  # prediction_comparison0 %>%
-  #   filter(design == x) %>%  
-  # 
-  #   ggplot(aes(x=casi_irt, y=prediction_diff,
-  #              col=version
-  #              )) + 
-  #   facet_wrap(~design) + 
-  #   geom_point(alpha=0.01, size=0.5) +
-  #   #geom_bin2d(alpha=0.3) +
-  #   #geom_vline(xintercept = mean_casi, linetype=2, alpha=0.5) +
-  #   stat_smooth(aes(group=interaction(campaign, version)), 
-  #                   geom='line', method = "lm", se=F, alpha=0.4) +
-  #   stat_smooth(geom='line', method = "lm", se=F, size=2) +
-  #   geom_hline(yintercept =0, linetype=2, alpha=0.5) +
-  # 
-  #   ylim(min(prediction_comparison0$prediction_diff), max(prediction_comparison0$prediction_diff)) +
-  #   scale_fill_continuous(type = "viridis") +
-  #   labs(x=NULL, y=NULL)
-  
-  prediction_comparison0 %>%
-    filter(design == x) %>%  
-
-    ggplot(aes(y=casi_irt, x=prediction_diff, col=version )) + 
-    facet_wrap(~design) + 
-    #geom_point(alpha=0.01, size=0.5) +
-    stat_smooth(aes(group=interaction(campaign, version)),
-                    geom='line', #method = "lm", 
-                se=F, alpha=0.4) +
-    stat_smooth(geom='line', #method = "lm", 
-                se=F, size=1.5) +
-    geom_hline(yintercept = mean_casi, linetype=2, alpha=0.3) +
-    geom_vline(xintercept =0, linetype=2, alpha=0.3) +
-
-    xlim(min(prediction_comparison0$prediction_diff), max(prediction_comparison0$prediction_diff)) +
-    ylim(min(prediction_comparison0$casi_irt), max(prediction_comparison0$casi_irt)) +
-    scale_fill_continuous(type = "viridis") +
-    labs(x=NULL, y=NULL)
-  
-  
-  }) %>%
-  ggarrange(plotlist = ., align = "hv") %>%
-  annotate_figure(
-    bottom = "Difference in Predicted PNC Exposure Relative to the All-Data Campaign",
-    left = "Participant Baseline CASI-IRT")
-
-ggsave(file.path(image_path, "SI", "measurement_error_by_casi.png"), width = 8, height = 8)
-
-
-
-
-
-
-##########################################################################################
-# CASI on x-axis 
-
-lapply(design_labels, function(x) {
-prediction_comparison0 %>%
-    filter(design == x) %>%  
-
-    ggplot(aes(x=casi_irt, y=prediction_diff, col=version )) + 
-    facet_wrap(~design) + 
-    #geom_point(alpha=0.01, size=0.5) +
-    stat_smooth(aes(group=interaction(campaign, version)), geom='line', 
-                method = "lm", 
-                se=F, alpha=0.1) +
-    stat_smooth(geom='line', method = "lm", 
-                se=F, size=1.5) +
-    #geom_vline(xintercept = mean_casi, linetype=2, alpha=0.3) +
-    geom_hline(yintercept =0, linetype=2, alpha=0.3) +
-
-    ylim(-2e3, 2e3) +
-    xlim(min(prediction_comparison0$casi_irt), max(prediction_comparison0$casi_irt)) +
-    scale_fill_continuous(type = "viridis") +
-    labs(x=NULL, y=NULL)
-  
-  
-  }) %>%
-  ggarrange(plotlist = ., align = "hv") %>%
-  annotate_figure(
-    left = "Difference in Predicted PNC Exposure Relative to the All-Data Campaign",
-    bottom = "Participant Baseline CASI-IRT")
-
-ggsave(file.path(image_path, "SI", "measurement_error_by_casi_switch_axes.png"), width = 8, height = 8)
-##########################################################################################
-
-# --> scatterplot: x axis: predictions all data; y=variability or SD or bias
-
-lapply(design_labels, function(x) {
-  
-  prediction_comparison %>%
-    filter(design == x) %>%
-
-    ggplot(aes(x=casi_irt, col=version, y=prediction_sd)) + 
-    facet_wrap(~design) + 
-    geom_point(alpha=0.03, size=0.5) + 
-    #geom_bin2d(alpha=0.3) +
-    geom_hline(yintercept =0, linetype=2, alpha=0.5) +
-    #geom_vline(xintercept = mean_casi, linetype=2, alpha=0.5) +
-    geom_smooth(#method = "lm"
-                ) + 
-    ylim(min(prediction_comparison$prediction_sd), max(prediction_comparison$prediction_sd)) +
-    scale_fill_continuous(type = "viridis") +
-    labs(x=NULL, y=NULL)
-  
-  }) %>%
-  ggarrange(plotlist = ., align = "hv") #%>%
-  annotate_figure(left = "SD of predicted UFP for participants (SD is from n=30 campaign predictions)",
-                  bottom = "Participant Baseline CASI-IRT")
-
-ggsave(file.path(image_path, "SI", "prediction_SD_by_casi.png"), width = 8, height = 8)
-
-```
-
-
-
 
 ## Prediction Correlations
 
 ```{r}
 full <- cs %>% 
   filter(grepl("All Data", design),
-         variable %in% sensitivity_pollutant_labels) %>%
+         variable %in% all_pollutants_labels#sensitivity_pollutant_labels
+         ) %>%
   select(study_id, variable, exposure, model) %>%
   rename(full_prediction = exposure)
 
 designs <- filter(cs, 
-                  variable %in% sensitivity_pollutant_labels,
+                  variable %in% all_pollutants_labels, #sensitivity_pollutant_labels  
                   !model %in% unique(full$model),
                   #drop some of these
                   !version %in% c("H4 L20", "H8 L16", "H10 L14", "H14 L10", "H16 L8", "H20 L4")) %>%
@@ -1217,7 +1042,7 @@ corr_table %>%
 # --> CHECK THAT THIS LOOKS CORRECT IN UPDATE (HAS TEMP ADJ?)
 corr_table %>%
   mutate(variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
-           variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")),
+           variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")),
            analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity"),
          
          version = gsub("Bus", "Business", version),
@@ -1233,13 +1058,6 @@ corr_table %>%
   labs(y = "Correlation (R)", x = "Design", col="Analysis", fill=NULL) #+ scale_x_discrete(guide = guide_axis(n.dodge=2))
 
 ggsave(file.path(image_path, "SI", "prediction_correlations2.png"), width = 12, height = 10)
-
-```
-
-# --> ? NO2: add correlation plot for no2? 
-
-```{r}
-
 
 ```
 
@@ -1389,7 +1207,8 @@ The black horizontal line and gray area are the health effect estimate from the 
 get_reference_betas <- function(dt) {
   dt %>%
   filter(design == "All Data",
-         (variable %in% sensitivity_pollutant_labels | grepl("no2", variable, ignore.case=T))
+         variable %in% all_pollutants_labels
+         # (variable %in% sensitivity_pollutant_labels | grepl("no2", variable, ignore.case=T))
            ) %>%
   select(variable, est, lower, upper, se, significant) %>%
    mutate(variable2 = variable,
@@ -1416,13 +1235,13 @@ true_betas_sensitivity %>%
   kable_styling()
 
 
-p_list <- unique(true_betas$variable) %>% setdiff("NO2 (ppb)")# %>% as.character()
-# x = p_list[2]
+p_list <- unique(true_betas$variable)# %>% setdiff("NO2 (ppb)")# %>% as.character()
+# x = p_list[1]
 lapply(p_list, function(x){ 
     
       p <- model_coefs %>%
         mutate(variable = ifelse(grepl("Total", variable, ignore.case=T), "10-420 nm", as.character(variable)),
-           variable = factor(variable, levels = c("10-420 nm", "10-100 nm", "20-1,000 nm")),
+           variable = factor(variable, levels = c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")),
            analysis = ifelse(grepl("10-420", variable), "Primary", "Sensitivity"),
            adjusted = ifelse(grepl("adj", model, ignore.case=T), "Temporally Adjusted", "Unadjusted"),
            adjusted = factor(adjusted, levels = c("Unadjusted", "Temporally Adjusted")),
@@ -1555,6 +1374,8 @@ ggsave(file.path(image_path, "other", "poster", paste0("betas.png")), width = 6,
 
 ## Beta Summary
 
+# --> START HERE: UPDATE FIGS
+
 ```{r}
 # keep this even though code below is the same to not show facet label for main analysis figure
 # true Coefficient estimate
@@ -1564,13 +1385,6 @@ tot_pnc_sensitivity <- filter(true_betas_sensitivity, grepl("Total|10-420", vari
   pull(est)
 
 y_lims <- c(-0.018, 0.0005)
-
-# model_coefs %>%
-#   filter(grepl("Visits|Seasons", design)) %>%
-#   group_by(variable) %>%
-#   alt_boxplot(var = "est") %>%
-#   kable(caption = "distribution of Coefficient estimates for fewer visits & seasons", digits = 3) %>%
-#   kable_styling()
 
 # % attenuation (e.g., reported in abstract)
 model_coefs %>%
@@ -1590,39 +1404,49 @@ model_coefs %>%
   
 ####################################################################################
 # plots 
-
 # for individual pollutants
-beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420") {
+
+# dt=model_coefs
+# true_betas.=true_betas
+# variable.="NO2"
+# facet_label="Reduced Model" 
+beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420", facet_label="Reduced Model") {
   true_betas. <- filter(true_betas., grepl(variable., variable)) %>%
     mutate(design="All Data",
            design= factor(design, levels= levels(model_coefs$design)),
            significant = ifelse(significant==TRUE, "Statistically Significant", "Not Statistically Significant"))
     
   p <- dt %>%
-  filter(grepl(variable., variable)) %>% 
+  filter(grepl(variable., variable),
+         design != "All Data"
+         ) %>% 
   mutate(version = gsub("Bus", "Business", version),
          version = gsub("Adj 1", "\nTemporally\nAdjusted", version),
          version = factor(version, levels=version_levels2)) %>%
   
   group_by(version, design, variable, ref) %>%
   summary_table(var = "est") %>%
+  mutate(facet_label = facet_label) %>%
   ggplot(aes(x=version, fill=ref)) +
   geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  facet_wrap(~design, scales="free_x", switch="x") +
+  facet_grid(facet_label~design, scales="free_x", switch="both") +
   geom_hline(yintercept = true_betas.$est, linetype=1, alpha=0.5) +
   geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-  scale_y_continuous(sec.axis = sec_axis(trans=~(.-true_betas.$est)/-true_betas.$est, name="Health Point Estimate (% Different from Reference)", labels = scales::percent),
+  scale_y_continuous(sec.axis = sec_axis(trans=~(.-true_betas.$est)/-true_betas.$est, 
+                                         name= NULL,# "Health Point Estimate (% Different from Reference)", 
+                                         labels = scales::percent),
                      position="right") +
   # scale_y_continuous(sec.axis = sec_axis(trans=~./true_betas.$est, name="Health Point Estimate (% of Reference Model)", labels = scales::percent),
   #                      position="right") +
     
-    geom_label(inherit.aes = F, data=true_betas., aes(x=1, y=est, label = round(est, 3))) +
-    labs(y = "Health Point Estimate", x = "Design",
+    #geom_label(inherit.aes = F, data=true_betas., aes(x=1, y=est, label = round(est, 3))) +
+    labs(y = NULL, #"Health Point Estimate", 
+         x = "Design",
        fill= NULL)
   
-  if(grepl("Not", true_betas.$significant,ignore.case = T)){
-    p <- p + geom_text(inherit.aes = F, data=true_betas., aes(x=1, y=est*2, label=significant)) 
-  }
+  # if(grepl("Not", true_betas.$significant,ignore.case = T)){
+  #   p <- p + geom_text(inherit.aes = F, data=true_betas., aes(x=1, y=est*2, label=significant)) 
+  # }
   
   # # # make the % label the correct direction of estimate happens to be positive
   # if(true_betas.$est>0){
@@ -1632,25 +1456,42 @@ beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420") {
   print(p)
   }
 
-beta_summary_plot(dt=model_coefs, true_betas.=true_betas)
-ggsave(file.path(image_path, "beta_boxplots_main.png"), width = 10, height = 6)
 
-# SI - sensitivity
-beta_summary_plot(dt=model_coefs_sensitivity, true_betas.=true_betas_sensitivity)
-ggsave(file.path(image_path, "SI", "beta_boxplots_sensitivity.png"), width = 10, height = 6)
+# --> TO DO: COMBINE reduced & extended 
+reduced_models <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas)
+extended_models <- beta_summary_plot(dt=model_coefs_sensitivity, true_betas.=true_betas_sensitivity, facet_label = "Primary Model")
 
-# SI - NO2
-beta_summary_plot(dt=model_coefs, true_betas.=true_betas)
+#ggsave(file.path(image_path, "beta_boxplots_main.png"), width = 10, height = 6)
+
+ggarrange(reduced_models,  extended_models, ncol = 1, common.legend = T, legend = "bottom") %>%
+  annotate_figure(right = "Health Point Estimate",
+                  left = "Health Point Estimate (% Different from Reference)", 
+                  bottom = "Design")
+ggsave(file.path(image_path, "beta_boxplots_main_reduced.png"), width = 12, height = 6)
+
+
+# # SI - sensitivity
+# beta_summary_plot(dt=model_coefs_sensitivity, true_betas.=true_betas_sensitivity)
+# ggsave(file.path(image_path, "SI", "beta_boxplots_sensitivity.png"), width = 10, height = 6)
+
+# # SI - NO2
+# beta_summary_plot(dt=model_coefs, true_betas.=true_betas, variable. = "NO2")
+# ggsave(file.path(image_path, "beta_boxplots_no2.png"), width = 12, height = 6)
 
 
 
 
 # SI - other PNC measures
-# x=c("10-420 nm", "10-100 nm", "20-1,000 nm")[3]
-lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm"), function(x) {
+# x="10-420 nm" #all_pollutants_labels[3]
+
+# x= "NO2 (ppb)"
+lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)"), 
+       function(x) {
   
-  true_betas2 <- true_betas %>% 
-    filter(grepl(x, variable)) %>%
+  true_betas2 <- true_betas_sensitivity %>% 
+    filter(grepl(x, variable)
+      #variable2==x
+           ) %>%
     mutate(variable = ifelse(variable == "10-420 nm", "10-420 nm (Primary)", as.character(variable)),
            design="All Data",
            design= factor(design, levels= levels(model_coefs$design)))
@@ -1658,11 +1499,13 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm"), function(x) {
   # for second axis
   ref_conc <- true_betas2$est 
  
-  p <- model_coefs %>%
+  p <- model_coefs_sensitivity %>%
     
     mutate(variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
-           variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm")))  %>%
-    filter(grepl(x, variable)) %>%
+           variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")))  %>%
+    filter(grepl(x, variable)
+      #variable==x
+           ) %>%
   
     group_by(version, design, variable, ref) %>%
     summary_table(var = "est") %>%
@@ -1675,30 +1518,18 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm"), function(x) {
     scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_conc)/-ref_conc, name=NULL, labels = scales::percent), position="right") +
     #scale_y_continuous(sec.axis = sec_axis(trans=~./ref_conc, name=NULL, labels = scales::percent), position="right") +
     geom_label(inherit.aes = F, data=true_betas2, aes(x=1, y=est, label = round(est, 2))) +
-  labs(y=NULL, #y = "Health Point Estimate", 
-       x = "Design", fill=NULL)
+  labs(y=NULL, x = "Design", fill=NULL)
   
   p
   }) %>%
   ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
   annotate_figure(left = "Health Point Estimate (% Different from Reference)", 
-                  #left = "Health Point Estimate (% of Reference Model)",
                   right = "Health Point Estimate")
   
 ggsave(file.path(image_path, "SI", "beta_boxplots.png"), width = 10, height = 10)
 
 
 ```
-
-#--> no2: add beta plot: main & sensitivity health models
-
-```{r}
-
-
-
-
-```
-
 
 
 ### for ppt
@@ -1726,7 +1557,7 @@ ggsave(file.path(image_path, "SI", "beta_boxplots.png"), width = 10, height = 10
 ```
 
 ### for poster
-```{r}
+```{r, eval=F}
 temp <- data.frame(version= 2.5, 
                    label = c("All-Data Reference", "No Association"),
                    est=c(tot_pnc, 0),
