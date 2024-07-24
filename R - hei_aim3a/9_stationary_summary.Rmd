@@ -215,6 +215,15 @@ model_coefs_extended <- readRDS(file.path(output_data_path, "model_coefs_extende
                    (design == "Fewer Seasons" & version == "4") |
                    (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
 
+# do?? 2010+ sensitivity analysis
+
+model_coefs_2010 <- readRDS(file.path(output_data_path, "model_coefs_extended_2010.rda")) %>% 
+  # make sure the latest model performances are used
+  #select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
+  filter(grepl("all", model),
+         term =="avg_0_5_yr") %>%
+  left_join(cw, by="model") %>%
+  label_pollutants() %>% label_designs()
 
 exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table2024-05-20.csv"))
 
@@ -567,13 +576,18 @@ r2_plot <- function(dt=model_eval, y_variable, facet_variable = "10-420|Total", 
     facet_wrap(~design, scales = "free_x", switch = "x") + 
     geom_label(data=temp, aes(y=ref_r2, label=label), fill= "white",show.legend = F, size=3) +
     
-    scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name=paste(plot_y_label, "Exposure Model R2 (% of Reference Model)"), labels = scales::percent), position="left") +
+    scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, 
+                                           name=paste(plot_y_label, "Exposure Model R2 (% of Reference Model)"),
+                                           labels = scales::percent,
+                                           breaks = seq(0,1,.2)), 
+                       position="left") +
       
     labs(y = paste(plot_y_label, "Exposure Model R2"), x = "Design", fill=NULL)
 }
 
 
-r2_plot(y_variable = "MSE_based_R2")
+r2_plot(y_variable = "MSE_based_R2")  
+                      
 ggsave(file.path(image_path, "r2.png"), width = 8, height = 7)
 
 ################################################################################
@@ -602,7 +616,9 @@ r2_plot_multifacet <- function(dt=model_eval, y_variable, facet_variable) {
     geom_hline(yintercept = ref_r2, linetype=2, alpha=0.5, ) + 
     facet_grid(variable~design, scales = "free_x", switch = "both") +
     scale_y_continuous(sec.axis = sec_axis(trans=~./ref_r2, name= NULL, 
-                                           labels = scales::percent), position="left") +
+                                           labels = scales::percent,
+                                           breaks = seq(0,1,.2)
+                                           ), position="left") +
     labs(x=NULL, y=NULL, fill=NULL)
 }
 
@@ -1509,6 +1525,21 @@ ggsave(file.path(image_path, "SI", "beta_boxplots.png"), width = 10, height = 12
 
 
 ```
+
+2010+ results with extended adjsuted (primary covariates)
+
+```{r}
+model_coefs_2010 %>%
+  mutate_if(is.numeric, ~round(., 3)) %>%
+  mutate(estimate = paste0(est, " (", lower, ", ", upper, ")")) %>%
+  select(variable, estimate) %>%
+  arrange(variable) %>%
+  kable(caption = "health analyses of 2010+ cohort with extended adjusted covariates",
+        digits=3) %>%
+  kable_styling()
+
+```
+
 
 
 ### for ppt

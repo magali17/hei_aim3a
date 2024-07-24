@@ -250,6 +250,13 @@ saveRDS(health, file.path("data", "issue_12", #"issue_012_rerun_for_release20231
 exclusion_table <- drop_na(health, all_of(model_covars_extended)) %>%
   count_remaining_sample(., description. = "all primary & secondary covariates available")
 
+
+# 2010+ only
+exclusion_table <- health %>%
+  drop_na(all_of(model_covars_extended)) %>%
+  filter(as.numeric(as.character(year2))>=2010) %>%
+  count_remaining_sample(., description. = "2010+")
+
 ######################################################################
 # COMBINE HEALTH AND EXPOSURE DATA
 ######################################################################

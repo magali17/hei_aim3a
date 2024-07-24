@@ -265,6 +265,20 @@ saveRDS(model_coefs_extended, file.path(output_data_path, "model_coefs_extended.
 model_coefs_extended_all <- get_model_results_all_coefs(models_extended)
 saveRDS(model_coefs_extended_all, file.path(output_data_path, "model_coefs_extended_all.rda"))
 
+####################################
+# 7/3/24. 2010+ cohort
+message("running extended models...")
+models_2010 <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {
+  x %>% 
+    filter(as.numeric(as.character(year2)) >=2010) %>%
+    lm_fn(df=., model_covars. = model_covars_extended)
+  })
+saveRDS(models_2010, file.path(output_data_path, "models_2010.rda"))
+
+message("saving model coeficients...")
+model_coefs_extended_2010 <- get_model_results_all_coefs(models_2010)
+saveRDS(model_coefs_extended_2010, file.path(output_data_path, "model_coefs_extended_2010.rda"))
+
 ######################################################################
 # NON-STATIONARY (ROAD) DATA
 message("running NON-STATIONARY models...")
