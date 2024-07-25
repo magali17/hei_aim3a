@@ -37,7 +37,7 @@ testing_mode <- FALSE #reduce visit files
 save_new_cw <- FALSE #true when e.g., add new versions (e.g., include more visit files)
 run_qc <- FALSE # design counts etc.
 overwrite_all.rda_modeling_file <- FALSE # TRUE when e.g. have new designs you want added to large file
-overwrite_individual_modeling_files <- TRUE #TRUE when files have missing designs
+overwrite_individual_modeling_files <- FALSE #TRUE when files have missing designs
 ##################################################################################################
 # DATA
 ##################################################################################################

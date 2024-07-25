@@ -62,6 +62,18 @@ count_remaining_sample <- function(dt, description., notes.=NA) {
   
   return(exclusion_table)
 }
+
+# fn: a) reads rda data file, or b) sas file from KP if it is not available & saves it as rda
+read_large_file <- function(data_path, override_existing_file=F){
+  if(file.exists(data_path) & override_existing_file==FALSE) {
+    result <- readRDS(data_path)
+  } else {
+    result <- haven::read_sas(gsub(".rda", ".sas7bdat", data_path) , NULL)
+    saveRDS(result, data_path)
+  }
+  return(result)
+}
+
 ######################################################################
 # LOAD DATA
 ######################################################################
@@ -72,27 +84,35 @@ message("loading data")
 #use this newer file. dimensions are the same, but some of the exposure-related columns differ
 health_dt_path <-file.path("data", "issue_12", "issue_012_rerun_for_release20231108", "issue_012.rda")
 
-if(file.exists(health_dt_path)) {
-  health0 <- readRDS(health_dt_path)
-} else {
-    health0 <- haven::read_sas(gsub(".rda", ".sas7bdat", health_dt_path) , NULL)
-    saveRDS(health0, health_dt_path)
-}
+health0 <- read_large_file(health_dt_path)
 
 exclusion_table <- count_remaining_sample(health0, description. = "Full dataset")
 
 
-# --> TEMP?: will need to add latest models to this
+ 
+# exposure predictions from different datasets & models
+exposure_dt_path_combined <- file.path("data", "issue_17", "issue_017_final_20240712.rda")
+if(file.exists(exposure_dt_path_combined)){
+  exposure0 <- readRDS(exposure_dt_path_combined)
+  } else{
+    ## prior predictions (drop all all-road models & stationary fewer hour desings + old season designs)
+    exposure0.0 <- read_large_file(file.path("data", "issue_17", "issue_017_rerun20231020.rda")) %>%
+      filter(!grepl("^r_", model),
+             !grepl("_rh_|_bh_|_s1_|_s2_|_s3_|_s4_", model))
+    
+    ## part 1 (half the cohort; new temp adj stationary & all new on-road models)
+    exposure0.1 <- read_large_file(file.path("data", "issue_17", "issue_017_final_part1_20240712.rda"))
+    
+    ## part 2 (other half the cohort; new temp adj stationary & all new on-road models)
+    exposure0.2 <- read_large_file(file.path("data", "issue_17", "issue_017_final_part2_20240712.rda"))
+    
+    exposure0 <- rbind(exposure0.1, exposure0.2) %>%
+      rbind(exposure0.0)
+    saveRDS(exposure0, exposure_dt_path_combined)
+    
+    rm(exposure0.0, exposure0.1, exposure0.2)
+  }
 
-# exposure predictions from different models
-exposure_dt_path <- file.path("data", "issue_17", "issue_017_rerun20231020.rda")
-
-if(file.exists(exposure_dt_path)) {
-  exposure0 <- readRDS(exposure_dt_path)
-} else {
-  exposure0 <- haven::read_sas(gsub(".rda", ".sas7bdat", exposure_dt_path), NULL)
-  saveRDS(exposure0, exposure_dt_path)
-}
 
 # measurement error dataset - bootstrapped site/visit samples used to develop exposure prediction models
 me_dt_path <- file.path("data", "issue_16", "issue_16_rerun", "issue_016_20230929.rda")
@@ -116,6 +136,8 @@ message("selecting exposure models")
 # si's ML UFP models
 ml_models <- c("upls", "uspatpl", "uspatcv", "urf", "utprs", "urt", "utr")
 # low-cost sensor/monitor (LCM) models
+
+# --> UPDATE??
 
 # #non- MM models
 # grep("r_|s_", unique(exposure0$model), invert = T, value = T)
@@ -242,9 +264,7 @@ health %>%
 health <- drop_na(health, all_of(model_covars))
 exclusion_table <- count_remaining_sample(health, description. = "all primary covariates available")
 
-saveRDS(health, file.path("data", "issue_12", #"issue_012_rerun_for_release20231010", 
-                          "issue_012_rerun_for_release20231108", 
-                          "issue_012_clean.rda"))
+saveRDS(health, file.path("data", "issue_12", "issue_012_rerun_for_release20231108", "issue_012_clean.rda"))
 
 # counts for sensitivity analyses
 exclusion_table <- drop_na(health, all_of(model_covars_extended)) %>%
