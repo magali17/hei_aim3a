@@ -19,7 +19,7 @@ set.seed(1)
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
-output_data_path <- file.path(dt_path, "epi")
+output_data_path <- file.path(dt_path, "epi", "20240725")
 if(!file.exists(output_data_path)) {dir.create(output_data_path, recursive = T)}
 
 if(!file.exists(file.path(dt_path, "error"))) {dir.create(file.path(dt_path, "error"), recursive = T)}
