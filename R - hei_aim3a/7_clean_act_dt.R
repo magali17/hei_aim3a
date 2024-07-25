@@ -113,6 +113,7 @@ if(file.exists(exposure_dt_path_combined)){
     rm(exposure0.0, exposure0.1, exposure0.2)
   }
 
+# exposure0.0 %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()
 
 # measurement error dataset - bootstrapped site/visit samples used to develop exposure prediction models
 me_dt_path <- file.path("data", "issue_16", "issue_16_rerun", "issue_016_20230929.rda")

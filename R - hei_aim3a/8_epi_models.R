@@ -17,7 +17,7 @@ pacman::p_load(tidyverse, parallel,
 set.seed(1)
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-output_data_path <- file.path(dt_path, "epi")
+output_data_path <- file.path(dt_path, "epi", "20240725")
 
 use_cores <- 1#4
 ######################################################################
@@ -45,58 +45,25 @@ save(pm25_units, pnc_units, no2_units, file= file.path(output_data_path, "modeli
 #####################################################################################
 # STATIONARY DATA
 
-#additional designs added later. include descriptions & model eval
-## note that fewer hour designs are only for total NS, so have to use the old ones for sensitivity analyses 
-
-# --> UPDATE ONCE HAVE NEW MODELS (TOT_FEWHRS_...)
-
-# campaign_descriptions_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval.rda"
-#                                                          #"other_designs_model_eval_20240516.rda"
-# ))  %>%
-#   left_join(read.csv(file.path(dt_path, "other_designs_model_cw.csv"
-#                                #"other_designs_model_cw_20240516.csv"
-#   ))  ) %>%
-#   mutate(reference = "gs_estimate")
-
-campaign_descriptions_other_designs <- readRDS(file.path(dt_path, #"other_designs_model_eval.rda"
-                                                         "other_designs_model_eval_20240516.rda"
-                                                         ))  %>%
-  left_join(read.csv(file.path(dt_path, #"other_designs_model_cw.csv"
-                               "other_designs_model_cw_20240516.csv"
-                               ))  ) %>%
-  mutate(reference = "gs_estimate")
-
-
-###################
-# --> TEMP FOR MERGING W/ existing (non-updated) 'cs' data
-temp_cw <- campaign_descriptions_other_designs %>%
-  filter(grepl("_bh|_rh", model)) %>% 
-  mutate(
-    model = gsub("adj1|adj2", "adj", model),
-    #5/20/24
-    model = gsub("fewhrs_", "", model),
-    version_code = gsub("adj1|adj2", "adj", version_code),
-    version = gsub("adj 1|adj 2", "adj", version))
-
-campaign_descriptions_other_designs <- bind_rows(campaign_descriptions_other_designs, temp_cw) %>%
-  mutate(model=gsub("adj1", "adj", model))
-
-# unique(cs0$model)[!unique(cs0$model) %in% campaign_descriptions$model] %>% as.data.frame() %>% View()
-###################
-
-campaign_descriptions0 <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns.rda"))
-
-# I accidentally dropped these other pollutants from the temporal adjustment, so using the original 30 campaigns for these variables. Shoudl be OK since all campaigns were selected randomly anayway
-# --> TEMP: pnc_noscreen will be available in next dataset
-campaign_descriptions_fewer_hrs_sensitivity <- campaign_descriptions0 %>%
-  filter(design == "fewer hours" & variable %in% c("pnc_noscreen", "ns_10_100", "no2"))
-  
-campaign_descriptions <- campaign_descriptions0 %>%
+# original submission
+campaign_descriptions0 <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns.rda")) %>%
   filter(design %in% c("fewer total stops", "full")) %>%
-  bind_rows(campaign_descriptions_fewer_hrs_sensitivity) %>%
-  select(-performance) %>%
-  bind_rows(select(campaign_descriptions_other_designs, names(.))) %>%
+  select(-performance)
+
+# additional designs added later. include descriptions & model eval
+## note that fewer hour designs are only for total NS, so have to use the old ones for sensitivity analyses 
+campaign_descriptions_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval_20240516.rda"))  %>%
+  left_join(read.csv(file.path(dt_path, "other_designs_model_cw_20240516.csv")), by="model") %>%
+  # only thing available
+  mutate(reference = "gs_estimate") %>%
+  select(names(campaign_descriptions0))
+
+
+campaign_descriptions <- bind_rows(campaign_descriptions0, campaign_descriptions_other_designs) %>%
   filter(variable %in% main_pollutants) 
+
+# View(filter(campaign_descriptions, campaign==1, variable=="ns_total_conc"))
+# View(filter(campaign_descriptions, campaign==1, variable=="pnc_noscreen"))
 
 saveRDS(campaign_descriptions, file.path(dt_path, "Selected Campaigns", "selected_campaigns_v2.rda"))
 
@@ -105,8 +72,7 @@ cs <- cs0 %>%
   filter(model %in% campaign_descriptions$model) %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality"))),
          #keep NS & P-TRAK exposure estimate from main epi model from issue 12 (for comparision against the all-data HEI model)
-         cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr
-         ) %>%
+         cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr) %>%
   left_join(select(campaign_descriptions, model, variable), by="model") %>%
   # modeling units
   mutate(avg_0_5_yr = ifelse(grepl("ns_|pnc_", variable), avg_0_5_yr/pnc_units,
