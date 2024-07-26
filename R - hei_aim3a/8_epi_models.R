@@ -46,6 +46,8 @@ save(pm25_units, pnc_units, no2_units, file= file.path(output_data_path, "modeli
 # STATIONARY DATA
 cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) 
 
+# cs0 %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()
+
 cs <- cs0 %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality"))),
          #keep NS & P-TRAK exposure estimate from main epi model from issue 12 (for comparision against the all-data HEI model)
@@ -55,7 +57,7 @@ cs <- cs0 %>%
                              ifelse(grepl("no2", model), avg_0_5_yr/no2_units, NA)))
 
 # data with issue 12 epi models (for reference)
-cs_issue12_models <- select(cs, -c(avg_0_5_yr, model, variable)) %>%
+cs_issue12_models <- select(cs, -c(avg_0_5_yr, model)) %>%
   distinct() %>%
   pivot_longer(contains("cum_exp_"), values_to = "avg_0_5_yr", names_to = "model") %>%
   # modeling units
@@ -69,7 +71,8 @@ cs_r <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_roa
   mutate(variable = "pnc_noscreen",
          # modeling units
          avg_0_5_yr =  avg_0_5_yr/pnc_units)
-                       
+
+# cs_r %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()      
 #####################################################################################
 # ML MODELS
 cw_ml <- read.csv(file.path(dt_path, "model_ml_cw.csv")) %>%
