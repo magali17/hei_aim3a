@@ -102,24 +102,6 @@ cw <- model_perf0 %>%
                       var_code #)
     ),
     
-    #var_code = case_when(
-    # grepl("10_100", variable) ~ "ns100",
-    # grepl("11.5", variable) ~ "ns011",
-    # grepl("115.5", variable) ~ "ns115",
-    # grepl("15.4", variable) ~ "ns015",
-    # grepl("ns_20.5", variable) ~ "ns020",
-    # grepl("ns_27.4", variable) ~ "ns027",
-    # grepl("ns_27.4", variable) ~ "ns027",
-    # variable == "ns_36.5" ~ "ns036",
-    # variable == "ns_48.7" ~ "ns048",
-    # variable == "ns_64.9" ~ "ns064",
-    # variable == "ns_86.6" ~ "ns086",
-    # variable == "ns_total_conc" ~ "nstot",
-    # 
-    # # --> CHECK. OK?
-    # variable == "pnc_noscreen" ~ "ptrak",
-    # TRUE ~NA),
-    
     version_code = case_when(
       grepl("season", design) & version==1 ~"s1",
       grepl("season", design) & version==2 ~"s2",

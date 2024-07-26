@@ -185,8 +185,10 @@ model_coefs_all <- get_model_results_all_coefs(models)
 saveRDS(model_coefs_all, file.path(output_data_path, "model_coefs_all.rda"))
 
 ###########
-
 # issue 12 reference models: NS & P-TRAK
+
+# --> note that this doesn't use the extended covariates (This is for the HEI report where we did not use the extended covariate health models)
+
 message("running ISSUE 12 reference epi models...")
 models_issue12 <- mclapply(group_split(cs_issue12_models, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
 saveRDS(models_issue12, file.path(output_data_path, "models_issue12.rda"))
@@ -215,7 +217,7 @@ saveRDS(model_coefs_extended_all, file.path(output_data_path, "model_coefs_exten
 
 ####################################
 # 7/3/24. 2010+ cohort
-message("running extended models...")
+message("running 2010+ models...")
 models_2010 <- mclapply(group_split(cs, model), mc.cores=use_cores, function(x) {
   x %>% 
     filter(as.numeric(as.character(year2)) >=2010) %>%

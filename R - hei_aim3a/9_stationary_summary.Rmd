@@ -46,9 +46,9 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 set.seed(1)
 
 source("functions.R")
-output_data_path <- file.path(dt_path, "epi")
+output_data_path <- file.path(dt_path, "epi", "20240725")
 
-image_path <- file.path("..", "Manuscript", "Images", "v4") # "v3_20230321")
+image_path <- file.path("..", "Manuscript", "Images", "v5") # "v4")
 
 if(!dir.exists(file.path(image_path, "other", "presentation"))) {dir.create(file.path(image_path, "other", "presentation"), recursive = T)}
 if(!dir.exists(file.path(image_path, "other", "poster"))) {dir.create(file.path(image_path, "other", "poster"), recursive = T)}
@@ -81,12 +81,6 @@ print(paste("Qmax in tables is", bp_max))
 
 one_to_one_band <- 0.2
 
-#reference estimates
-# --> OK that ref says "more restrictive or less bal"?
-# ref_model_coefs <- model_coefs %>%
-#   filter(design=="All Data")
-# ggsave(ref_model_coefs, file.path())
-
 # UW colors
 uw_purple <- "#4b2e83"
 uw_gold1 <- "#b7a57a" # web: e8e3d3
@@ -96,8 +90,6 @@ uw_gold2 <- "#85754d"
 # LOAD DATA
 ##################################################################################################
 # exposure model crosswalks (cw)
-## first set of designs
-
 cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
   filter(design %in% c("full", "fewer total stops") |
            # these sensitivity & secondary analyses don't have a temporal adjustment
@@ -139,62 +131,45 @@ model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
 ##################################################################################################  
 model_covars_extended <- readRDS(file.path(output_data_path, "model_covars_extended.rda"))
 
-# --> TEMP there may still be a merging issue where some pnc_noscreen models have NAs..
 cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%
   # only keep subjects in extended (main) health models
   drop_na(all_of(model_covars_extended)) %>%
-  
-  # --> TEMP (CHANGE TO RIGHT_JOIN WHEN UPDATE)
   right_join(select(cw, model, variable, design, version, campaign), by="model") %>%
-  #left_join(select(cw, model, variable, design, version, campaign), by="model") %>% 
   label_pollutants() %>% label_designs() 
 
-#--> check that there are no NAs/merging issues
-
 ##################################################################################################
-model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda")) #%>%
-  # # make sure the latest model performances are used
-  # select(-c(out_of_sample, reference, RMSE, contains("R2")))
+model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda"))  
 
 model_coefs <- model_coefs0 %>% 
-  filter(model %in% unique(cs$model), #model_eval$model
-         # drop old/duplicate models
-         #!grepl("nstot_bh|nstot_rh|pncnoscreen_bh|pncnoscreen_rh", model)
-         !grepl("nstot_bh|nstot_rh", model)) %>%
+  filter(model %in% unique(cs$model)) %>%
+  right_join(select(cw, model, variable, design, version, campaign), by="model") %>%
   label_pollutants() %>% label_designs() %>%
    mutate(
     ref = ifelse((design == "Fewer Visits" & version == "12") |
                    (design == "Fewer Seasons" & version == "4") |
                    (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
-
-
-# --> TO DO: Need NO2 results
 
 # sensitivity health analyses
-model_coefs_extended <- readRDS(file.path(output_data_path, "model_coefs_extended.rda")) %>% #View()
-  # # make sure the latest model performances are used
-  # select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
+model_coefs_extended <- readRDS(file.path(output_data_path, "model_coefs_extended.rda")) %>% 
   filter(model %in% unique(cs$model)) %>%
+  right_join(select(cw, model, variable, design, version, campaign), by="model") %>%
   label_pollutants() %>% label_designs() %>%
    mutate(
     ref = ifelse((design == "Fewer Visits" & version == "12") |
                    (design == "Fewer Seasons" & version == "4") |
                    (design == "Unbalanced Visits" & version == "H12 L12"), "Balanced/More Data", "Unbalanced/Less Data")) 
 
-# do?? 2010+ sensitivity analysis
-
-model_coefs_2010 <- readRDS(file.path(output_data_path, "model_coefs_extended_2010.rda")) %>% 
-  # make sure the latest model performances are used
-  #select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
+model_coefs_2010 <- readRDS(file.path(output_data_path, "model_coefs_extended_2010.rda")) %>%
   filter(grepl("all", model),
          term =="avg_0_5_yr") %>%
   left_join(cw, by="model") %>%
   label_pollutants() %>% label_designs()
 
-exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table2024-05-20.csv"))
+exclusion_table <- read.csv(file.path(output_data_path, "exclusion_table2024-07-25.csv")) #exclusion_table2024-05-20.csv
 
 #issue 12 reference models
+# --> note that this doesn't use the extended covariates (This is for the HEI report where we did not use the extended covariate health models)
 model_coefs_issue12 <- readRDS(file.path(output_data_path, "model_coefs_issue12.rda"))
 
 # for age-equivalent calculations
@@ -223,7 +198,6 @@ ap_age_equivalents <- readRDS(file.path(output_data_path, "model_coefs_extended_
 # annual estimates
 # annual estimates: site type
 annual_site_type <- readRDS(file.path(dt_path, "annual_site_type.rda")) %>%
-  # ? only visualize a few?
   filter(!grepl(drop_site_types, version)) 
 
 # annual estimates: fewer season
@@ -257,25 +231,21 @@ annual_trainint_set <- annual_trainint_set0 %>%
 ## all data, fewer visits
 predictions0 <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>%
   filter((design %in% c("full", "fewer total stops") |
-            design == "fewer hours" & grepl("no2", variable)),
+            design == "fewer hours" & grepl("no2|ns_10_100 ", variable)), #or ns_10_100 
          variable %in% all_pollutants) %>%
   left_join(cw)
 
+# predictions0 %>% filter(location==first(location), variable=="no2", grepl("_01", model), design=="fewer hours")  
+
 # combine predictions
 ## other designs: unbalanced, temporally adjusted, fixed balanced seasons...
-predictions <- readRDS(file.path(dt_path, "UK Predictions", 
-                                                   #"other_design_predictions.rda"
-                                                   "other_design_predictions_20240516.rda"
-                                                   )) %>%
-  filter(grepl("nstot|noscreen", model),
+predictions <- readRDS(file.path(dt_path, "UK Predictions", "other_design_predictions_20240516.rda")) %>%
+  filter(#grepl("nstot|noscreen", model),
           variable %in% all_pollutants) %>% 
-  
-  # # --> TEMP
-  # mutate(model = gsub("adj1|adj2", "adj", model)) %>%
-  
-  left_join(cw) %>%
+   left_join(cw) %>%
   ## add original designs
   bind_rows(select(predictions0, names(.))) %>%
+  filter(model %in% unique(cs$model)) %>%
   
   label_pollutants() %>% label_designs() %>%
   #select(design, version, campaign, location, gs_estimate, campaign_estimate, prediction) %>% 
@@ -286,7 +256,7 @@ predictions <- readRDS(file.path(dt_path, "UK Predictions",
          #absolute error
          error = abs(error)) 
 
-
+# predictions %>% filter(campaign==1, location==first(location)) %>% View()
 
 # number of visits (stops) per site 
 stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
@@ -496,14 +466,6 @@ refs1 <- model_eval %>%
   mutate(variable = ifelse(grepl("Total", variable), "10-420 nm (Primary)", as.character(variable)),
          variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")))
 
-# r2_ref <- refs1 %>%
-#   filter(grepl("Primary", variable, ignore.case=T)) %>%
-#   pull(MSE_based_R2)
-# 
-# r2_regression_ref <- refs1 %>%
-#   filter(grepl("Primary", variable, ignore.case=T)) %>%
-#   pull(reg_based_R2)
-
 # label position is close enought for either R2
 temp <- data.frame(design=c("Fewer Visits"),
                    label = c("All-Data Reference Model"),
@@ -627,7 +589,6 @@ model_eval %>%
   kable(caption = "summary of each design's R2 as a proportion of the reference and difference", digits = 2) %>%
   kable_styling()
 
-
 ```
 
 
@@ -681,7 +642,7 @@ compare_1hr_avgs <- stops_w %>%
 
 # 1387 hour avg paired readings     #8671 2 min pars
 nrow(compare_1hr_avgs)
-# R=0.64 
+# R=0.68 
 cor(compare_1hr_avgs$ns_total_conc, compare_1hr_avgs$no2, method="pearson")
  
 ```
