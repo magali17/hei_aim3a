@@ -56,7 +56,7 @@ cs <- cs0 %>%
          #keep NS & P-TRAK exposure estimate from main epi model from issue 12 (for comparision against the all-data HEI model)
          cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr) %>%
   # modeling units
-  mutate(avg_0_5_yr = ifelse(grepl("nstot|pnc", model), avg_0_5_yr/pnc_units,
+  mutate(avg_0_5_yr = ifelse(grepl("_ns|_pnc", model), avg_0_5_yr/pnc_units,
                              ifelse(grepl("no2", model), avg_0_5_yr/no2_units, NA)))
 
 # data with issue 12 epi models (for reference)
@@ -117,11 +117,20 @@ write.csv(cw_lcm, file.path(dt_path, "model_cw_lcm.csv"), row.names = F)
 
 cs_lcm <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_lcm.rda")) %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
-  mutate(variable = "pnc_noscreen")
+  #mutate(variable = "pnc_noscreen")
+  #modeling units
+  mutate(avg_0_5_yr = ifelse(grepl("pm25", model), avg_0_5_yr/pm25_units,
+                           ifelse(grepl("no2", model), avg_0_5_yr/no2_units, NA)))
+
+# filter(cs_lcm, study_id==first(study_id)) %>% View()
 
 ######################################################################
 # EPI MODELS
 ######################################################################
+# df= group_split(cs, model)[[1]]
+# ap_prediction.=ap_prediction
+# model_covars. = model_covars
+
 lm_fn <- function(df, ap_prediction.=ap_prediction, model_covars. = model_covars) {
   result <- lm(as.formula(paste("casi_irt ~", ap_prediction., "+", paste(model_covars., collapse = "+"))), data = df)
   #save model
@@ -149,9 +158,6 @@ get_model_results <- function(dt) {
   } 
 
 ######################################################################
-# dt <- models <- readRDS(file.path(output_data_path, "models.rda"))
-# x=dt[[1]]
-
 get_model_results_all_coefs <- function(dt) {
  
   mclapply(dt, mc.cores=use_cores, function(x){

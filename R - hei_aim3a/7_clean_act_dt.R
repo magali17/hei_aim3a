@@ -269,6 +269,7 @@ health <- drop_na(health, all_of(model_covars))
 exclusion_table <- count_remaining_sample(health, description. = "all primary covariates available")
 
 saveRDS(health, file.path("data", "issue_12", "issue_012_rerun_for_release20231108", "issue_012_clean.rda"))
+# health <- readRDS(file.path("data", "issue_12", "issue_012_rerun_for_release20231108", "issue_012_clean.rda"))
 
 # counts for sensitivity analyses
 exclusion_table <- drop_na(health, all_of(model_covars_extended)) %>%
