@@ -95,16 +95,29 @@ exposure_dt_path_combined <- file.path("data", "issue_17", "issue_017_final_2024
 if(file.exists(exposure_dt_path_combined)){
   exposure0 <- readRDS(exposure_dt_path_combined)
   } else{
-    ## prior predictions (drop all all-road models & stationary fewer hour desings + old season designs)
-    exposure0.0 <- read_large_file(file.path("data", "issue_17", "issue_017_rerun20231020.rda")) %>%
-      filter(!grepl("^r_", model),
-             !grepl("_rh_|_bh_|_s1_|_s2_|_s3_|_s4_", model))
-    
-    ## part 1 (half the cohort; new temp adj stationary & all new on-road models)
+    # ## prior predictions (drop all all-road models & stationary fewer hour desings + old season designs)
+    # exposure0.0 <- read_large_file(file.path("data", "issue_17", "issue_017_rerun20231020.rda")) %>%
+    #   filter(!grepl("^r_", model),
+    #          !grepl("_rh_|_bh_|_s1_|_s2_|_s3_|_s4_", model))
+    # 
+    ## part 1 (half the cohort; new temp adj stationary for NS & ptrak & all new on-road models)
     exposure0.1 <- read_large_file(file.path("data", "issue_17", "issue_017_final_part1_20240712.rda"))
     
-    ## part 2 (other half the cohort; new temp adj stationary & all new on-road models)
+    ## part 2 (other half the cohort; new temp adj stationary for NS & ptrak & all new on-road models)
     exposure0.2 <- read_large_file(file.path("data", "issue_17", "issue_017_final_part2_20240712.rda"))
+    
+    new_models <- c(unique(exposure0.1$model), unique(exposure0.2$model)) %>% unique()
+    # data.frame(model=new_models) %>% filter(!grepl("^r_", model)) %>% View()
+    
+    ## if not updated, keep older predictions
+    exposure0.0 <- read_large_file(file.path("data", "issue_17", "issue_017_rerun20231020.rda")) %>%
+      filter(!model %in% new_models,
+             # drop old fewer seasons designs or any remaining old road designs
+             !grepl("^r_|_s1_|_s2_|_s3_|_s4_", model),
+             # drop NS & P-trak fewer hour designs, which have updated temporal adjustments
+             !grepl("s_nstot_bh|s_nstot_rh|s_nstot_fewhrs|s_pncnoscreen_bh", model))
+    
+    # exposure0.0 %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()
     
     exposure0 <- rbind(exposure0.1, exposure0.2) %>%
       rbind(exposure0.0)
