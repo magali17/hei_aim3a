@@ -241,7 +241,7 @@ saveRDS(model_coefs_r, file.path(output_data_path, "model_coefs_road.rda"))
 
 # same as above but raw for all coefficients
 models_r_all <- get_model_results_all_coefs(models_r)
-saveRDS(models_r_all, file.path(output_data_path, "models_r_all.rda")) #should be model_coefs_r_all.rda
+saveRDS(models_r_all, file.path(output_data_path, "models_r_all.rda")) 
 
 ####################################
 # 5/20/24. extended models

@@ -20,6 +20,7 @@ editor_options:
 # Setup 
 
 ```{r setup, include=FALSE}
+# Rscript -e 'rmarkdown::render("9_road_summary.Rmd", "html_document")'
 knitr::opts_chunk$set(echo = F, 
                       cache=F, cache.comments = F, 
                       message = F, warning = F, 

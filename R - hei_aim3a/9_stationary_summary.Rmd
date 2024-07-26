@@ -18,6 +18,7 @@ editor_options:
 # Setup 
 
 ```{r setup, include=FALSE}
+# Rscript -e 'rmarkdown::render("9_stationary_summary.Rmd", "html_document")'
 knitr::opts_chunk$set(echo = F, 
                       cache=F, cache.comments = F, 
                       message = F, warning = F, 
@@ -52,6 +53,7 @@ image_path <- file.path("..", "Manuscript", "Images", "v5") # "v4")
 
 if(!dir.exists(file.path(image_path, "other", "presentation"))) {dir.create(file.path(image_path, "other", "presentation"), recursive = T)}
 if(!dir.exists(file.path(image_path, "other", "poster"))) {dir.create(file.path(image_path, "other", "poster"), recursive = T)}
+if(!dir.exists(file.path(image_path, "other", "qc"))) {dir.create(file.path(image_path, "other", "qc"), recursive = T)}
 if(!dir.exists(file.path(image_path, "SI"))) {dir.create(file.path(image_path, "SI"), recursive = T)}
 
 # ggplot settings
