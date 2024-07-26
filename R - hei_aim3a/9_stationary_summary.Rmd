@@ -108,36 +108,11 @@ cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
   filter(variable %in% all_pollutants,
          !grepl(drop_site_types, version))
 
-###################
-# --> TEMP FOR MERGING W/ existing (non-updated) 'cs' data
-temp_cw <- cw %>%
-  filter(grepl("_bh|_rh", model)) %>% 
-  mutate(
-    model = gsub("adj1|adj2", "adj", model),
-    #5/20/24
-    model = gsub("fewhrs_", "", model),
-    # model = gsub("bh", "fewhrs_bh", model),
-    # model = gsub("rh", "fewhrs_rh", model),
-    
-    version_code = gsub("adj1|adj2", "adj", version_code),
-    version = gsub("adj 1|adj 2", "adj", version))
-
-cw <- bind_rows(cw, temp_cw) %>%
-  # filter(#!grepl("fewhrs", model)
-  #        !grepl("nstot_bh|nstot_rh", model)
-  #        )
-  mutate(model=gsub("adj1", "adj", model))
-
-
 ##################################################################################################
- 
 # exposure MODEL EVAL
 # exposure model performances for other designs
 model_eval_other_designs0 <- readRDS(file.path(dt_path, "other_designs_model_eval_20240516.rda")) %>%
-   select(-no_sites) %>%
-  
-  #-->TEMP UNTIL UPDATE DATASET
-  mutate(model = gsub("adj1|adj2", "adj", model))
+   select(-no_sites)  
 
 # combine  
 model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
@@ -162,7 +137,6 @@ model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
 #rm(model_eval_other_designs0)
 
 ##################################################################################################  
-# --> ??will want to update this w/ new exposres: updated temporal adjustment (also includes pnc_noscreen)
 model_covars_extended <- readRDS(file.path(output_data_path, "model_covars_extended.rda"))
 
 # --> TEMP there may still be a merging issue where some pnc_noscreen models have NAs..
@@ -172,23 +146,16 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")
   drop_na(all_of(model_covars_extended)) %>%
   
   # --> TEMP (CHANGE TO RIGHT_JOIN WHEN UPDATE)
-  #right_join(select(cw, model, variable, design, version, campaign), by="model") %>%
-  left_join(select(cw, model, variable, design, version, campaign), by="model") %>% 
-  label_pollutants() %>% label_designs() %>%
-  
-  ################################
-  # --> TEMP shouldn't matter/delete later when do right_join?
-  drop_na(exposure) %>%
-  filter(!grepl("nstot_bh|nstot_rh", model),
-         #NOT WORKING?
-         !grepl(drop_site_types, version) 
-         ) %>%
-  drop_na(design)
- 
+  right_join(select(cw, model, variable, design, version, campaign), by="model") %>%
+  #left_join(select(cw, model, variable, design, version, campaign), by="model") %>% 
+  label_pollutants() %>% label_designs() 
+
+#--> check that there are no NAs/merging issues
+
 ##################################################################################################
-model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
-  # make sure the latest model performances are used
-  select(-c(out_of_sample, reference, RMSE, contains("R2")))
+model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda")) #%>%
+  # # make sure the latest model performances are used
+  # select(-c(out_of_sample, reference, RMSE, contains("R2")))
 
 model_coefs <- model_coefs0 %>% 
   filter(model %in% unique(cs$model), #model_eval$model
@@ -206,8 +173,8 @@ model_coefs <- model_coefs0 %>%
 
 # sensitivity health analyses
 model_coefs_extended <- readRDS(file.path(output_data_path, "model_coefs_extended.rda")) %>% #View()
-  # make sure the latest model performances are used
-  select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
+  # # make sure the latest model performances are used
+  # select(-c(out_of_sample, reference, RMSE, contains("R2"))) %>% 
   filter(model %in% unique(cs$model)) %>%
   label_pollutants() %>% label_designs() %>%
    mutate(
@@ -256,13 +223,11 @@ ap_age_equivalents <- readRDS(file.path(output_data_path, "model_coefs_extended_
 # annual estimates
 # annual estimates: site type
 annual_site_type <- readRDS(file.path(dt_path, "annual_site_type.rda")) %>%
-  #select(-no2) %>%
   # ? only visualize a few?
   filter(!grepl(drop_site_types, version)) 
 
 # annual estimates: fewer season
-annual_fixed_seasons <- readRDS(file.path(dt_path, "fixed_season_annual.rda"))  #%>%
-  #select(-no2)
+annual_fixed_seasons <- readRDS(file.path(dt_path, "fixed_season_annual.rda")) 
 
 # annual estimates: fewer hours & temporal adjustment (for total NS & P-TRAK (no 10-100 nm))
 annual_temp_adj <- readRDS(file.path(dt_path, "temporal_adjustment.rda")) %>%
@@ -274,8 +239,7 @@ annual_trainint_set0 <- readRDS(file.path(dt_path, "annual_training_set.rda"))
 # annual estimates: fewer hours for 10-100 (no temporal adj available)
 annual_non_temp_adj <- annual_trainint_set0 %>%
   filter(design %in% c("fewer hours")) %>% 
-  select(location, ns_10_100, #pnc_noscreen, 
-         no2,
+  select(location, ns_10_100, no2,
          visits, campaign, design, version, spatial_temporal)
 ## combine
 fewr_hrs <- left_join(annual_temp_adj, annual_non_temp_adj)
@@ -283,8 +247,7 @@ fewr_hrs <- left_join(annual_temp_adj, annual_non_temp_adj)
 # annual estimates: combine everything
 annual_trainint_set <- annual_trainint_set0 %>%
   filter(design %in% c("full", "fewer total stops")) %>%
-  select(#-no2, 
-         -spatial_temporal) %>%
+  select(-spatial_temporal) %>%
   bind_rows(annual_site_type) %>%
   bind_rows(annual_fixed_seasons) %>% 
   bind_rows(fewr_hrs)
@@ -307,8 +270,8 @@ predictions <- readRDS(file.path(dt_path, "UK Predictions",
   filter(grepl("nstot|noscreen", model),
           variable %in% all_pollutants) %>% 
   
-  # --> TEMP
-  mutate(model = gsub("adj1|adj2", "adj", model)) %>%
+  # # --> TEMP
+  # mutate(model = gsub("adj1|adj2", "adj", model)) %>%
   
   left_join(cw) %>%
   ## add original designs
