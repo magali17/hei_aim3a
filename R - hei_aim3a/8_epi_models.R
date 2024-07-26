@@ -70,7 +70,6 @@ cs_issue12_models <- select(cs, -c(avg_0_5_yr, model)) %>%
 #####################################################################################
 # NON-STATIONARY DATA
 cs_r <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda")) %>%
-  filter(grepl(paste(main_pollutants_models, collapse = "|"), model)) %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
   mutate(variable = "pnc_noscreen",
          # modeling units
