@@ -40,9 +40,10 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 set.seed(1)
 
 source("functions.R")
-output_data_path <- file.path(dt_path, "epi")
+output_data_path <- file.path(dt_path, "epi", "20240725")
 
-image_path <- file.path("..", "Manuscript", "Images", "v4", "other", "road")
+image_path <- file.path("..", "Manuscript", "Images", "v5", #"v4", 
+                        "other", "road")
 if(!dir.exists(image_path)) {dir.create(image_path, recursive = T)}
 if(!dir.exists(file.path(image_path, "SI"))) {dir.create(file.path(image_path, "SI"), recursive = T)}
 if(!dir.exists(file.path(image_path, "presentations"))) {dir.create(file.path(image_path, "presentations"), recursive = T)}
@@ -54,30 +55,37 @@ theme_update(legend.position = "bottom")
 # FUNCTIONS
 ##################################################################################################
 # fn to recode onroad data
-design_levels <- c("Balanced", "Random Segments", "Random Clusters", "Sensible Clusters", "Unsensible Clusters", "Road Type")
-
-version_levels <- c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")
+design_levels <- c("Balanced", "Random Segments", "Random Clusters", "Sensible Clusters", "Unsensible Clusters", "Road Type", "Route")
 
 recode_onroad_dt <- function(dt) {
   dt %>%
     mutate(
-      spatial = ifelse(spatial_code=="sn", "Non-spatially Dependent Sampling", "Spatially Unbalanced Sampling"),
+      #spatial = ifelse(spatial_code=="sn", "Non-spatially Dependent Sampling", "Spatially Unbalanced Sampling"),
+      # spatial = ifelse(design %in% c("road_type", "sensible", "unsensible") | , 
+      #                  
+      #                  "Non-spatially Dependent Sampling", "Spatially Unbalanced Sampling"),
+      
+      
       visits = str_extract(visits, "\\d+"),
       version = ifelse(adjusted=="adjusted", paste(version, "plume adj"), version),
       version = gsub("hours", "hr", version),
       version = gsub("business", "bus", version),
       version = str_to_title(version),
-      version = factor(version, levels = version_levels),
+      #version = factor(version, levels = version_levels),
+      version = factor(version, levels = sort(unique(version))),
       design = case_when(
-         design=="clustered" ~ "random clusters",
-         design=="sensible spatial" ~ "sensible clusters",
-         design=="unsensible spatial" ~ "unsensible clusters",
-         design=="unbalanced" ~ "random segments",
-         .default = design),
-      design = str_to_title(design), 
+        design=="balanced" ~ "balanced",
+        design=="unbalanced" ~ "random segments",
+        design=="random" ~ "random clusters",
+        design=="sensible" ~ "sensible clusters",
+        design=="unsensible" ~ "unsensible clusters",
+        design=="road_type" ~ "road type",
+        design=="route" ~ "route",
+         ),
+      design = str_to_title(design),
       design = factor(design, levels = design_levels),
       adjusted = str_to_title(adjusted)
-      )
+      ) 
   
 }
 ##################################################################################################
@@ -112,9 +120,11 @@ summary_table <- function(df, var){
 project_crs <- 4326  #lat/long
 m_crs <- 32148
 
-# --> UPDATE CLUSTERS FILE
+clusters <- readRDS(file.path("data", "onroad", "annie", "segment_clusters_updated.rds")) %>%
+  select(-c(latitude, longitude)) %>%
+  # drop annie's old clusters for now
+  filter(cluster_type != "cluster3")
 
-clusters <- readRDS(file.path("data", "onroad", "annie", "segment_clusters.rds"))
 cov <- readRDS(file.path("data", "onroad", "dr0364d_20230331_modified.rda")) %>%
   st_as_sf(coords = c('longitude', 'latitude'), crs=project_crs, remove = F) %>%
   st_transform(m_crs)  
@@ -122,23 +132,18 @@ cov <- readRDS(file.path("data", "onroad", "dr0364d_20230331_modified.rda")) %>%
 onroad_cov <- cov %>%
   # add cluster IDs
   left_join(clusters, by = c("location" = "id")) %>%
-  select(location, cluster, everything())
+  select(location, cluster_type, #cluster, 
+         everything())
 
 saveRDS(onroad_cov, file.path("data", "onroad", "dr0364d_20230331_modified_with_clusters.rda"))
 
-
 # crosswalks
-# --> UPDATE
-cw <- read.csv(file.path(dt_path, "onroad_model_cw ______.csv"
-                         )) %>%
-  
-  # #drop non-balanced segment level designs
-  # filter(!grepl("sn_baln", model)) %>%
-  
+cw <- read.csv(file.path(dt_path, "onroad", "onroad_model_cw.csv")) %>%
+  # drop annie's old clusters for now
+  filter(!grepl("_c3_", model)) %>%
   mutate(variable="pnc_noscreen") %>%
   recode_onroad_dt() %>%
   label_pollutants() 
-
 
 stationary_cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
   filter(variable =="pnc_noscreen",
@@ -146,31 +151,36 @@ stationary_cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
   label_pollutants()  %>%
   mutate(visits = "29",
          adjusted = "Unadjusted",
-         spatial = "Reference"
+         #spatial = "Reference"
          )
 
 cw2 <- bind_rows(cw, stationary_cw) %>%
-  select(model, campaign, version, design, visits, adjusted, spatial)
-
-
-
+  select(model, campaign, version, design, visits, adjusted, #spatial
+         )
 
 #model eval
-model_eval <- readRDS(file.path(dt_path, "onroad_model_eval.rda")) %>%
-  right_join(select(cw, spatial, design, version, visits, adjusted, campaign, model)) 
-    
+eval_files <- list.files(file.path(dt_path, "onroad", "model_eval")) %>% str_subset(".rda")
+
+model_eval <- lapply(eval_files, function(x){
+  readRDS(file.path(dt_path, "onroad", "model_eval", x)) %>%
+    # drop annie's old clusters for now
+    filter(!grepl("_c3_", model)) %>%
+    left_join(select(cw, #spatial, 
+                    design, version, visits, adjusted, campaign, model), by="model") 
+  }) %>%
+  bind_rows()
+  
 stationary_model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
   filter(reference == "gs_estimate",
          model %in% stationary_cw$model)  
 
-#ref health estimates from stationary models
-ref_model_coefs <- readRDS(file.path(output_data_path, "model_coefs.rda")) %>%
-  filter(design=="full",
-         variable == "pnc_noscreen") %>%
-  left_join(select(stationary_model_eval, model, reg_based_R2))
+#ref health estimates from stationary models & extended health analyses
+ref_model_coefs <- readRDS(file.path(output_data_path, "model_coefs_extended.rda" #"model_coefs.rda"
+                                     )) %>%
+  filter(model=="s_pncnoscreen_all_01") %>%
+  left_join(select(stationary_model_eval, model, reg_based_R2), by="model")
  
 tot_pnc <- filter(ref_model_coefs, model=="s_pncnoscreen_all_01") %>% pull(est)
-
 
 # person-level exposures 
 stationary_cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
@@ -184,32 +194,36 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.
   right_join(cw) %>%
   bind_rows(stationary_cs)
 
-  
 # health effect estimates & CW
-model_coefs <- readRDS(file.path(output_data_path, "model_coefs_road.rda")) %>%
-  filter(model %in% cw$model) %>%
+model_coefs <- readRDS(file.path(output_data_path, "model_coefs_road_extended.rda" #"model_coefs_road.rda"
+                                 )) %>%
+  right_join(cw, by="model") %>%
+  #filter(model %in% cw$model) %>%
   mutate(variable="pnc_noscreen",
-         pct_difference = (est-tot_pnc)/-tot_pnc*100
-         ) %>%
-  recode_onroad_dt() %>%
-  label_pollutants()
+         pct_difference = (est-tot_pnc)/tot_pnc*100#-tot_pnc*100
+         )  
 
 # onroad model predictions at stationary locations
-onroad_predictions <- readRDS(file.path(dt_path, "UK Predictions", "onroad_predictions.rda")) %>% right_join(cw)
+stationary_prediction_files <- list.files(file.path(dt_path, "onroad", "model_eval", "predictions_at_stationary_sites"))
+
+onroad_predictions <- lapply(stationary_prediction_files, function(x){
+  readRDS(file.path(dt_path, "onroad", "model_eval", "predictions_at_stationary_sites", x))
+}) %>%
+  bind_rows() %>% 
+  right_join(cw, by="model")
 
 all_predictions <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>%
   filter(design == "full",
          variable == "pnc_noscreen") %>%
   mutate(model = "s_pncnoscreen_all_01",
          visits = "29", #as.character(visits)
-         version = "All Hr"
-         ) %>%
-  left_join(stationary_cw %>% 
-               select(variable, design, model)) #%>%
+         version = "All Hr") %>%
+  left_join(select(stationary_cw, variable, design, model)) #%>%
   # select(names(onroad_predictions)) %>%
   # bind_rows(onroad_predictions) %>% 
-all_predictions <- bind_rows(onroad_predictions, all_predictions) %>%
-  mutate(version = factor(version, levels = c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")),)
+
+all_predictions <- bind_rows(onroad_predictions, all_predictions) #%>%
+  #mutate(version = factor(version, levels = c("All Hr Plume Adj", "All Hr", "Bus Hr Plume Adj", "Bus Hr")),)
 
 
 # --> ERROR W/ LABEL MERGING  
@@ -226,7 +240,8 @@ stops_w <- readRDS(file.path(dt_path, "stops_used.rda"))
 ##################################################################################################
 # COMMON VARIABLES
 ##################################################################################################
-spatial_names <- unique(model_eval$spatial)
+#spatial_names <- unique(model_eval$spatial)
+version_levels <- unique(cw$version)
 
 ```
 
@@ -254,15 +269,16 @@ stops_w %>%
 # mobile data
 
 ```{r}
-onroad_cov %>%
-  st_drop_geometry() %>%
-  summarize(
-    locations = length(unique(location)),
-    clusters = length(unique(cluster)),
-     #mean_segments_per_cluster
-  ) %>%
-  kable(caption = "onroad segments and spatial clusters used") %>%
-  kable_styling()
+# onroad_cov %>%
+#   st_drop_geometry() %>%
+#   group_by(cluster_type) %>%
+#   summarize(
+#     locations = length(unique(location)),
+#     #clusters = length(unique(cluster_type)),
+#      #mean_segments_per_cluster
+#   ) %>%
+#   kable(caption = "onroad segments and spatial clusters used") %>%
+#   kable_styling()
 
 ```
 
@@ -274,11 +290,9 @@ Brian's example: https://github.com/brianhigh/test_stopr/blob/main/test_stopr.md
 ```{r}
  
 onroad_cov %>%
-  # st_transform(m_crs) %>%
-  # cbind(st_coordinates(.)) %>%
-  
-  mutate(cluster = as.factor(cluster)) %>%
-  ggplot(aes(col=cluster), ) +
+  #mutate(cluster = as.factor(cluster_type)) %>%
+  ggplot(aes(col=cluster_value), ) +
+  facet_wrap(~cluster_type) + 
   geom_sf(size=0.5, show.legend=F) +
   
   # add scale & N arrow to top rught
@@ -287,10 +301,9 @@ onroad_cov %>%
   annotation_north_arrow(location = "tr", pad_y = unit(0.5, "in"), style = north_arrow_fancy_orienteering) +
   
   theme_bw() + 
-  theme(#legend.background =  element_blank()
-    # remove the vertical grid lines
-    panel.grid.major = element_blank()
-        )
+  theme(# remove the vertical grid lines
+        panel.grid.major = element_blank()) + 
+  scale_color_viridis_c()
 
 ggsave(file.path(image_path, "SI", "cluster_map.png"), width = 4, height = 8)
 
