@@ -115,7 +115,7 @@ if(file.exists(exposure_dt_path_combined)){
              # drop old fewer seasons designs or any remaining old road designs
              !grepl("^r_|_s1_|_s2_|_s3_|_s4_", model),
              # drop NS & P-trak fewer hour designs, which have updated temporal adjustments
-             !grepl("s_nstot_bh|s_nstot_rh|s_nstot_fewhrs|s_pncnoscreen_bh", model))
+             !grepl("s_nstot_bh|s_nstot_rh|s_nstot_fewhrs|s_pncnoscreen_bh|s_pncnoscreen_rh", model))
     
     # exposure0.0 %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()
     
