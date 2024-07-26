@@ -31,6 +31,8 @@ main_pollutants <-c(
 
 saveRDS(main_pollutants, file.path(output_data_path, "main_pollutants.rda"))
 
+main_pollutants_models <-c("nstot", "ns10100", "pncnoscreen", "no2")
+
 model_covars <- readRDS(file.path(output_data_path, "model_covars.rda"))
 # extended adjusted models
 model_covars_extended <- readRDS(file.path(output_data_path, "model_covars_extended.rda"))
@@ -44,7 +46,8 @@ no2_units <- 3
 save(pm25_units, pnc_units, no2_units, file= file.path(output_data_path, "modeling_units.rdata"))
 #####################################################################################
 # STATIONARY DATA
-cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) 
+cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
+  filter(grepl(paste(main_pollutants_models, collapse = "|"), model))
 
 # cs0 %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()
 
@@ -67,6 +70,7 @@ cs_issue12_models <- select(cs, -c(avg_0_5_yr, model)) %>%
 #####################################################################################
 # NON-STATIONARY DATA
 cs_r <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda")) %>%
+  filter(grepl(paste(main_pollutants_models, collapse = "|"), model)) %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
   mutate(variable = "pnc_noscreen",
          # modeling units
