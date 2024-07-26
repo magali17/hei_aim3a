@@ -88,18 +88,12 @@ health0 <- read_large_file(health_dt_path)
 
 exclusion_table <- count_remaining_sample(health0, description. = "Full dataset")
 
-
- 
 # exposure predictions from different datasets & models
 exposure_dt_path_combined <- file.path("data", "issue_17", "issue_017_final_20240712.rda")
+
 if(file.exists(exposure_dt_path_combined)){
   exposure0 <- readRDS(exposure_dt_path_combined)
   } else{
-    # ## prior predictions (drop all all-road models & stationary fewer hour desings + old season designs)
-    # exposure0.0 <- read_large_file(file.path("data", "issue_17", "issue_017_rerun20231020.rda")) %>%
-    #   filter(!grepl("^r_", model),
-    #          !grepl("_rh_|_bh_|_s1_|_s2_|_s3_|_s4_", model))
-    # 
     ## part 1 (half the cohort; new temp adj stationary for NS & ptrak & all new on-road models)
     exposure0.1 <- read_large_file(file.path("data", "issue_17", "issue_017_final_part1_20240712.rda"))
     
@@ -117,16 +111,14 @@ if(file.exists(exposure_dt_path_combined)){
              # drop NS & P-trak fewer hour designs, which have updated temporal adjustments
              !grepl("s_nstot_bh|s_nstot_rh|s_nstot_fewhrs|s_pncnoscreen_bh|s_pncnoscreen_rh", model))
     
-    # exposure0.0 %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()
-    
     exposure0 <- rbind(exposure0.1, exposure0.2) %>%
       rbind(exposure0.0)
     saveRDS(exposure0, exposure_dt_path_combined)
     
+    # exposure0 %>% filter(grepl("_01", model), study_id==first(study_id), !grepl("^r_", model)) %>% View()
+    
     rm(exposure0.0, exposure0.1, exposure0.2)
   }
-
-# exposure0.0 %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()
 
 # measurement error dataset - bootstrapped site/visit samples used to develop exposure prediction models
 me_dt_path <- file.path("data", "issue_16", "issue_16_rerun", "issue_016_20230929.rda")
@@ -150,8 +142,6 @@ message("selecting exposure models")
 # si's ML UFP models
 ml_models <- c("upls", "uspatpl", "uspatcv", "urf", "utprs", "urt", "utr")
 # low-cost sensor/monitor (LCM) models
-
-# --> UPDATE??
 
 # #non- MM models
 # grep("r_|s_", unique(exposure0$model), invert = T, value = T)
@@ -283,7 +273,6 @@ saveRDS(health, file.path("data", "issue_12", "issue_012_rerun_for_release202311
 # counts for sensitivity analyses
 exclusion_table <- drop_na(health, all_of(model_covars_extended)) %>%
   count_remaining_sample(., description. = "all primary & secondary covariates available")
-
 
 # 2010+ only
 exclusion_table <- health %>%

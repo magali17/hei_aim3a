@@ -44,39 +44,15 @@ no2_units <- 3
 save(pm25_units, pnc_units, no2_units, file= file.path(output_data_path, "modeling_units.rdata"))
 #####################################################################################
 # STATIONARY DATA
-
-# original submission
-campaign_descriptions0 <- readRDS(file.path(dt_path, "Selected Campaigns", "selected_campaigns.rda")) %>%
-  filter(design %in% c("fewer total stops", "full")) %>%
-  select(-performance)
-
-# additional designs added later. include descriptions & model eval
-## note that fewer hour designs are only for total NS, so have to use the old ones for sensitivity analyses 
-campaign_descriptions_other_designs <- readRDS(file.path(dt_path, "other_designs_model_eval_20240516.rda"))  %>%
-  left_join(read.csv(file.path(dt_path, "other_designs_model_cw_20240516.csv")), by="model") %>%
-  # only thing available
-  mutate(reference = "gs_estimate") %>%
-  select(names(campaign_descriptions0))
-
-
-campaign_descriptions <- bind_rows(campaign_descriptions0, campaign_descriptions_other_designs) %>%
-  filter(variable %in% main_pollutants) 
-
-# View(filter(campaign_descriptions, campaign==1, variable=="ns_total_conc"))
-# View(filter(campaign_descriptions, campaign==1, variable=="pnc_noscreen"))
-
-saveRDS(campaign_descriptions, file.path(dt_path, "Selected Campaigns", "selected_campaigns_v2.rda"))
-
 cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) 
+
 cs <- cs0 %>%
-  filter(model %in% campaign_descriptions$model) %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality"))),
          #keep NS & P-TRAK exposure estimate from main epi model from issue 12 (for comparision against the all-data HEI model)
          cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr) %>%
-  left_join(select(campaign_descriptions, model, variable), by="model") %>%
   # modeling units
-  mutate(avg_0_5_yr = ifelse(grepl("ns_|pnc_", variable), avg_0_5_yr/pnc_units,
-                              ifelse(grepl("no2", variable), avg_0_5_yr/no2_units, NA)))
+  mutate(avg_0_5_yr = ifelse(grepl("nstot|pnc", model), avg_0_5_yr/pnc_units,
+                             ifelse(grepl("no2", model), avg_0_5_yr/no2_units, NA)))
 
 # data with issue 12 epi models (for reference)
 cs_issue12_models <- select(cs, -c(avg_0_5_yr, model, variable)) %>%
@@ -88,10 +64,6 @@ cs_issue12_models <- select(cs, -c(avg_0_5_yr, model, variable)) %>%
 
 #####################################################################################
 # NON-STATIONARY DATA
-
-# --> UPDATE FILE PATHS
-cw_r <- read.csv(file.path(dt_path, "onroad_model_cw.csv"))
-
 cs_r <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda")) %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality")))) %>%
   mutate(variable = "pnc_noscreen",
@@ -195,8 +167,7 @@ saveRDS(models, file.path(output_data_path, "models.rda"))
 
 message("saving model coeficients...")
 model_coefs0 <- get_model_results(models)
-model_coefs <- left_join(model_coefs0, campaign_descriptions)
-saveRDS(model_coefs, file.path(output_data_path, "model_coefs.rda"))
+saveRDS(model_coefs0, file.path(output_data_path, "model_coefs.rda"))
 # same as above but raw for all coefficients
 model_coefs_all <- get_model_results_all_coefs(models)
 saveRDS(model_coefs_all, file.path(output_data_path, "model_coefs_all.rda"))
@@ -224,8 +195,7 @@ saveRDS(models_extended, file.path(output_data_path, "models_extended.rda"))
 
 message("saving model coeficients...")
 model_coefs0_extended <- get_model_results(models_extended)
-model_coefs_extended <- left_join(model_coefs0_extended, campaign_descriptions)
-saveRDS(model_coefs_extended, file.path(output_data_path, "model_coefs_extended.rda"))
+saveRDS(model_coefs0_extended, file.path(output_data_path, "model_coefs_extended.rda"))
 
 # same as above but raw for all coefficients
 model_coefs_extended_all <- get_model_results_all_coefs(models_extended)
@@ -252,8 +222,7 @@ models_r <- mclapply(group_split(cs_r, model), mc.cores=use_cores, function(x) {
 saveRDS(models_r, file.path(output_data_path, "models_road.rda"))
 
 message("saving model coeficients...")
-model_coefs_r <- get_model_results(models_r) %>%
-  left_join(cw_r)
+model_coefs_r <- get_model_results(models_r)  
 saveRDS(model_coefs_r, file.path(output_data_path, "model_coefs_road.rda"))
 
 # same as above but raw for all coefficients
@@ -267,8 +236,7 @@ models_r_extended <- mclapply(group_split(cs_r, model), mc.cores=use_cores, func
 saveRDS(models_r_extended, file.path(output_data_path, "models_road_extended.rda"))
 
 message("saving model coeficients...")
-model_coefs_r_extended <- get_model_results(models_r_extended) %>%
-  left_join(cw_r)
+model_coefs_r_extended <- get_model_results(models_r_extended)  
 saveRDS(model_coefs_r_extended, file.path(output_data_path, "model_coefs_road_extended.rda"))
 
 ######################################################################
@@ -278,8 +246,7 @@ models_ml <- mclapply(group_split(cs_ml, model), mc.cores=use_cores, function(x)
 saveRDS(models_ml, file.path(output_data_path, "models_ml.rda"))
 
 message("saving model coeficients...")
-model_coefs_ml <- get_model_results(models_ml) %>%
-  left_join(cw_ml)
+model_coefs_ml <- get_model_results(models_ml)  
 saveRDS(model_coefs_ml, file.path(output_data_path, "model_coefs_ml.rda"))
 
 # same as above but raw for all coefficients
@@ -293,8 +260,7 @@ models_lcm <- mclapply(group_split(cs_lcm, model), mc.cores=use_cores, function(
 saveRDS(models_lcm, file.path(output_data_path, "models_lcm.rda"))
 
 message("saving model coeficients...")
-model_coefs_lcm <-  get_model_results(models_lcm) %>%
-  left_join(cw_lcm)
+model_coefs_lcm <-  get_model_results(models_lcm)  
 saveRDS(model_coefs_lcm, file.path(output_data_path, "model_coefs_lcm.rda"))
 
 # same as above but raw for all coefficients
