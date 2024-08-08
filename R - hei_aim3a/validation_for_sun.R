@@ -149,19 +149,62 @@ weekdays_df <- future_replicate(n = sim_n,
 
 
 ##################################################################################################
+# FEWER VISITS (added 8/6/24)  
+##################################################################################################
+message("fewer visit campaigns")
+
+site_n2 <- length(unique(stops_w$location)) # all 309
+# 4 is on-road median for some of the unbalanced sampling distributions
+visit_n2 <- c(16, 20, 24)
+
+site_visit_df <- data.frame()
+
+set.seed(3)
+
+for(v in visit_n2) {
+  temp <- replicate(n = sim_n, simplify = F,
+                    expr = mclapply(site_n2, #mc.cores = 5,
+                                    function(x) {
+                                      #sample sites
+                                      sample_sites <- sample(unique(stops_w$location), size = x, replace = F)
+
+                                      #sample visits
+                                      filter(stops_w, location %in% sample_sites) %>%
+                                        group_by(location) %>%
+                                        slice_sample(n = v, replace=T) %>%
+                                        mutate(visits = n()) %>%
+                                        #calculate annual average
+                                        summarize_at(all_of(c(keep_vars, "visits")), ~mean(., na.rm=T)) %>%
+                                        mutate(version = paste0(v, "_visits ", x, "_sites"))
+                                    })) %>%
+    bind_rows() %>%
+
+    ungroup() %>%
+    mutate(
+      campaign = rep(1:sim_n, each=nrow(.)/sim_n),
+      design = "fewer total stops",
+      spatial_temporal = "spatial temporal"
+    )
+
+  site_visit_df <- rbind(site_visit_df, temp)
+
+}
+
+site_visit_df <- select(site_visit_df, names(weekdays_df))
+
+##################################################################################################
 # combine datsets
 annual_training_set_sun <- rbind(true_annual,
                                  fewer_sites_df, 
-                                 weekdays_df) 
+                                 weekdays_df,
+                                 site_visit_df) 
 
 saveRDS(annual_training_set_sun, file.path(dt_path_sun, "annual_training_set_sun.rda"))
-
-
 
 ##################################################################################################
 # RANDOM FOLDS FOR CV
 ##################################################################################################
-annual_sun <- annual_training_set_sun %>% #readRDS(file.path(dt_path, "annual_training_set.rda")) %>%
+annual_sun <- annual_training_set_sun %>%  
   #add covariates
   left_join(modeling_covars) %>%
   #convert to sf
@@ -226,8 +269,6 @@ cv_predictions <- cv_predictions0 %>%
 ##################################################################################################
 # OUT-OF-SAMPLE VALIDATION FOR FEWER SITES DESIGNS
 ##################################################################################################
-# ?? VALIDATE at all other sites
-
 site_names <- unique(annual_sun$location)
 oos_df <- annual_sun %>%
   filter(design== "full")
@@ -240,10 +281,8 @@ set.seed(1)
 
 # x=group_split(filter(annual_sun, design == "fewer sites"), design, version, campaign)[[1]]
 
-oos_predictions0 <- #mclapply(group_split(filter(annual_sun, variable == i), design, version, campaign),
-    lapply(group_split(filter(annual_sun, design == "fewer sites"), design, version, campaign),
-                 #mc.cores = use_cores,
-                 function(x) {
+oos_predictions0 <- lapply(group_split(filter(annual_sun, design == "fewer sites"), design, version, campaign),
+                           function(x) {
                    
                    training_sites <- unique(x$location)
                    
@@ -284,8 +323,6 @@ predictions_estimates_sun <- predictions_sun %>%
   mutate(reference = "gs_estimate") %>%
   mutate_at(vars(contains(c("estimate", "prediction", "value"))), ~exp(.))
 
-
-
 ##################################################################################################
 # MODEL PERFORMANCE
 ##################################################################################################
@@ -321,12 +358,9 @@ model_perf_other_designs <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
   filter(variable %in% keep_vars,
         reference== "gs_estimate",
         #drop 4 season
-        version != "4"
-        ) %>%
-  mutate(
-    validation = "CV",
-    no_sites = 309
-  )
+        version != "4") %>%
+  mutate(validation = "CV",
+         no_sites = 309)
 
 #distinct(model_perf_other_designs, design, version)
 

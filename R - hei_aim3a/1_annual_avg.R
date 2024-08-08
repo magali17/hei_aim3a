@@ -440,6 +440,20 @@ for(v in visit_n2) {
 site_visit_df <- select(site_visit_df, names(temporal_sims))
 
 ##################################################################################################
+# FOR SUN
+
+
+
+
+
+
+
+
+
+
+
+
+##################################################################################################
 # combine spatial and temporal simulations
 
 annual_training_set <- rbind(temporal_sims, site_visit_df) 

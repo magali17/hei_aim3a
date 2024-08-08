@@ -38,9 +38,9 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 set.seed(1)
 
 source("functions.R")
-output_data_path <- file.path(dt_path, "epi")
+output_data_path <- file.path(dt_path, "epi", "20240725")
 
-image_path <- file.path("..", "Manuscript", "Images", "v4", "other", "lcm")
+image_path <- file.path("..", "Manuscript", "Images", "v5", "other", "lcm")
 if(!dir.exists(image_path)) {dir.create(image_path, recursive = T)}
 # ggplot settings
 theme_set(theme_bw())
@@ -76,16 +76,31 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_lcm.r
 # --> START HERE. ERROR. WHY WON'T MODEL FACTOR SO LAST PLOT IS REARRANGED??
 # health effect estimates & CW
 model_coefs <- readRDS(file.path(output_data_path, "model_coefs_lcm.rda")) %>%
-  mutate(variable= ifelse(grepl("no2", model), "NO2", "PM2.5"),  
+  
+  mutate(#model_type = ifelse(grepl("_SP", model), "SP", "ST"),
+         
+         variable= ifelse(grepl("no2", model), "NO2", "PM2.5"),  
          model = gsub("pm25_", "", model),
          model = gsub("no2_SP_", "no2", model),
          model = as.factor(model),
-         #model = relevel(model, ref=st_ref_model),
          ref_model = ifelse(model %in% c(st_ref_model, sp_ref_model, "no22_1", "no2_SP_2_1"), "Full Model", "Alternative LCM Model"),
          ref_model = factor(ref_model, levels=c("Full Model", "Alternative LCM Model"))) %>%
-  left_join(cw) #%>% filter(model != sp_ref_model)
+  left_join(cw) 
 
 #model_coefs$model
+
+# quick fix for NO2 - has formatting issues otherwise
+model_coefs_no2 <- readRDS(file.path(output_data_path, "model_coefs_lcm.rda")) %>%
+  filter(grepl("no2", model)) %>%
+  mutate(model_type = ifelse(grepl("_SP", model), "SP", "ST"),
+         method = ifelse(grepl("2_1", model), "With LCM",
+                         ifelse(grepl("6_1", model), "No LCM", NA)),
+         method = factor(method, levels=c("With LCM", "No LCM")),
+         ref_model = ifelse(model %in% c(st_ref_model, sp_ref_model, "no22_1", "no2_SP_2_1"), "Full Model", "Alternative LCM Model"),
+         ref_model = factor(ref_model, levels=c("Full Model", "Alternative LCM Model"))
+         )
+
+
 
 ```
 
@@ -206,14 +221,14 @@ ggsave(file.path(image_path, "pm25_health_estimate.png"), width = 8, height = 6)
 ## NO2
 
 ```{r}
-ref_beta <- model_coefs$est[model_coefs$model=="no22_1" & model_coefs$model_type=="ST"]
+ref_beta <- model_coefs_no2$est[model_coefs_no2$model=="no22_1"] #ST no22_1
 
-model_coefs %>%
-    filter(variable=="NO2",
-           model %in% c("no22_1", "no2_SP_2_1", #gold w/o historical - all monitors, ST & SP models
-                        "no26_1", "no2_SP_6_1" #no homes - AQS + 3 snapshot
+model_coefs_no2 %>%
+    filter(
+           model %in% c("no22_1", "no2_SP_2_1", # with LCM ##gold w/o historical - all monitors, ST & SP models #UPDATED Jul 2024
+                        "no26_1", "no2_SP_6_1" # no LCM  ##no homes - AQS + 3 snapshot
                         )) %>%
-  mutate(method = str_wrap(method, width = 22)) %>%
+  
 
   ggplot(aes(#y=model, 
              y=method, 

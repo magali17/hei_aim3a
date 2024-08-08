@@ -26,7 +26,7 @@ pacman::p_load(tidyverse,
                )    
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-dt_path <- file.path(dt_path, "epi")
+dt_path <- file.path(dt_path, "epi", "20240725")
 
 set.seed(1)
 
