@@ -1334,10 +1334,6 @@ model_coefs_extended %>%
 # plots 
 # for individual pollutants
 
-# dt=model_coefs
-# true_betas.=true_betas
-# variable.="NO2"
-# facet_label="Reduced Model" 
 beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420", facet_label="Reduced Health Model") {
   true_betas. <- filter(true_betas., grepl(variable., variable)) %>%
     mutate(design="All Data",
@@ -1373,15 +1369,6 @@ beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420", facet_l
     labs(y = NULL, #"Health Point Estimate", 
          x = "Design",
        fill= NULL)
-  
-  # if(grepl("Not", true_betas.$significant,ignore.case = T)){
-  #   p <- p + geom_text(inherit.aes = F, data=true_betas., aes(x=1, y=est*2, label=significant)) 
-  # }
-  
-  # # # make the % label the correct direction of estimate happens to be positive
-  # if(true_betas.$est>0){
-  #   #p <- p + scale_y_continuous(breaks =breaks=c(-2,1, 4))
-  #   }
     
   print(p)
   }
@@ -1395,6 +1382,29 @@ ggarrange(reduced_models,  extended_models, ncol = 1, common.legend = T, legend 
                   bottom = "Design")
 ggsave(file.path(image_path, "beta_boxplots_main_reduced.png"), width = 12, height = 10)
 
+################################################################################################
+# HEI Report results
+
+reduced_models_hei <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas, facet_label = "Main Health Model")
+extended_models_hei <- beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Extended Adjusted Health Model")
+
+ggarrange(reduced_models_hei,  extended_models_hei, ncol = 1, common.legend = T, legend = "bottom") %>%
+  annotate_figure(left = "Health Point Estimate",
+                  right = "Health Point Estimate (% Different from Reference)", 
+                  bottom = "Design")
+ggsave(file.path(image_path, "HEI Report", "beta_boxplots_main_reduced.png"), width = 12, height = 10)
+
+# beta_summary_plot(dt=model_coefs, true_betas.=true_betas, facet_label = "") + 
+#   labs(y="Health Point Estimate")
+# 
+# ggsave(file.path(image_path, "HEI Report", "beta_boxplots_main_reduced.png"), width = 12, height = 5)
+# 
+# 
+# beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Extended Adjusted Health Model") + 
+#   labs(y="Health Point Estimate")
+# ggsave(file.path(image_path, "HEI Report", "Appendix", "beta_boxplots_extended.png"), width = 12, height = 5)
+
+################################################################################################
 # SI - other pollutants
 y_lims_sensitivity <- range(model_coefs_extended$est)
 y_lims_sensitivity_pct <- seq(-2,2, 1)

@@ -37,7 +37,9 @@ pacman::p_load(tidyverse, kableExtra, ggpubr, sf, ggspatial,# ggpubr::ggarange()
                rosm, ## For OpenStreetMap tiles (background)
                ggspatial, # annotation_spatial
                tigris,
-               ggmap
+               ggmap,
+               colorblindr
+               #ggsci #scale_fill_jco()
                )    
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
@@ -59,7 +61,12 @@ theme_update(legend.position = "bottom")
 # FUNCTIONS
 ##################################################################################################
 # fn to recode onroad data
-design_levels <- c("All", "Balanced", "Random Segments", "Random Clusters", "Sensible Clusters", "Unsensible Clusters", "Road Type", "Route")  %>% rev()
+# design_levels <- c("All", "Balanced", #"Balanced Segments",
+#                    "Random Segments", "Random Clusters", "Sensible Clusters", "Unsensible Clusters", 
+#                    "Road Type", "Route")  %>% rev()
+
+
+design_levels <- c("Route", "Road Type", "Unsensible Clusters", "Random Clusters", "Sensible Clusters", "Random Segments", "Balanced")
 
 recode_onroad_dt <- function(dt) {
   dt %>%
@@ -152,6 +159,64 @@ prep_for_figs <- function(dt,
 }
 
 ##################################################################################################
+# return results relevant for HEI 
+keep_hei_results <- function(dt, keep_visits = c(main_visits, alt_visits)) {
+ dt %>%
+  filter(visits %in% keep_visits,
+         design %in% hei_designs,
+         !grepl("Random|Adj 2", version),
+         cluster_type %in% c(NA, "cluster1")) 
+}
+ 
+# return results relevant for main analyses
+keep_main_results <- function(dt, 
+                             keep_visits = c(main_visits, alt_visits),
+                             designs_to_keep = main_designs,
+                             versions_to_keep = main_versions,
+                             visits_to_keep=main_visits,
+                             cluster_to_keep = main_cluster
+                             ) {
+  dt %>%
+    filter(visits %in% keep_visits,
+           design %in% designs_to_keep,
+           version %in% versions_to_keep,
+           cluster_type %in% c(NA, main_cluster)) 
+}
+
+##################################################################################################
+adjustments <- c("No Adjustment", "Temporal Adj 1", "Temporal Adj 1 Random", "Temporal Adj 2", "Temporal Adj 2 Random", "Plume Adj", "Temporal Adj 1 + Plume Adj", "Temporal Adj 1 Random + Plume Adj", "Temporal Adj 2 + Plume Adj", "Temporal Adj 2 Random + Plume Adj")
+
+add_labels <- function(dt#, 
+                      # designs_to_keep = main_designs,
+                      # versions_to_keep = main_versions,
+                      # visits_to_keep=main_visits,
+                      # cluster_to_keep = main_cluster
+                      ){
+  
+  dt %>%
+    # filter(design %in% designs_to_keep,
+    #        version %in% versions_to_keep,
+    #        visits %in% visits_to_keep,
+    #        cluster_type %in% c(cluster_to_keep, NA)) %>%
+    mutate(
+      time_selection = ifelse(grepl("All Hr", version), "All Days & Hours Sampling",
+                        ifelse(grepl("Bus Hr", version), "Weekday Business Hours Sampling", NA)),
+      time_selection = factor(time_selection, levels=c("Bus Hr", "Weekday Business Hours Sampling", "All Hr", "All Days & Hours Sampling")),
+      version = as.character(version),
+      version = ifelse(version %in% c("All Hr","Bus Hr"), "No Adjustment", version),
+      version = gsub("All Hr |Bus Hr ", "", version),
+      version = gsub("Temp ", "Temporal ", version),
+      #version = gsub("Adj", "Adjustment", version),
+      version = gsub(" Plume Adj", " + Plume Adj", version),
+      version = factor(version, levels= adjustments),
+      
+      design = as.character(design),
+      design = factor(design, levels= design_levels),
+      visit_label = paste(visits, "visits"))
+  }
+
+
+##################################################################################################
 # LOAD DATA
 ##################################################################################################
 # raw mobile data
@@ -209,6 +274,11 @@ model_eval <- lapply(eval_files, function(x){
   }) %>%
   bind_rows()
   
+
+model_eval2 <- add_labels(model_eval)  
+
+#####################################################################
+
 stationary_model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
   filter(reference == "gs_estimate",
          model %in% stationary_cw$model)  
@@ -232,7 +302,8 @@ tot_pnc_reduced <- filter(ref_model_coefs_reduced, model=="s_pncnoscreen_all_01"
 
 
 
-
+############################################################
+# LARGE FILES
 # person-level exposures 
 stationary_cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%  
@@ -244,6 +315,8 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.
   select(-starts_with("avg_")) %>%
   right_join(cw, by="model") %>%
   bind_rows(stationary_cs)
+
+############################################################
 
 # health effect estimates & CW
 model_coefs <- readRDS(file.path(output_data_path, "model_coefs_road_extended.rda")) %>%
@@ -265,8 +338,7 @@ stationary_prediction_files <- list.files(file.path(dt_path, "onroad", "model_ev
 
 # x=stationary_prediction_files[1]
 onroad_predictions <- lapply(stationary_prediction_files, function(x){
-  readRDS(file.path(dt_path, "onroad", "model_eval", "predictions_at_stationary_sites", x))
-  }) %>%
+  readRDS(file.path(dt_path, "onroad", "model_eval", "predictions_at_stationary_sites", x))}) %>%
   bind_rows() %>% 
   right_join(cw, by="model")
 
@@ -298,7 +370,6 @@ monitoring_area <- readRDS(file.path("data", "GIS", "monitoring_area_shp.rda"))
 ##################################################################################################
 main_designs <- str_subset(design_levels, "Sensible|Unsensible|Road Type", negate = T)
 
-
 #version_levels <- unique(cw$version)
 version_levels <- c("All Hr Plume Adj", "All Hr", 
                   
@@ -328,6 +399,16 @@ uw_gold2 <- "#85754d"
 
 ref_model_col <- "darkgreen" #uw_gold2
 annotation_line_size <-1.5
+
+################################################
+# HEI
+hei_designs <- c("Balanced", "Balanced Segments", 
+                 "Random Clusters", 
+                 "Sensible Clusters", 
+                 "Unsensible Clusters", 
+                 "Road Type")
+
+hei_cb_palette_designs <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2")
 
 ```
 
@@ -402,7 +483,7 @@ major_roads <- opq(bbox_vector) %>%
 ##########################################
 # x=unique(onroad_cov$cluster_type)[1]
 lapply(unique(onroad_cov$cluster_type), function(x){
-  onroad_cov %>%
+  p <- onroad_cov %>%
     filter(cluster_type==x) %>%
     mutate(cluster_type = case_when(
       cluster_type == "cluster1" ~ "Main Clusters",
@@ -428,6 +509,12 @@ lapply(unique(onroad_cov$cluster_type), function(x){
     theme(# remove the vertical grid lines
           panel.grid.major = element_blank()) + 
     scale_color_viridis_c() #+ labs(caption = "Map data © OpenStreetMap contributors")
+  
+  # for HEI report etc.
+  ggsave(plot = p, file.path(image_path, "SI", paste0(x, ".png")), width = 5, height = 8)
+  
+  p
+  
   }) %>%
   ggarrange(plotlist = .) %>%
   annotate_figure(bottom = text_grob("Map data © OpenStreetMap contributors",
@@ -467,39 +554,80 @@ kable_styling()
 #   left_join(cw) %>%  
 #   group_by(#spatial, 
 #     adjusted, design, version, visits) %>% 
-#   summary_table(var = "prediction") 
+#   summary_table(var = "prediction")
+```
 
 
-
+```{r}
 ########################################################################################
-# plot
-
-
-print("dashed line is median (IQR) predicted PNC from the all-data stationary model")
-all_predictions %>%
-  filter(model != ref_model_coefs$model) %>%
-  prep_for_figs() %>% 
-
-  group_by(version, design, visits, plume_adjustment, temporal_adjustment) %>%
-  summary_table(var = "prediction") %>%
+# plot concentrations
+plot_concentrations <- function(dt){
   
-  ggplot(aes(x=plume_adjustment, fill=temporal_adjustment, linetype=visits)) +
-  facet_grid(rows = vars(design), cols = vars(version), switch = "both") +
-
-  geom_rect(inherit.aes = F, data = ref_prediction_distribution, aes(xmin=-Inf, xmax=Inf, ymin=q25, ymax=q75), alpha=0.2, fill=ref_model_col
-            ) +
-  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90,  
-                                                        )) +
-   geom_hline(yintercept = ref_prediction_distribution$median, alpha=0.8, size=annotation_line_size, col=ref_model_col, linetype=2) +
-  scale_fill_viridis_d() +
-  labs(x = NULL, 
+  dt %>%
+    filter(model != ref_model_coefs$model) %>%
+    group_by(design, version, time_selection, visit_label) %>%
+    summary_table(var = "prediction") %>%
+    
+    ggplot(aes(x=version, fill=design)) +
+    facet_grid(rows = vars(visit_label), cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x") +
+    geom_rect(inherit.aes = F, data = ref_prediction_distribution, aes(xmin=-Inf, xmax=Inf, ymin=q25, ymax=q75), alpha=0.2, fill=ref_model_col) +
+geom_hline(yintercept = ref_prediction_distribution$median, alpha=0.8, col=ref_model_col, linetype=2) +
+    geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+    labs(x = NULL, 
        y = "Predicted PNC (pt/cm3)", 
        fill=NULL,
        linetype=NULL)
+  }
 
-ggsave(file.path(image_path, "SI", "predicted_ufp_309_sites.png"), 
-       #width = 22, height = 8
-       width=10, height=10)
+```
+
+HEI
+```{r}
+all_predictions %>%
+  keep_hei_results() %>%
+  add_labels() %>%
+  plot_concentrations()
+  
+ggsave(file.path(image_path, "HEI Report", "Appendix", "predicted_ufp_309_sites.png"), width=10, height=6)
+
+```
+
+
+
+# --> update
+
+```{r}
+print("dashed line is median (IQR) predicted PNC from the all-data stationary model")
+
+all_predictions %>%
+  keep_main_results() %>%
+  add_labels() %>%
+  plot_concentrations()
+
+ggsave(file.path(image_path, "SI", "predicted_ufp_309_sites.png"), width=10, height=10)
+
+# all_predictions %>%
+#   filter(model != ref_model_coefs$model) %>%
+#   prep_for_figs() %>% 
+# 
+#   group_by(version, design, visits, plume_adjustment, temporal_adjustment) %>%
+#   summary_table(var = "prediction") %>%
+#   
+#   ggplot(aes(x=plume_adjustment, fill=temporal_adjustment, linetype=visits)) +
+#   facet_grid(rows = vars(design), cols = vars(version), switch = "both") +
+# 
+#   geom_rect(inherit.aes = F, data = ref_prediction_distribution, aes(xmin=-Inf, xmax=Inf, ymin=q25, ymax=q75), alpha=0.2, fill=ref_model_col
+#             ) +
+#   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90,  
+#                                                         )) +
+#    geom_hline(yintercept = ref_prediction_distribution$median, alpha=0.8, size=annotation_line_size, col=ref_model_col, linetype=2) +
+#   scale_fill_viridis_d() +
+#   labs(x = NULL, 
+#        y = "Predicted PNC (pt/cm3)", 
+#        fill=NULL,
+#        linetype=NULL)
+# 
+# ggsave(file.path(image_path, "SI", "predicted_ufp_309_sites.png"), width=10, height=10)
 
 ```
 
@@ -513,7 +641,7 @@ results
 * BH unadjusted R2 are all 0     
 * All hours unadju are all 0 except for 1 value
 
-# --> note: results are totally different now  for the 4-visit results for clustered analyses? things look better w/ new clusters? 
+note: results are different now  for the 4-visit results for clustered analyses. things look more as expected w/ upated clusters.
 
 
 ```{r, fig.height=8, fig.with=8}
@@ -540,10 +668,8 @@ lapply(c(main_visits, alt_visits), function(x){
     facet_grid(rows = vars(design),
                cols=vars(plume_adjustment, visits),
                switch = "both", scales="free_x",space="free") +
-    geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, col=ref_model_col, 
-               #size=annotation_line_size
-               ) +
-      geom_rect(inherit.aes = F, xmin=-Inf, xmax=Inf, ymin=0.6, ymax=Inf, alpha=0.05, fill=ref_model_col) +
+    geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, col=ref_model_col) +
+    geom_rect(inherit.aes = F, xmin=-Inf, xmax=Inf, ymin=0.6, ymax=Inf, alpha=0.05, fill=ref_model_col) +
   
     geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
     scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2") ) +
@@ -629,7 +755,42 @@ ggsave(file.path(image_path, "SI", paste0("r2_mse_route_visits_comp.png")), widt
 
 ```
 
-# --> why do routes still look good w/ reg-based R2 less variabiltiy in predictions?
+## HEI Report
+
+* temp adj makes R2 values noisier; makes plume adjustments noiser
+
+```{r}
+
+model_eval2 %>%
+  keep_hei_results() %>%
+  
+  group_by(design, version, time_selection, visit_label) %>%  
+  summary_table(var = "MSE_based_R2") %>% 
+  
+  ggplot(aes(fill=design, x=version)) +
+  facet_grid(rows=vars(visit_label), cols = vars(time_selection), 
+             switch = "both", scales="free_x",
+             space = "free_x") +
+  geom_boxplot(position = "dodge", stat="identity", 
+               aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, col=ref_model_col) +
+  scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2")) +
+  
+  #scale_fill_jco(palette = ) +
+  #scale_fill_viridis_d() +
+  
+  labs(fill="Spatial Balance",
+       x=NULL,
+       y = expression("Exposure Model " ~ R[MSE]^2))
+  
+ggsave(file.path(image_path, "HEI Report", paste0("r2_mse.png")), width = 10, height = 8)
+   
+```
+
+
+
+
+why do routes still look good w/ reg-based R2 less variabiltiy in predictions?
 
 regression-based R2 comparison 
 
@@ -795,10 +956,6 @@ health_plot <- function(dt=model_coefs,
                         designs_to_keep.=c("Balanced", "Route"),
                         visits_to_keep.=c(4,12),
                         ref_stationary_restimate=tot_pnc){
-  # ref_stationary_estimate <- data.frame( label = c("Reference", "No Association"),
-  #                    est=c(ref_stationary_restimate, 0),
-  #                    x=1.5)   
-
   
   dt %>%
   prep_for_figs(designs_to_keep = designs_to_keep.,
@@ -841,6 +998,74 @@ health_plot(dt=model_coefs_reduced_model,
 ggsave(file.path(image_path, "SI", "ufp_health_estimate_redued_model.png"), width = 10, height = 8)
 
 ```
+
+## HEI Report 
+
+```{r}
+# # Define a color palette that visually increases in intensity
+# cb_palette <- c("Balanced" = "#56B4E9",   # Sky Blue
+#                 "Random Clusters" = "#009E73",   # Bluish Green
+#                 "Sensible Clusters" = "#F0E442",   # Yellow
+#                 "Unsensible Clusters" = "#E69F00", # Orange
+#                 "Road Type" = "#D55E00")  # Vermillion
+
+health_plot2 <- function(dt=model_coefs,
+                         ref_stationary_restimate=tot_pnc){
+  
+  p <- dt %>%
+    group_by(design, time_selection, version, visit_label) %>%
+    summary_table(var = "est") %>% 
+  
+      ggplot(aes(x=version, fill=design,)) +
+      facet_grid(rows = vars(visit_label), cols = vars(time_selection),
+                 switch = "both", scales="free_x",space="free") +
+    geom_hline(yintercept = ref_stationary_restimate, linetype=2, col=ref_model_col,) +
+    geom_hline(yintercept = 0, linetype=2, col="red") +
+    
+   #geom_text(inherit.aes = F, x=1, y=ref_stationary_restimate*1.1, label="Reference", fill= "white",show.legend = F, size=5) +
+ 
+    geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+    scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_stationary_restimate)/-ref_stationary_restimate, name="Health Point Estimate % Difference", labels = scales::percent), 
+                       position="left") +
+      
+    #scale_fill_viridis_d() +
+    #scale_fill_manual(values = hei_cb_palette_designs) +
+    #scale_fill_brewer(palette = "Set2") + #set2 is cb friendly
+    #scale_fill_manual(values = cb_palette) +
+
+    
+    labs(y = "Health Point Estimate",
+         fill=NULL,
+         x = NULL, linetype=NULL) 
+
+  p
+  
+  # p + scale_fill_manual(values = hei_cb_palette_designs) +
+  # theme_minimal() + # A minimal theme to reduce clutter
+  # theme(legend.position = "bottom",  # Place legend at bottom for consistency
+  #       panel.spacing = unit(2, "lines"))  # Add spacing between panels
+  
+}
+
+model_coefs_reduced_model %>%
+  keep_hei_results() %>%
+  add_labels() %>%
+  health_plot2(ref_stationary_restimate = tot_pnc_reduced)
+
+ggsave(file.path(image_path, "HEI Report", paste0("betas.png")), width = 10, height = 8)
+
+# appendix - extended model
+model_coefs %>%
+  keep_hei_results() %>%
+  add_labels() %>%
+  health_plot2()
+
+ggsave(file.path(image_path, "HEI Report", "Appendix", paste0("betas_extended_model.png")), width = 10, height = 8)
+
+
+
+```
+
 
 ```{r}
 # same as above for routes
