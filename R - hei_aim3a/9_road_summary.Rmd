@@ -169,15 +169,14 @@ keep_hei_results <- function(dt, keep_visits = c(main_visits, alt_visits)) {
 }
  
 # return results relevant for main analyses
-keep_main_results <- function(dt, 
-                             keep_visits = c(main_visits, alt_visits),
-                             designs_to_keep = main_designs,
-                             versions_to_keep = main_versions,
-                             visits_to_keep=main_visits,
-                             cluster_to_keep = main_cluster
+keep_main_results <- function(dt,
+                              designs_to_keep = main_designs,
+                              versions_to_keep = main_versions,
+                              visits_to_keep=c(main_visits, alt_visits),
+                              cluster_to_keep = main_cluster
                              ) {
   dt %>%
-    filter(visits %in% keep_visits,
+    filter(visits %in% visits_to_keep,
            design %in% designs_to_keep,
            version %in% versions_to_keep,
            cluster_type %in% c(NA, main_cluster)) 
@@ -192,6 +191,9 @@ add_labels <- function(dt#,
                       # visits_to_keep=main_visits,
                       # cluster_to_keep = main_cluster
                       ){
+  
+  visit_levels <- unique(dt$visits) %>% as.numeric() %>% sort()
+  visit_levels <- paste(visit_levels, "visits")
   
   dt %>%
     # filter(design %in% designs_to_keep,
@@ -212,8 +214,49 @@ add_labels <- function(dt#,
       
       design = as.character(design),
       design = factor(design, levels= design_levels),
-      visit_label = paste(visits, "visits"))
+      visit_label = paste(visits, "visits"),
+      visit_label = factor(visit_label, levels=visit_levels)
+      )
   }
+
+########################################################################################
+# default plot
+plot_values <- function(dt, 
+                        summary_var, y_label,
+                        add_shaded_area= FALSE,
+                        add_dahsed_line=FALSE,
+                        ref_dt, # reference values (e.g., from stationary MM results)
+                        grouping_variables = c("design", "version", "time_selection", "visit_label")){
+  
+  p <- dt %>%
+    filter(model != ref_model_coefs$model) %>%
+    group_by(across(all_of(grouping_variables))) %>%
+
+    summary_table(var = summary_var) %>%
+    
+    ggplot(aes(x=version, fill=design)) +
+    facet_grid(rows = vars(visit_label), cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x") 
+  
+  # for median (IQR)
+  if(add_shaded_area==TRUE){
+    p <- p + 
+      geom_rect(inherit.aes = F, data = ref_dt, aes(xmin=-Inf, xmax=Inf, ymin=q25, ymax=q75), alpha=0.2, fill=ref_model_col) +
+      geom_hline(yintercept = ref_dt$median, alpha=0.8, col=ref_model_col, linetype=2)
+  }
+  
+  # for a dashed ref line
+  if(add_dahsed_line==TRUE){
+    p <- p + geom_hline(yintercept = ref_dt, alpha=0.8, col=ref_model_col, linetype=2)
+    }
+  
+  p + 
+    geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+    labs(x = NULL, 
+       y = y_label, 
+       fill=NULL,
+       linetype=NULL)
+  }
+
 
 
 ##################################################################################################
@@ -303,18 +346,27 @@ tot_pnc_reduced <- filter(ref_model_coefs_reduced, model=="s_pncnoscreen_all_01"
 
 
 ############################################################
-# LARGE FILES
 # person-level exposures 
 stationary_cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%  
   select(-starts_with("avg_")) %>%
   right_join(stationary_cw, by="model")
 
-cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda")) %>%
-  rename(exposure = avg_0_5_yr) %>%  
-  select(-starts_with("avg_")) %>%
-  right_join(cw, by="model") %>%
-  bind_rows(stationary_cs)
+# LARGE FILES
+model_covars_extended <- readRDS(file.path(output_data_path, "model_covars_extended.rda"))
+
+cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_road.rda")) %>%
+  select(all_of(c(model_covars_extended, "avg_0_5_yr", "study_id", "casi_irt", "model"))) 
+# cs0 <-cs
+cs <- cs0 %>%
+  right_join(cw, by="model")  
+
+rm(cs0)
+
+# --> error w/ vecotr memory 
+
+cs <- cs %>% rename(exposure = avg_0_5_yr)  #%>% bind_rows(stationary_cs)
+
 
 ############################################################
 
@@ -342,6 +394,7 @@ onroad_predictions <- lapply(stationary_prediction_files, function(x){
   bind_rows() %>% 
   right_join(cw, by="model")
 
+# site predictions
 all_predictions <- readRDS(file.path(dt_path, "UK Predictions", "all_predictions.rda")) %>%
   filter(design == "full",
          variable == "pnc_noscreen") %>%
@@ -408,7 +461,7 @@ hei_designs <- c("Balanced", "Balanced Segments",
                  "Unsensible Clusters", 
                  "Road Type")
 
-hei_cb_palette_designs <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2")
+#hei_cb_palette_designs <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2")
 
 ```
 
@@ -548,53 +601,24 @@ estimates %>%
       ) %>%
 kable_styling()
 
-
-# predicted <- all_predictions %>%
-#   filter(grepl("^r_", model)) %>%
-#   left_join(cw) %>%  
-#   group_by(#spatial, 
-#     adjusted, design, version, visits) %>% 
-#   summary_table(var = "prediction")
 ```
 
+## HEI
 
-```{r}
-########################################################################################
-# plot concentrations
-plot_concentrations <- function(dt){
-  
-  dt %>%
-    filter(model != ref_model_coefs$model) %>%
-    group_by(design, version, time_selection, visit_label) %>%
-    summary_table(var = "prediction") %>%
-    
-    ggplot(aes(x=version, fill=design)) +
-    facet_grid(rows = vars(visit_label), cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x") +
-    geom_rect(inherit.aes = F, data = ref_prediction_distribution, aes(xmin=-Inf, xmax=Inf, ymin=q25, ymax=q75), alpha=0.2, fill=ref_model_col) +
-geom_hline(yintercept = ref_prediction_distribution$median, alpha=0.8, col=ref_model_col, linetype=2) +
-    geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-    labs(x = NULL, 
-       y = "Predicted PNC (pt/cm3)", 
-       fill=NULL,
-       linetype=NULL)
-  }
-
-```
-
-HEI
 ```{r}
 all_predictions %>%
   keep_hei_results() %>%
   add_labels() %>%
-  plot_concentrations()
+  plot_values(summary_var = "prediction", y_label = "Predicted PNC (pt/cm3)",
+              add_shaded_area = T, ref_dt=ref_prediction_distribution) 
+     
+
   
 ggsave(file.path(image_path, "HEI Report", "Appendix", "predicted_ufp_309_sites.png"), width=10, height=6)
 
 ```
 
-
-
-# --> update
+# --> add cb palet; update
 
 ```{r}
 print("dashed line is median (IQR) predicted PNC from the all-data stationary model")
@@ -602,32 +626,10 @@ print("dashed line is median (IQR) predicted PNC from the all-data stationary mo
 all_predictions %>%
   keep_main_results() %>%
   add_labels() %>%
-  plot_concentrations()
+  plot_values(summary_var = "prediction",y_label = "Predicted PNC (pt/cm3)",
+              add_shaded_area = T, ref_dt=ref_prediction_distribution) 
 
 ggsave(file.path(image_path, "SI", "predicted_ufp_309_sites.png"), width=10, height=10)
-
-# all_predictions %>%
-#   filter(model != ref_model_coefs$model) %>%
-#   prep_for_figs() %>% 
-# 
-#   group_by(version, design, visits, plume_adjustment, temporal_adjustment) %>%
-#   summary_table(var = "prediction") %>%
-#   
-#   ggplot(aes(x=plume_adjustment, fill=temporal_adjustment, linetype=visits)) +
-#   facet_grid(rows = vars(design), cols = vars(version), switch = "both") +
-# 
-#   geom_rect(inherit.aes = F, data = ref_prediction_distribution, aes(xmin=-Inf, xmax=Inf, ymin=q25, ymax=q75), alpha=0.2, fill=ref_model_col
-#             ) +
-#   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90,  
-#                                                         )) +
-#    geom_hline(yintercept = ref_prediction_distribution$median, alpha=0.8, size=annotation_line_size, col=ref_model_col, linetype=2) +
-#   scale_fill_viridis_d() +
-#   labs(x = NULL, 
-#        y = "Predicted PNC (pt/cm3)", 
-#        fill=NULL,
-#        linetype=NULL)
-# 
-# ggsave(file.path(image_path, "SI", "predicted_ufp_309_sites.png"), width=10, height=10)
 
 ```
 
@@ -643,46 +645,23 @@ results
 
 note: results are different now  for the 4-visit results for clustered analyses. things look more as expected w/ upated clusters.
 
+# --> UPDATE: cb colors; clusters etc.
 
 ```{r, fig.height=8, fig.with=8}
 stationary_r2_mse_ref <- ref_model_coefs$MSE_based_R2
 
 print(paste("reference model R2 is the all-data stationary model:", round(stationary_r2_mse_ref, 2)))
 
-# x=main_visits
-lapply(c(main_visits, alt_visits), function(x){
-  
-  model_eval %>%
-    filter(grepl(x, visits)) %>%
-    prep_for_figs(
-      #default to use whatever I specify above
-      visits_to_keep=c(1:100)) %>%
-    
-    group_by(version, design, visits, temporal_adjustment, plume_adjustment, cluster_type) %>%
-    summary_table(var = "MSE_based_R2") %>% 
-    mutate(design = factor(design, levels=design_levels)) %>%
-  
-    ggplot(aes(linetype=plume_adjustment,
-               fill=temporal_adjustment, 
-               x=version)) +
-    facet_grid(rows = vars(design),
-               cols=vars(plume_adjustment, visits),
-               switch = "both", scales="free_x",space="free") +
-    geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, col=ref_model_col) +
-    geom_rect(inherit.aes = F, xmin=-Inf, xmax=Inf, ymin=0.6, ymax=Inf, alpha=0.05, fill=ref_model_col) +
-  
-    geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-    scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2") ) +
-    scale_fill_viridis_d() +
-    labs(y = "MSE-based R2") +
-  labs(x=NULL, fill=NULL, linetype=NULL)  
-  
-  if(x==main_visits){
-    ggsave(file.path(image_path, paste0("r2_mse_",x ,"visits.png")), width = 10, height = 10)
-    }else{
-      ggsave(file.path(image_path, "SI", paste0("r2_mse_",x ,"visits.png")), width = 10, height = 10)
-      }
-})
+model_eval %>%
+  keep_main_results() %>%
+  add_labels() %>%
+  plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
+              add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
+
+ggsave(file.path(image_path, "r2_mse.png"), width = 10, height = 10)
+
+
+
 
 #############################################
 # SI: plot comparing cluster 1 vs 2 - show results are similar
@@ -690,39 +669,37 @@ lapply(c(main_visits, alt_visits), function(x){
 cluster_designs <- str_subset(design_levels, "Cluster|Road Type")
 
 model_eval %>%
-  prep_for_figs(cluster_to_keep = c("cluster1", "cluster2"), 
-                designs_to_keep = cluster_designs) %>%
+  filter(visits %in% 12,
+           design %in% cluster_designs,
+           cluster_type %in% c("cluster1", "cluster2")) %>%
   drop_na(cluster_type) %>%
-         
-  group_by(version, design, visits, temporal_adjustment, plume_adjustment, cluster_type) %>%
-  summary_table(var = "MSE_based_R2") %>% 
-  mutate(design = factor(design, levels=design_levels),
-         cluster_type = ifelse(cluster_type==main_cluster, paste(main_cluster, "(Main)"), cluster_type)) %>%
+  add_labels() %>%
   
-    filter(grepl("Not", plume_adjustment)) %>%
-
-
-  ggplot(aes(linetype=plume_adjustment,
-             fill=temporal_adjustment, #linetype=visits
-             x=version)) +
-  facet_grid(rows = vars(design),
-             cols=vars(cluster_type#, plume_adjustment, visits
-                       ),
-             switch = "both", scales="free_x",space="free") +
-  geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, col=ref_model_col) +
-    geom_rect(inherit.aes = F, aes(xmin=-Inf, xmax=Inf, ymin=0.6, ymax=Inf), alpha=0.05, fill=ref_model_col) +
-
+  group_by(across(all_of(c("design", "version", "time_selection", "visit_label", "cluster_type")))) %>%
+  summary_table(var = "MSE_based_R2") %>%
+  
+  ggplot(aes(x=version, fill=design)) +
+  facet_grid(rows = vars(visit_label, cluster_type), cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x")  + geom_hline(yintercept = stationary_r2_mse_ref, alpha=0.8, col=ref_model_col, linetype=2) +  
+    
   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2") ) +
-  scale_fill_viridis_d() +
-  labs(y = "MSE-based R2") +
-labs(x=NULL, fill=NULL, linetype=NULL)  
+  labs(x = NULL, 
+       y = expression("Exposure Model" ~ R[MSE]^2), 
+       fill=NULL)
   
-ggsave(file.path(image_path, "SI", paste0("r2_mse_12visits_noplumeadj_cluster_comp.png")), width = 10, height = 8)
+ggsave(file.path(image_path, "SI", paste0("r2_mse_clusters.png")), width = 10, height = 8)
 
 
 #############################################
 # SI: same plot just for routes - show that get similar results w/ increasing numbers
+
+model_eval %>%
+  keep_main_results(designs_to_keep = "Route", visits_to_keep = c(4, 12, 20)) %>%
+  add_labels() %>%
+  plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
+              add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
+
+
+
 # Prepare the data
 data <- model_eval %>%
   prep_for_figs(designs_to_keep = "Route",
@@ -885,13 +862,9 @@ fit_r2_lm(y = "reg_based_R2") %>%
 
 comparison of predicted 5 yr exposures at baseline
 
-# --> ERROR: memory exhauasted
-
 ```{r, fig.height=8, fig.with=10}
 # reference design
-ref_cs <- filter(cs, model %in% ref_model_coefs$model) 
-
-ref_cs %>% 
+stationary_cs %>%
   summarize(
     N = n(),
     Participants = length(unique(study_id)),
@@ -906,36 +879,34 @@ ref_cs %>%
   kable(caption = "Distribution of Predicted UFP (pt/cm3) exposure from the reference All data stationary exposure model", digits = 0, format.args = list(big.mark=",")) %>%
   kable_styling()
 
-
-ref_cs_distribtuion <- ref_cs  %>%
+# cohort predictions from ref model
+ref_cs_distribtuion <- stationary_cs  %>%
   summarize(n = n(),
             median = median(exposure),
             q25 = quantile(exposure, 0.25),
             q75 = quantile(exposure, 0.75))  
 # plot
-print("dashed lines are the median (IQR) predicted PNC for participants from the all-data stationary model")
 cs %>%
-  filter(!model %in% ref_model_coefs$model) %>%
-  mutate(visits = paste(visits, "visits"),
-         design = factor(design, levels = design_levels),
-         version = factor(version, levels = version_levels),
-         ) %>%
-  
-  group_by(version, design, visits) %>%
-  summary_table(var = "exposure") %>%
-   
-  ggplot(aes(x=version, fill=design)) +
-  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  facet_wrap(~visits, scales="free_x", ncol = 1) +
-  geom_hline(yintercept = ref_cs_distribtuion$median, linetype=2, alpha=0.5) +
-  geom_hline(yintercept = c(ref_cs_distribtuion$q25, ref_cs_distribtuion$q75), linetype=3, alpha=0.3) +
-  labs(fill="Location Visit\nSelection",
-       y = "Predicted PNC (pt/cm3)"
-       )  
+  keep_main_results() %>%
+  add_labels() %>% 
+  plot_values(summary_var = "exposure", ref_dt = ref_cs_distribtuion)
 
-ggsave(file.path(image_path, "SI", "cohort_5yr_exposure_comparisons.png"), width = 8, height = 8)
+ggsave(file.path(image_path, "SI", "cohort_exposures.png"), width = 8, height = 8)
 
 ```
+
+## HEI
+
+```{r}
+cs %>%
+  keep_hei_results() %>%
+  add_labels() %>%
+  plot_values(summary_var = "exposure", ref_dt = ref_cs_distribtuion)
+
+ggsave(file.path(image_path, "HEI Report", "Appendix", "cohort_exposures.png"), width = 8, height = 8)
+
+```
+
 
 
 # Health effect estimates (CASI-IRT)
