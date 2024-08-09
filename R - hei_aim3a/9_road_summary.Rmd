@@ -505,8 +505,6 @@ cw %>%
 
 ```
 
-
-
 # map
 
 ```{r}
@@ -645,7 +643,11 @@ results
 
 note: results are different now  for the 4-visit results for clustered analyses. things look more as expected w/ upated clusters.
 
-# --> UPDATE: cb colors; clusters etc.
+# --> UPDATE plots: cb colors, etc.
+
+## --> #scale_fill_jco(palette = ) +
+        #scale_fill_viridis_d() +
+  
 
 ```{r, fig.height=8, fig.with=8}
 stationary_r2_mse_ref <- ref_model_coefs$MSE_based_R2
@@ -660,11 +662,8 @@ model_eval %>%
 
 ggsave(file.path(image_path, "r2_mse.png"), width = 10, height = 10)
 
-
-
-
 #############################################
-# SI: plot comparing cluster 1 vs 2 - show results are similar
+# SI: cluster comparison
 
 cluster_designs <- str_subset(design_levels, "Cluster|Road Type")
 
@@ -690,7 +689,7 @@ ggsave(file.path(image_path, "SI", paste0("r2_mse_clusters.png")), width = 10, h
 
 
 #############################################
-# SI: same plot just for routes - show that get similar results w/ increasing numbers
+# SI: routes - increasing visits
 
 model_eval %>%
   keep_main_results(designs_to_keep = "Route", visits_to_keep = c(4, 12, 20)) %>%
@@ -698,37 +697,46 @@ model_eval %>%
   plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
               add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
 
+ggsave(file.path(image_path, "SI", paste0("r2_mse_routes.png")), width = 10, height = 8)
 
+```
 
-# Prepare the data
-data <- model_eval %>%
-  prep_for_figs(designs_to_keep = "Route",
-                visits_to_keep = c(1:99)) %>%
-  group_by(version, design, visits, temporal_adjustment, plume_adjustment, cluster_type) %>%
-  summary_table(var = "MSE_based_R2") %>%
-  mutate(design = factor(design, levels = design_levels),
-         visits = factor(visits, levels = paste(c(1:20), "visits")))
+regression-based R2 comparison 
 
-rec_good_r2 <- expand.grid(unique(data$plume_adjustment),
-                           unique(data$version),
-                           xmin = -Inf, xmax = Inf, ymin = 0.6, ymax = Inf)
+```{r}
+#############################################
+print(paste("dashed line is the MSE-based R2 from the all-data stationary model. both MSE and reg-based R2 are 0.77")) 
 
-# Create the plot
-ggplot(data, aes(linetype = plume_adjustment, fill = temporal_adjustment, x = visits)) +
-  facet_grid(rows = vars(design, version),
-             cols = vars(plume_adjustment),
-             switch = "both", scales = "free_x", space = "free") +
-  geom_hline(yintercept = stationary_r2_mse_ref, linetype = 2, col = "black") +  # Replace with appropriate color if needed
-  # geom_rect(aes(xmin = -Inf, xmax = Inf, ymin = 0.6, ymax = Inf), inherit.aes = FALSE, alpha = 0.1, fill = ref_model_col) +
-  geom_rect(inherit.aes = FALSE, 
-            data = rec_good_r2, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), alpha = 0.05, fill = ref_model_col) +
+compare_r2_plot <- function(dt){
+  dt %>%
+  pivot_longer(cols = contains("R2")) %>%
+  group_by(across(all_of(c("design", "version", "time_selection", "visit_label", "name")))) %>%
+  summary_table(var = "value") %>%
+  mutate(name = ifelse(name=="MSE_based_R2", "MSE-based R2 (Main)", "Regression-based R2")) %>%
+  
+  ggplot(aes(x=version, fill=design)) +
+  #facet_grid(rows = vars(time_selection, visit_label), cols = vars(name), switch = "both", scales = "free_x", space="free_x")  + 
+    facet_grid(rows = vars(visit_label), 
+               cols = vars(time_selection, name), 
+               switch = "both", scales = "free_x", space="free_x") + 
+    geom_hline(yintercept = ref_model_coefs$MSE_based_R2, alpha=0.8, col=ref_model_col, linetype=2) +  
+#   geom_hline(#inherit.aes = FALSE, 
+#              data= r2_values, aes(yintercept = value), linetype=2, col=ref_model_col) +
 
-    geom_boxplot(position = "dodge", aes(ymin = Q10, lower = Q25, middle = Q50, upper = Q75, ymax = Q90), stat = "identity") +
-  scale_y_continuous(sec.axis = sec_axis(trans = ~./stationary_r2_mse_ref, name = "Proportion of Reference Model R2")) +
-  scale_fill_viridis_d() +
-  labs(y = "MSE-based R2", x = NULL, fill = NULL, linetype = NULL)
+  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  labs(x = NULL, 
+       y = expression("Exposure Model" ~ R^2), 
+       fill=NULL)
+  
+}
 
-ggsave(file.path(image_path, "SI", paste0("r2_mse_route_visits_comp.png")), width = 10, height = 8)
+# see similar patterns for 4 visits
+model_eval %>%
+  keep_main_results(visits_to_keep = 12) %>%
+  add_labels() %>% 
+  compare_r2_plot()
+  
+ggsave(file.path(image_path, "SI", "r2_regression.png"), width = 12, height = 6)
 
 ```
 
@@ -738,92 +746,26 @@ ggsave(file.path(image_path, "SI", paste0("r2_mse_route_visits_comp.png")), widt
 
 ```{r}
 
-model_eval2 %>%
+model_eval %>%
   keep_hei_results() %>%
-  
-  group_by(design, version, time_selection, visit_label) %>%  
-  summary_table(var = "MSE_based_R2") %>% 
-  
-  ggplot(aes(fill=design, x=version)) +
-  facet_grid(rows=vars(visit_label), cols = vars(time_selection), 
-             switch = "both", scales="free_x",
-             space = "free_x") +
-  geom_boxplot(position = "dodge", stat="identity", 
-               aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, col=ref_model_col) +
-  scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2")) +
-  
-  #scale_fill_jco(palette = ) +
-  #scale_fill_viridis_d() +
-  
-  labs(fill="Spatial Balance",
-       x=NULL,
-       y = expression("Exposure Model " ~ R[MSE]^2))
+  add_labels() %>%
+  plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
+              add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
   
 ggsave(file.path(image_path, "HEI Report", paste0("r2_mse.png")), width = 10, height = 8)
    
-```
-
-
-
-
-why do routes still look good w/ reg-based R2 less variabiltiy in predictions?
-
-regression-based R2 comparison 
-
-```{r}
-#############################################
-stationary_r2_reg_ref <- ref_model_coefs$reg_based_R2
-print(paste("reference model R2 is the all-data stationary model:", round(stationary_r2_reg_ref, 2)))
-
-r2_values <- data.frame(name=c("Regression-based R2",
-                               "MSE-based R2 (Main)"),
-                        value = c(ref_model_coefs$reg_based_R2,
-                                  ref_model_coefs$MSE_based_R2))
-
-rec_good_r2 <- expand.grid(unique(data$plume_adjustment),
-                           unique(data$design),
-                           xmin = -Inf, xmax = Inf, ymin = 0.6, ymax = Inf)
-
-
+# SI - regression R2 (formatted differently)
 model_eval %>%
-  prep_for_figs(designs_to_keep = c("Balanced", "Route")) %>% 
-  pivot_longer(cols = contains("R2")) %>%
+  keep_hei_results(keep_visits = 12) %>%
+  add_labels() %>% 
+  compare_r2_plot()
   
-  group_by(version, design, visits, temporal_adjustment, plume_adjustment, cluster_type, name) %>%
-  summary_table(var = "value") %>% 
-  mutate(design = factor(design, levels=design_levels),
-         name = ifelse(name=="MSE_based_R2", "MSE-based R2 (Main)", "Regression-based R2")) %>%
-
-  ggplot(aes(linetype=plume_adjustment,
-             fill=temporal_adjustment, 
-             x=version)) +
-  facet_grid(rows = vars(design),
-             cols=vars(name#, visits
-                       ),
-             switch = "both", scales="free_x",space="free") +
-  #geom_hline(yintercept = stationary_r2_mse_ref, linetype=2, col=ref_model_col) +
-  geom_hline(#inherit.aes = FALSE, 
-             data= r2_values, aes(yintercept = value), linetype=2, col=ref_model_col) +
-     geom_rect(inherit.aes = FALSE, 
-            data = rec_good_r2, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), alpha = 0.05, fill = ref_model_col) +
-
-  geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  scale_y_continuous(sec.axis = sec_axis( trans=~./stationary_r2_mse_ref, name="Proportion of Reference Model R2") ) +
-  scale_fill_viridis_d()+
-  labs(y = "R2") +
-labs(x=NULL, fill=NULL, linetype=NULL)  
-
-# --> interesting: using reg-R2 does not show the reduced prediction accuracy like MSE_based R2 since estimate-prediction pair values are still linearly associated (but predictions are higher?)
-
-#  reg-based R2 is only minimally impacted for balanced vs route designs
-
-ggsave(file.path(image_path, "SI", "r2_reg_12v_example.png"), width = 8, height = 6)
-
+ggsave(file.path(image_path, "HEI Report", "Appendix", "r2_regression.png"), width = 14, height = 8)
 
 ```
 
-?? lms 
+
+lms 
 
 ```{r}
 
@@ -922,66 +864,9 @@ ref_model_coefs %>%
 
 ```{r, fig.height=10, fig.with=10}
 # function to produce main health results figures
-
-health_plot <- function(dt=model_coefs,
-                        designs_to_keep.=c("Balanced", "Route"),
-                        visits_to_keep.=c(4,12),
-                        ref_stationary_restimate=tot_pnc){
-  
-  dt %>%
-  prep_for_figs(designs_to_keep = designs_to_keep.,
-                visits_to_keep = visits_to_keep.) %>%
-  
-  group_by(version, design, visits, temporal_adjustment, plume_adjustment, cluster_type) %>%
-  summary_table(var = "est") %>% 
-
-    ggplot(aes(linetype=plume_adjustment,
-               fill=temporal_adjustment, 
-               x=version)) +
-    facet_grid(rows = vars(design),
-               cols=vars(visits, plume_adjustment),
-               switch = "both", scales="free_x",space="free") +
- geom_hline(yintercept = ref_stationary_restimate, linetype=2, col=ref_model_col, size=annotation_line_size) +
-  geom_hline(yintercept = 0, linetype=4, col="red", size=annotation_line_size) +
-  
-    geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_stationary_restimate)/-ref_stationary_restimate, name="Health Point Estimate % Difference", labels = scales::percent), 
-                     position="left") +
-   # geom_label(inherit.aes = F,
-   #            data=ref_stationary_estimate, aes(x=x, y=est, label=label), fill= "white",show.legend = F, size=5) + 
- 
-  scale_fill_viridis_d() +
-  labs(y = "Health Point Estimate",
-       fill=NULL,
-       x = NULL, linetype=NULL) 
-  
-}
-
-# extended/main health models
-health_plot(dt=model_coefs)  
-
-ggsave(file.path(image_path, "ufp_health_estimate.png"), width = 10, height = 8)
-
-## same as above for reduced health  model
-health_plot(dt=model_coefs_reduced_model, 
-            ref_stationary_restimate = tot_pnc_reduced)  
-
-ggsave(file.path(image_path, "SI", "ufp_health_estimate_redued_model.png"), width = 10, height = 8)
-
-```
-
-## HEI Report 
-
-```{r}
-# # Define a color palette that visually increases in intensity
-# cb_palette <- c("Balanced" = "#56B4E9",   # Sky Blue
-#                 "Random Clusters" = "#009E73",   # Bluish Green
-#                 "Sensible Clusters" = "#F0E442",   # Yellow
-#                 "Unsensible Clusters" = "#E69F00", # Orange
-#                 "Road Type" = "#D55E00")  # Vermillion
-
-health_plot2 <- function(dt=model_coefs,
-                         ref_stationary_restimate=tot_pnc){
+health_plot <- function(dt, #model_coefs
+                         ref_stationary_restimate #tot_pnc
+                         ){
   
   p <- dt %>%
     group_by(design, time_selection, version, visit_label) %>%
@@ -1018,64 +903,58 @@ health_plot2 <- function(dt=model_coefs,
   
 }
 
+```
+
+
+```{r, fig.height=10, fig.with=10}
+# extended/main health models
+model_coefs %>%
+  keep_main_results() %>%
+  add_labels() %>%
+  health_plot(ref_stationary_restimate=tot_pnc)  
+
+ggsave(file.path(image_path, "betas.png"), width = 10, height = 8)
+
+## reduced health  model
+model_coefs_reduced_model %>%
+  keep_main_results() %>%
+  add_labels() %>%
+  health_plot(dt=., ref_stationary_restimate = tot_pnc_reduced)  
+
+ggsave(file.path(image_path, "SI", "betas_redued_model.png"), width = 10, height = 8)
+
+```
+
+```{r}
+# routes
+model_coefs %>%
+  keep_main_results(designs_to_keep = "Route", visits_to_keep = c(4, 12, 20)) %>%
+  add_labels() %>% View()
+  health_plot(dt=., ref_stationary_restimate=tot_pnc)
+  
+ggsave(file.path(image_path, "SI", "betas_routes.png"), width = 12, height = 6)
+
+```
+
+## HEI Report 
+
+```{r}
 model_coefs_reduced_model %>%
   keep_hei_results() %>%
   add_labels() %>%
-  health_plot2(ref_stationary_restimate = tot_pnc_reduced)
+  health_plot(dt=., ref_stationary_restimate = tot_pnc_reduced)
 
-ggsave(file.path(image_path, "HEI Report", paste0("betas.png")), width = 10, height = 8)
+ggsave(file.path(image_path, "HEI Report", "betas.png"), width = 10, height = 8)
 
 # appendix - extended model
 model_coefs %>%
   keep_hei_results() %>%
   add_labels() %>%
-  health_plot2()
+  health_plot(dt=., ref_stationary_restimate=tot_pnc)
 
-ggsave(file.path(image_path, "HEI Report", "Appendix", paste0("betas_extended_model.png")), width = 10, height = 8)
-
-
+ggsave(file.path(image_path, "HEI Report", "Appendix", "betas_extended_model.png"), width = 10, height = 8)
 
 ```
 
-
-```{r}
-# same as above for routes
-health_plot_for_routes <- function(dt=model_coefs,
-                        designs_to_keep.=c("Route"),
-                        visits_to_keep.=c(1:99),
-                        ref_stationary_restimate=tot_pnc){
-
-  dt %>%
-  prep_for_figs(designs_to_keep = designs_to_keep.,
-                visits_to_keep = visits_to_keep.) %>%
-  
-  group_by(version, design, visits, temporal_adjustment, plume_adjustment, cluster_type) %>%
-  summary_table(var = "est") %>% 
-
-    ggplot(aes(linetype=plume_adjustment,
-               fill=temporal_adjustment, 
-               x=visits)) +
-    facet_grid(rows = vars(design),
-               cols=vars(version, #plume_adjustment
-                         ),
-               switch = "both", scales="free_x",space="free") +
- geom_hline(yintercept = ref_stationary_restimate, linetype=2, col=ref_model_col, size=annotation_line_size) +
-  geom_hline(yintercept = 0, linetype=4, col="red", size=annotation_line_size) +
-  
-    geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_stationary_restimate)/-ref_stationary_restimate, name="Health Point Estimate % Difference", labels = scales::percent), 
-                     position="left") +
-    scale_fill_viridis_d() +
-    labs(y = "Health Point Estimate",
-       fill=NULL,
-       x = NULL, linetype=NULL) 
-  
-}
-
-health_plot_for_routes()
-
-ggsave(file.path(image_path, "SI", "ufp_health_estimate_route_visits.png"), width = 12, height = 6)
-
-```
 
 
