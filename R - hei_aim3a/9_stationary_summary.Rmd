@@ -560,6 +560,7 @@ lapply(levels(refs1$variable), function(x) {r2_plot_multifacet(y_variable= "MSE_
 
 ggsave(file.path(image_path, "SI", "r2_sensitivity.png"), width = 12, height = 12)
 
+
 # regression-based R2
 lapply(levels(refs1$variable), function(x) {r2_plot_multifacet(y_variable= "reg_based_R2", facet_variable=x)}) %>%
   ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
@@ -570,6 +571,20 @@ lapply(levels(refs1$variable), function(x) {r2_plot_multifacet(y_variable= "reg_
 ggsave(file.path(image_path, "SI", "r2_reg_based_sensitivity.png"), width = 12, height = 12)
 
 ```
+
+for HEI Report
+```{r}
+# no NO2
+lapply(c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm"), function(x) {r2_plot_multifacet(y_variable= "MSE_based_R2", facet_variable=x)}) %>%
+  ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
+  annotate_figure(right = "Exposure Model R2 (% of Reference Model)",
+                  left = "Exposure Model R2",
+                  bottom = "Design")
+
+ggsave(file.path(image_path, "HEI Report", "Appendix", "r2_sensitivity.png"), width = 12, height = 12)
+
+```
+
 
 table of exposure model R2s relative to the reference R2
 
