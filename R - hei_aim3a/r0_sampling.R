@@ -309,7 +309,7 @@ sampling_combos <- expand.grid(
   visit_count = c(visit_count2, visit_count1),
   balanced = c("balanced", "unbalanced"),
   hours = c("all hours", "business hours")
-  ) # %>% slice_sample(n = 10)
+  )  
 
 saveRDS(sampling_combos, file.path(new_dt_pt, "nonspatial_sampling_combo_list.rda"))
 

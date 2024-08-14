@@ -12,7 +12,7 @@ digraph flowchart {
   rankdir=TB;
   node [shape=rectangle, style=filled, fontcolor=black, color=lightgray, fontname="Helvetica-bold", fontsize=14, margin=0.2];
 
-  Start [label="On-road data\n(>5k 100m segments)", shape=ellipse, fillcolor="#E69F00", fontcolor="black", width=2.5, height=1];
+  Start [label="On-road data\n(~6k 100m segments)", shape=ellipse, fillcolor="#E69F00", fontcolor="black", width=2.5, height=1];
   VisitsPerLocation [label="Visits per Location", shape=rect, style="rounded,filled", fillcolor="#56B4E9", width=2.5, height=1];
   Visits4 [label="4 visits", fillcolor="white", width=2.5, height=0.8];
   Visits12 [label="12 visits", fillcolor="white", width=2.5, height=0.8];

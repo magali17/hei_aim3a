@@ -60,47 +60,23 @@ theme_set(theme_bw())
 theme_update(legend.position = "bottom")
  
 ##################################################################################################
+# DEFINITIONS
+##################################################################################################
+design_levels <- c(
+  "balanced routes",
+  "balanced segments",
+  "unbalanced segments",
+  "unbalanced random clusters",
+  "unbalanced sensible clusters",
+  "unbalanced unsensible clusters",
+  "unbalanced road type") %>% str_to_title()
+
+#design_levels <- c("Route", "Road Type", "Unsensible Clusters", "Random Clusters", "Sensible Clusters", "Random Segments", "Balanced")
+
+##################################################################################################
 # FUNCTIONS
 ##################################################################################################
-# fn to recode onroad data
-# design_levels <- c("All", "Balanced", #"Balanced Segments",
-#                    "Random Segments", "Random Clusters", "Sensible Clusters", "Unsensible Clusters", 
-#                    "Road Type", "Route")  %>% rev()
 
-
-design_levels <- c("Route", "Road Type", "Unsensible Clusters", "Random Clusters", "Sensible Clusters", "Random Segments", "Balanced")
-
-recode_onroad_dt <- function(dt) {
-  dt %>%
-    mutate(
-      #spatial = ifelse(spatial_code=="sn", "Non-spatially Dependent Sampling", "Spatially Unbalanced Sampling"),
-      # spatial = ifelse(design %in% c("road_type", "sensible", "unsensible") | , 
-      #                  
-      #                  "Non-spatially Dependent Sampling", "Spatially Unbalanced Sampling"),
-      
-      
-      visits = str_extract(visits, "\\d+"),
-      version = ifelse(adjusted=="adjusted", paste(version, "plume adj"), version),
-      version = gsub("hours", "hr", version),
-      version = gsub("business", "bus", version),
-      version = str_to_title(version),
-      #version = factor(version, levels = version_levels),
-      version = factor(version, levels = sort(unique(version))),
-      design = case_when(
-        design=="balanced" ~ "balanced",
-        design=="unbalanced" ~ "random segments",
-        design=="random" ~ "random clusters",
-        design=="sensible" ~ "sensible clusters",
-        design=="unsensible" ~ "unsensible clusters",
-        design=="road_type" ~ "road type",
-        design=="route" ~ "route",
-         ),
-      design = str_to_title(design),
-      design = factor(design, levels = design_levels),
-      adjusted = str_to_title(adjusted)
-      ) 
-  
-}
 ##################################################################################################
 summary_table <- function(df, var){
   df <- df %>%
@@ -117,8 +93,7 @@ summary_table <- function(df, var){
       Q75 = quantile(var, 0.75),
       Q90 = quantile(var, 0.90),
       Q95 = quantile(var, 0.95),
-      Max = max(var)
-    ) %>%
+      Max = max(var)) %>%
     ungroup()
   
   names(df)[names(df)==var] <- var
@@ -128,46 +103,16 @@ summary_table <- function(df, var){
 }
 
 ##################################################################################################
-# fn filters out sensitivity analyses & adds labels to prep for figures/tables
-prep_for_figs <- function(dt, 
-                      designs_to_keep = main_designs,
-                      versions_to_keep = main_versions,
-                      visits_to_keep=main_visits,
-                      cluster_to_keep = main_cluster
-                      ) {
-  
-  dt %>%
-    filter(design %in% designs_to_keep,
-           version %in% versions_to_keep,
-           visits %in% visits_to_keep,
-           cluster_type %in% c(cluster_to_keep, NA)
-           ) %>%
-    rename(plume_adjustment=adjusted) %>%
-    mutate(visits = paste(visits, "visits"),
-           visits = factor(visits, levels=paste(c(1:99), "visits")),
-           design = factor(design, levels = design_levels),
-           temporal_adjustment = case_when(
-             grepl(" Temp Adj 1", version) ~ "Fixed Site Temporal Adjustment",
-             grepl(" Temp Adj 2", version) ~ "Underwrite Temporal Adjustment",
-            .default = "No Temporal Adjustment"),
-           temporal_adjustment = factor(temporal_adjustment, levels=c("Underwrite Temporal Adjustment","Fixed Site Temporal Adjustment", "No Temporal Adjustment")),
-           version = gsub(" Plume Adj| Temp Adj \\d", "", version),
-           plume_adjustment = case_when(
-             plume_adjustment=="Adjusted" ~ "Plume Adjusted",
-             plume_adjustment=="Unadjusted" ~ "Not Plume Adjusted",
-             .default = plume_adjustment),
-           plume_adjustment = factor(plume_adjustment, c("Plume Adjusted", "Not Plume Adjusted"))
-           ) 
-}
-
-##################################################################################################
 # return results relevant for HEI 
+# dt=all_predictions
 keep_hei_results <- function(dt, keep_visits = c(main_visits, alt_visits)) {
  dt %>%
-  filter(visits %in% keep_visits,
+  filter(#grepl(paste(keep_visits, collapse = "|"), visits), 
+         visits %in% keep_visits,
          design %in% hei_designs,
-         !grepl("Random|Adj 2", version),
-         cluster_type %in% c(NA, "cluster1")) 
+         !grepl("Random|Adj 2|Underwrite", version),
+         cluster_type %in% c(NA, "cluster1")
+         ) 
 }
  
 # return results relevant for main analyses
@@ -175,50 +120,127 @@ keep_main_results <- function(dt,
                               designs_to_keep = main_designs,
                               versions_to_keep = main_versions,
                               visits_to_keep=c(main_visits, alt_visits),
-                              cluster_to_keep = main_cluster
+                              cluster_to_keep = main_cluster,
+                              times_selections_to_keep = unique(model_eval2$time_selection)
                              ) {
   dt %>%
     filter(visits %in% visits_to_keep,
            design %in% designs_to_keep,
            version %in% versions_to_keep,
-           cluster_type %in% c(NA, main_cluster)) 
+           cluster_type %in% c(NA, main_cluster),
+           time_selection %in% times_selections_to_keep
+           ) 
 }
 
 ##################################################################################################
-adjustments <- c("No Adjustment", "Temporal Adj 1", "Temporal Adj 1 Random", "Temporal Adj 2", "Temporal Adj 2 Random", "Plume Adj", "Temporal Adj 1 + Plume Adj", "Temporal Adj 1 Random + Plume Adj", "Temporal Adj 2 + Plume Adj", "Temporal Adj 2 Random + Plume Adj")
+# fn to recode onroad data
+# design_levels <- c("All", "Balanced", #"Balanced Segments",
+#                    "Random Segments", "Random Clusters", "Sensible Clusters", "Unsensible Clusters", 
+#                    "Road Type", "Route")  %>% rev()
+# design_levels <- c(
+#   "balanced routes",  
+#   "balanced segments",  
+#   "unbalanced segments",  
+#   "unbalanced random clusters",  
+#   "unbalanced sensible clusters",  
+#   "unbalanced unsensible clusters",  
+#   "unbalanced road type") %>% str_to_title()
 
-add_labels <- function(dt#, 
-                      # designs_to_keep = main_designs,
-                      # versions_to_keep = main_versions,
-                      # visits_to_keep=main_visits,
-                      # cluster_to_keep = main_cluster
-                      ){
+#design_levels <- c("Route", "Road Type", "Unsensible Clusters", "Random Clusters", "Sensible Clusters", "Random Segments", "Balanced")
+
+# dt=model_eval
+# recode_onroad_dt <- function(dt) {
+#   dt %>%
+#     mutate(
+#       visits = str_extract(visits, "\\d+"),
+#       version = ifelse(adjusted=="adjusted", paste(version, "plume adj"), version),
+#       version = gsub("hours", "hr", version),
+#       version = gsub("business", "bus", version),
+#       version = str_to_title(version),
+#       version = factor(version, levels = sort(unique(version))),
+#       design = case_when(
+#         design=="balanced" ~ "balanced", # "balanced segments"
+#         design=="unbalanced" ~ "random segments", #"unbalanced segments"
+#         design=="random" ~ "random clusters", # "unbalanced random clusters"
+#         design=="sensible" ~ "sensible clusters", # unbalanced sensible clusters
+#         design=="unsensible" ~ "unsensible clusters", # unbalanced unsensible clusters
+#         design=="road_type" ~ "road type", #unbalnaced road type
+#         design=="route" ~ "route", # balanced routes
+#         # design=="route" ~ "balanced routes",
+#         # design=="balanced" ~ "balanced segments",
+#         # design=="unbalanced" ~ "unbalnaced segments",
+#         # design=="random" ~ "unbalanced random clusters",
+#         # design=="sensible" ~ "unbalanced sensible clusters",
+#         # design=="unsensible" ~ "unbalanced unsensible clusters",
+#         # design=="road_type" ~ "unbalanced road type"
+#          ),
+#       design = str_to_title(design),
+#       design = factor(design, levels = design_levels),
+#       adjusted = str_to_title(adjusted)
+#       )
+# 
+# }
+
+##################################################################################################
+
+# dt=model_eval
+# dt=cw
+add_labels <- function(dt){
   
+  adjustments <- c("No Adjustment", 
+                   "Fixed Site Temporal Adj", "Fixed Site Temporal Adj Random", 
+                   "Underwrite Temporal Adj", "Underwrite Temporal Adj Random", 
+                   "Plume Adj", 
+                   "Fixed Site Temporal Adj + Plume Adj",  
+                   "Fixed Site Temporal Adj Random + Plume Adj",  
+                   
+                   "Underwrite Temporal Adj + Plume Adj", "Underwrite Temporal Adj Random + Plume Adj")
+
   visit_levels <- unique(dt$visits) %>% as.numeric() %>% sort()
   visit_levels <- paste(visit_levels, "visits")
   
   dt %>%
-    # filter(design %in% designs_to_keep,
-    #        version %in% versions_to_keep,
-    #        visits %in% visits_to_keep,
-    #        cluster_type %in% c(cluster_to_keep, NA)) %>%
     mutate(
+      
+      visits = str_extract(visits, "\\d+"),
+      version = as.character(version),
+      version = ifelse(adjusted=="adjusted", paste(version, "plume adj"), version),
+      version = gsub("hours", "hr", version),
+      version = gsub("business", "bus", version),
+      version = str_to_title(version),#) %>% distinct(version)
+      
       time_selection = ifelse(grepl("All Hr", version), "All Days & Hours Sampling",
                         ifelse(grepl("Bus Hr", version), "Weekday Business Hours Sampling", NA)),
-      time_selection = factor(time_selection, levels=c("Bus Hr", "Weekday Business Hours Sampling", "All Hr", "All Days & Hours Sampling")),
-      version = as.character(version),
+      time_selection = factor(time_selection, levels=c("Weekday Business Hours Sampling", "All Days & Hours Sampling")),
       version = ifelse(version %in% c("All Hr","Bus Hr"), "No Adjustment", version),
       version = gsub("All Hr |Bus Hr ", "", version),
       version = gsub("Temp ", "Temporal ", version),
-      #version = gsub("Adj", "Adjustment", version),
-      version = gsub(" Plume Adj", " + Plume Adj", version),
-      version = factor(version, levels= adjustments),
+      version = gsub("Temporal Adj 1", "Fixed Site Temporal Adj", version),
+      version = gsub("Temporal Adj 2", "Underwrite Temporal Adj", version),
+         
+      version = gsub("Adj Plume Adj", "Adj + Plume Adj", version), 
+      version = gsub("Random Plume Adj", "Random + Plume Adj", version), 
       
-      design = as.character(design),
-      design = factor(design, levels= design_levels),
+      version = factor(version, levels= adjustments), 
+      
+      design = case_when(
+        design=="route" ~ "balanced routes",
+        design=="balanced" ~ "balanced segments",
+        design=="unbalanced" ~ "unbalanced segments",
+        design=="random" ~ "unbalanced random clusters",
+        design=="sensible" ~ "unbalanced sensible clusters",
+        design=="unsensible" ~ "unbalanced unsensible clusters",
+        design=="road_type" ~ "unbalanced road type",
+        TRUE ~ design
+        ),
+      
+      design = str_to_title(design),
+      design = factor(design, levels = design_levels),
+      
+      adjusted = str_to_title(adjusted),
       visit_label = paste(visits, "visits"),
       visit_label = factor(visit_label, levels=visit_levels)
-      )
+      )  
   }
 
 ########################################################################################
@@ -237,7 +259,8 @@ plot_values <- function(dt,
     summary_table(var = summary_var) %>%
     
     ggplot(aes(x=version, fill=design)) +
-    facet_grid(rows = vars(visit_label), cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x") 
+    facet_grid(rows = vars(visit_label), cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x") +
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 10))
   
   # for median (IQR)
   if(add_shaded_area==TRUE){
@@ -255,7 +278,7 @@ plot_values <- function(dt,
     geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
     labs(x = NULL, 
        y = y_label, 
-       fill=NULL,
+       fill="Spatial Balance",
        linetype=NULL)
   }
 
@@ -290,9 +313,19 @@ saveRDS(onroad_cov, file.path("data", "onroad", "dr0364d_20230331_modified_with_
 cw <- read.csv(file.path(dt_path, "onroad", "onroad_model_cw.csv")) %>%
   # drop annie's old clusters for now
   filter(!grepl("_c3_", model)) %>%
-  mutate(variable="pnc_noscreen") %>%
-  recode_onroad_dt() %>%
+  mutate(variable="pnc_noscreen",
+         
+         visits = gsub(" visits", "", visits)
+         
+         ) %>%
+  
+  # --> DON'T DO UNTIL LATER?
+  #add_labels() %>%
+  #recode_onroad_dt() %>%
+  
   label_pollutants() 
+
+#cw %>% filter(is.na(version2)) %>% distinct(design, version, version2)
 
 stationary_cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
   filter(variable =="pnc_noscreen",
@@ -303,10 +336,6 @@ stationary_cw <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
          #spatial = "Reference"
          )
 
-cw2 <- bind_rows(cw, stationary_cw) %>%
-  select(model, campaign, version, design, visits, adjusted, #spatial
-         )
-
 #model eval
 eval_files <- list.files(file.path(dt_path, "onroad", "model_eval")) %>% str_subset(".rda")
 
@@ -314,12 +343,10 @@ model_eval <- lapply(eval_files, function(x){
   readRDS(file.path(dt_path, "onroad", "model_eval", x)) %>%
     # drop annie's old clusters for now
     filter(!grepl("_c3_", model)) %>%
-    left_join(select(cw, #spatial, 
-                    cluster_type, design, version, visits, adjusted, campaign, model), by="model") 
+    left_join(select(cw, cluster_type, design, version, visits, adjusted, campaign, model), by="model") 
   }) %>%
   bind_rows()
   
-
 model_eval2 <- add_labels(model_eval)  
 
 #####################################################################
@@ -329,8 +356,7 @@ stationary_model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
          model %in% stationary_cw$model)  
 
 #ref health estimates from stationary models & extended health analyses
-ref_model_coefs <- readRDS(file.path(output_data_path, "model_coefs_extended.rda" #"model_coefs.rda"
-                                     )) %>%
+ref_model_coefs <- readRDS(file.path(output_data_path, "model_coefs_extended.rda")) %>%
   filter(model=="s_pncnoscreen_all_01") %>%
   left_join(select(stationary_model_eval, model, reg_based_R2, MSE_based_R2), by="model")
  
@@ -342,9 +368,6 @@ ref_model_coefs_reduced <- readRDS(file.path(output_data_path, "model_coefs.rda"
   left_join(select(stationary_model_eval, model, reg_based_R2, MSE_based_R2), by="model")
  
 tot_pnc_reduced <- filter(ref_model_coefs_reduced, model=="s_pncnoscreen_all_01") %>% pull(est)
-
-
-
 
 
 ############################################################
@@ -371,7 +394,6 @@ cs <- cs %>% rename(exposure = avg_0_5_yr)  #%>% bind_rows(stationary_cs)
 
 
 ############################################################
-
 # health effect estimates & CW
 model_coefs <- readRDS(file.path(output_data_path, "model_coefs_road_extended.rda")) %>%
   right_join(cw, by="model") %>%
@@ -423,22 +445,24 @@ monitoring_area <- readRDS(file.path("data", "GIS", "monitoring_area_shp.rda"))
 ##################################################################################################
 # COMMON VARIABLES
 ##################################################################################################
-main_designs <- str_subset(design_levels, "Sensible|Unsensible|Road Type", negate = T)
+main_designs <- design_levels #%>%  str_subset(., "Sensible|Unsensible|Road Type", negate = T)
 
-#version_levels <- unique(cw$version)
-version_levels <- c("All Hr Plume Adj", "All Hr", 
-                  
-                    "Bus Hr Temp Adj 2 Plume Adj", "Bus Hr Temp Adj 2",
-                    "Bus Hr Temp Adj 2 Random Plume Adj", "Bus Hr Temp Adj 2 Random", 
-                   
-                   "Bus Hr Temp Adj 1 Plume Adj", "Bus Hr Temp Adj 1", 
-                   "Bus Hr Temp Adj 1 Random Plume Adj", "Bus Hr Temp Adj 1 Random", 
-                   "Bus Hr Plume Adj",
-                   "Bus Hr"
-                   )
+version_levels <- levels(model_eval2$version) #%>% str_subset(., "Random", negate=T)
+
+# version_levels <- c("All Hr Plume Adj", "All Hr", 
+#                   
+#                     "Bus Hr Temp Adj 2 Plume Adj", "Bus Hr Temp Adj 2",
+#                     "Bus Hr Temp Adj 2 Random Plume Adj", "Bus Hr Temp Adj 2 Random", 
+#                    
+#                    "Bus Hr Temp Adj 1 Plume Adj", "Bus Hr Temp Adj 1", 
+#                    "Bus Hr Temp Adj 1 Random Plume Adj", "Bus Hr Temp Adj 1 Random", 
+#                    "Bus Hr Plume Adj",
+#                    "Bus Hr")
 
 # drop random temporal adjustments
-main_versions <- str_subset(version_levels, "Adj \\d Random", negate = T)
+#main_versions <- str_subset(version_levels, "Adj \\d Random", negate = T)
+main_versions <- version_levels %>% str_subset(., "Random", negate=T)
+
 
 main_visits <- c(12)
 alt_visits <- c(4)
@@ -457,13 +481,19 @@ annotation_line_size <-1.5
 
 ################################################
 # HEI
-hei_designs <- c("Balanced", "Balanced Segments", 
-                 "Random Clusters", 
-                 "Sensible Clusters", 
-                 "Unsensible Clusters", 
-                 "Road Type")
+# hei_designs <- c("Balanced", 
+#                  "Balanced Segments", 
+#                  "Random Clusters", 
+#                  "Sensible Clusters", 
+#                  "Unsensible Clusters", 
+#                  "Road Type")
 
-#hei_cb_palette_designs <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2")
+hei_designs <- c("Balanced Routes", 
+                 "Balanced Segments",
+                 "Unbalanced Random Clusters", 
+                 "Unbalanced Sensible Clusters", 
+                 "Unbalanced Unsensible Clusters", 
+                 "Unbalanced Road Type")
 
 ```
 
@@ -498,7 +528,7 @@ cw %>%
     visits %in% c(4, 12)
   ) %>% #filter(campaign==first(campaign)) %>% View()
   #prep_for_figs() %>%
-  distinct(design, version, visits, cluster_type) %>% View()
+  distinct(design, version, visits, cluster_type) %>% 
      
   kable() %>%
   kable_styling()
@@ -584,12 +614,7 @@ ggsave(file.path(image_path, "SI", "cluster_map.png"), width = 8, height = 8)
 # table/boxplots of distribution
 estimates <- all_predictions %>%
   filter(grepl("^s_", model)) %>%
-  distinct(location, gs_estimate, prediction
-           #spatial, 
-           #adjusted, design, version, visits
-           ) %>% 
-  #drop_na() %>% 
-  
+  distinct(location, gs_estimate, prediction) %>% 
   pivot_longer(cols = c(gs_estimate, prediction)) %>% 
   group_by(name) %>%
   summary_table(var = "value") 
@@ -607,13 +632,12 @@ kable_styling()
 
 ```{r}
 all_predictions %>%
-  keep_hei_results() %>%
   add_labels() %>%
+  keep_hei_results() %>%
+  
   plot_values(summary_var = "prediction", y_label = "Predicted PNC (pt/cm3)",
               add_shaded_area = T, ref_dt=ref_prediction_distribution) 
      
-
-  
 ggsave(file.path(image_path, "HEI Report", "Appendix", "predicted_ufp_309_sites.png"), width=10, height=6)
 
 ```
@@ -624,8 +648,8 @@ ggsave(file.path(image_path, "HEI Report", "Appendix", "predicted_ufp_309_sites.
 print("dashed line is median (IQR) predicted PNC from the all-data stationary model")
 
 all_predictions %>%
+  add_labels() %>% 
   keep_main_results() %>%
-  add_labels() %>%
   plot_values(summary_var = "prediction",y_label = "Predicted PNC (pt/cm3)",
               add_shaded_area = T, ref_dt=ref_prediction_distribution) 
 
@@ -645,8 +669,6 @@ results
 
 note: results are different now  for the 4-visit results for clustered analyses. things look more as expected w/ upated clusters.
 
-# --> UPDATE plots: cb colors, etc.
-
 ## --> #scale_fill_jco(palette = ) +
         #scale_fill_viridis_d() +
   
@@ -657,12 +679,12 @@ stationary_r2_mse_ref <- ref_model_coefs$MSE_based_R2
 print(paste("reference model R2 is the all-data stationary model:", round(stationary_r2_mse_ref, 2)))
 
 model_eval %>%
-  keep_main_results() %>%
-  add_labels() %>%
+  add_labels() %>%  
+  keep_main_results( ) %>%  
   plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
               add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
 
-ggsave(file.path(image_path, "r2_mse.png"), width = 10, height = 10)
+ggsave(file.path(image_path, "r2_mse.png"), width = 8, height = 6)
 
 #############################################
 # SI: cluster comparison
@@ -670,36 +692,61 @@ ggsave(file.path(image_path, "r2_mse.png"), width = 10, height = 10)
 cluster_designs <- str_subset(design_levels, "Cluster|Road Type")
 
 model_eval %>%
-  filter(visits %in% 12,
-           design %in% cluster_designs,
-           cluster_type %in% c("cluster1", "cluster2")) %>%
-  drop_na(cluster_type) %>%
   add_labels() %>%
+  filter(visits %in% 12,
+         design %in% cluster_designs,
+         cluster_type %in% c("cluster1", "cluster2"),
+         !grepl("Random", version)) %>%
+  drop_na(cluster_type) %>%
+  
   
   group_by(across(all_of(c("design", "version", "time_selection", "visit_label", "cluster_type")))) %>%
   summary_table(var = "MSE_based_R2") %>%
   
   ggplot(aes(x=version, fill=design)) +
-  facet_grid(rows = vars(visit_label, cluster_type), cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x")  + geom_hline(yintercept = stationary_r2_mse_ref, alpha=0.8, col=ref_model_col, linetype=2) +  
+  facet_grid(rows = vars(cluster_type, visit_label), cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x")  + geom_hline(yintercept = stationary_r2_mse_ref, alpha=0.8, col=ref_model_col, linetype=2) +  
     
   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
   labs(x = NULL, 
        y = expression("Exposure Model" ~ R[MSE]^2), 
        fill=NULL)
   
-ggsave(file.path(image_path, "SI", paste0("r2_mse_clusters.png")), width = 10, height = 8)
+ggsave(file.path(image_path, "SI", paste0("r2_mse_clusters.png")), width = 8, height = 6)
 
 
 #############################################
 # SI: routes - increasing visits
 
 model_eval %>%
-  keep_main_results(designs_to_keep = "Route", visits_to_keep = c(4, 12, 20)) %>%
-  add_labels() %>%
+  add_labels() %>% #distinct(visits)
+  keep_main_results(designs_to_keep = c("Balanced Routes", "Balanced Segments"), visits_to_keep = c(4, 12, 20)) %>%
   plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
               add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
 
 ggsave(file.path(image_path, "SI", paste0("r2_mse_routes.png")), width = 10, height = 8)
+
+#############################################
+```
+
+
+# --> update; Drop "Balanced Routes"?
+
+```{r, fig.height=8, fig.with=8}
+# random temporal adjustment
+random_versions <- version_levels %>% 
+  str_subset(., "Temporal Adj|No Adjustment") %>%
+  str_subset(., "Plume", negate=T)
+
+model_eval %>%
+  add_labels() %>%  
+  keep_main_results(versions_to_keep = random_versions, 
+                    times_selections_to_keep = "Weekday Business Hours Sampling"
+                    ) %>%  
+  plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
+              add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
+
+ggsave(file.path(image_path, "SI", "r2_random_temporal_adj.png"), width = 8, height = 6)
 
 ```
 
@@ -718,27 +765,27 @@ compare_r2_plot <- function(dt){
   
   ggplot(aes(x=version, fill=design)) +
   #facet_grid(rows = vars(time_selection, visit_label), cols = vars(name), switch = "both", scales = "free_x", space="free_x")  + 
-    facet_grid(rows = vars(visit_label), 
-               cols = vars(time_selection, name), 
-               switch = "both", scales = "free_x", space="free_x") + 
+    facet_grid(rows = vars(time_selection, visit_label),
+               cols = vars(name),
+               switch = "both", scales = "free_x", space="free_x") +
+      
+    
     geom_hline(yintercept = ref_model_coefs$MSE_based_R2, alpha=0.8, col=ref_model_col, linetype=2) +  
-#   geom_hline(#inherit.aes = FALSE, 
-#              data= r2_values, aes(yintercept = value), linetype=2, col=ref_model_col) +
-
   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  labs(x = NULL, 
-       y = expression("Exposure Model" ~ R^2), 
-       fill=NULL)
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+    labs(x = NULL,
+         y = expression("Exposure Model" ~ R^2),
+         fill=NULL)
   
 }
 
 # see similar patterns for 4 visits
 model_eval %>%
-  keep_main_results(visits_to_keep = 12) %>%
   add_labels() %>% 
-  compare_r2_plot()
+  keep_main_results(visits_to_keep = 12) %>%
+  compare_r2_plot() 
   
-ggsave(file.path(image_path, "SI", "r2_regression.png"), width = 12, height = 6)
+ggsave(file.path(image_path, "SI", "r2_regression.png"), width = 10, height = 8)
 
 ```
 
@@ -749,8 +796,8 @@ ggsave(file.path(image_path, "SI", "r2_regression.png"), width = 12, height = 6)
 ```{r}
 
 model_eval %>%
-  keep_hei_results() %>%
   add_labels() %>%
+  keep_hei_results() %>%
   plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
               add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
   
@@ -758,9 +805,9 @@ ggsave(file.path(image_path, "HEI Report", paste0("r2_mse.png")), width = 10, he
    
 # SI - regression R2 (formatted differently)
 model_eval %>%
-  keep_hei_results(keep_visits = 12) %>%
   add_labels() %>% 
-  compare_r2_plot()
+  keep_hei_results(keep_visits = 12) %>%
+  compare_r2_plot() 
   
 ggsave(file.path(image_path, "HEI Report", "Appendix", "r2_regression.png"), width = 14, height = 8)
 
@@ -843,8 +890,8 @@ ggsave(file.path(image_path, "SI", "cohort_exposures.png"), width = 8, height = 
 
 ```{r}
 cs %>%
-  keep_hei_results() %>%
   add_labels() %>%
+  keep_hei_results() %>%
   plot_values(summary_var = "exposure", ref_dt = ref_cs_distribtuion)
 
 ggsave(file.path(image_path, "HEI Report", "Appendix", "cohort_exposures.png"), width = 8, height = 8)
@@ -859,6 +906,12 @@ ggsave(file.path(image_path, "HEI Report", "Appendix", "cohort_exposures.png"), 
 ref_model_coefs %>%
   select(model, est, lower, upper, MSE_based_R2, reg_based_R2) %>%
   kable(caption = "health estimate from the reference all-data stationary exposure model", 
+        digits = 3) %>%
+  kable_styling()
+
+ref_model_coefs_reduced %>%
+  select(model, est, lower, upper, MSE_based_R2, reg_based_R2) %>%
+  kable(caption = "REDUCED health estimate from the reference all-data stationary exposure model", 
         digits = 3) %>%
   kable_styling()
 
@@ -883,17 +936,20 @@ health_plot <- function(dt, #model_coefs
    #geom_text(inherit.aes = F, x=1, y=ref_stationary_restimate*1.1, label="Reference", fill= "white",show.legend = F, size=5) +
  
     geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-    scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_stationary_restimate)/-ref_stationary_restimate, name="Health Point Estimate % Difference", labels = scales::percent), 
+    scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_stationary_restimate)/-ref_stationary_restimate, 
+                                           name= NULL, #"Health Point Estimate % Difference", 
+                                           labels = scales::percent), 
                        position="left") +
-      
+    scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +  
     #scale_fill_viridis_d() +
     #scale_fill_manual(values = hei_cb_palette_designs) +
     #scale_fill_brewer(palette = "Set2") + #set2 is cb friendly
     #scale_fill_manual(values = cb_palette) +
 
     
-    labs(y = "Health Point Estimate",
-         fill=NULL,
+
+    labs(y=NULL, 
+         fill="Spatial Balance",
          x = NULL, linetype=NULL) 
 
   p
@@ -909,52 +965,84 @@ health_plot <- function(dt, #model_coefs
 
 
 ```{r, fig.height=10, fig.with=10}
-# extended/main health models
-model_coefs %>%
-  keep_main_results() %>%
-  add_labels() %>%
-  health_plot(ref_stationary_restimate=tot_pnc)  
 
-ggsave(file.path(image_path, "betas.png"), width = 10, height = 8)
+# v=12
+lapply(c(4, 12), function(v){
+  
+  reduced_health_model <- model_coefs_reduced_model %>%
+    add_labels() %>%
+    keep_main_results(visits_to_keep = v) %>%
+    mutate(visit_label = paste0("Reduced Health Model (", visit_label, ")")) %>%
+    health_plot(dt=., ref_stationary_restimate = tot_pnc_reduced)
 
-## reduced health  model
-model_coefs_reduced_model %>%
-  keep_main_results() %>%
-  add_labels() %>%
-  health_plot(dt=., ref_stationary_restimate = tot_pnc_reduced)  
+  extended_health_model <- model_coefs %>%
+    add_labels() %>%
+    keep_main_results(visits_to_keep = v) %>%
+    mutate(visit_label = paste0("Main Health Model (", visit_label, ")")) %>%
+    health_plot(dt=., ref_stationary_restimate = tot_pnc)
 
-ggsave(file.path(image_path, "SI", "betas_redued_model.png"), width = 10, height = 8)
+  ggarrange(reduced_health_model, extended_health_model, ncol = 1, 
+          common.legend = T, legend = "bottom") %>%
+  annotate_figure(left = "Health Point Estimate", 
+                  right = "Health Point Estimate % Difference")
+
+if(v==12){ggsave(file.path(image_path, "betas.png"), width = 10, height = 8)} 
+
+if(v==4){ggsave(file.path(image_path, "SI", paste0("betas_", v, "_visits.png")), width = 10, height = 8)}
+
+})
 
 ```
+
+# --> update plot? color by visits vs balanced design; combine main & reduced model
 
 ```{r}
 # routes
 model_coefs %>%
-  keep_main_results(designs_to_keep = "Route", visits_to_keep = c(4, 12, 20)) %>%
-  add_labels() %>% View()
-  health_plot(dt=., ref_stationary_restimate=tot_pnc)
+  add_labels() %>% 
+  keep_main_results(designs_to_keep = c("Balanced Routes", "Balanced Segments"), 
+                    visits_to_keep = c(4, 12, 20)) %>%
   
-ggsave(file.path(image_path, "SI", "betas_routes.png"), width = 12, height = 6)
+  health_plot(dt=., ref_stationary_restimate=tot_pnc) + 
+  labs(y = "Health Point Estimate") + 
+  # add second y-axis label to this plot
+  scale_y_continuous(sec.axis = sec_axis(trans=~(.-tot_pnc)/-tot_pnc,
+                                         name= "Health Point Estimate % Difference",
+                                         labels = scales::percent),
+                     position="left") 
+  
+ggsave(file.path(image_path, "SI", "betas_routes.png"), width = 8, height = 6)
 
 ```
 
 ## HEI Report 
 
 ```{r}
-model_coefs_reduced_model %>%
-  keep_hei_results() %>%
-  add_labels() %>%
-  health_plot(dt=., ref_stationary_restimate = tot_pnc_reduced)
+# v=12
+lapply(c(4, 12), function(v){
+  
+  reduced_health_model <- model_coefs_reduced_model %>%
+    add_labels() %>%
+    keep_hei_results(keep_visits = v) %>%
+    mutate(visit_label = paste0("Main Health Model (", visit_label, ")")) %>%
+    health_plot(dt=., ref_stationary_restimate = tot_pnc_reduced)
+  
+  extended_health_model <- model_coefs %>%
+    add_labels() %>%
+    keep_hei_results(keep_visits = v) %>%
+    mutate(visit_label = paste0("Extended Health Model (", visit_label, ")")) %>%
+    health_plot(dt=., ref_stationary_restimate = tot_pnc)
 
-ggsave(file.path(image_path, "HEI Report", "betas.png"), width = 10, height = 8)
+ggarrange(reduced_health_model, extended_health_model, ncol = 1, 
+          common.legend = T, legend = "bottom") %>%
+  annotate_figure(left = "Health Point Estimate", 
+                  right = "Health Point Estimate % Difference")
 
-# appendix - extended model
-model_coefs %>%
-  keep_hei_results() %>%
-  add_labels() %>%
-  health_plot(dt=., ref_stationary_restimate=tot_pnc)
+if(v==12){ggsave(file.path(image_path, "HEI Report", "betas.png"), width = 10, height = 8)} 
 
-ggsave(file.path(image_path, "HEI Report", "Appendix", "betas_extended_model.png"), width = 10, height = 8)
+if(v==4){ggsave(file.path(image_path, "HEI Report", "Appendix", paste0("betas_", v, "_visits.png")), width = 10, height = 8)}
+
+})
 
 ```
 

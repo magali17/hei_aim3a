@@ -54,17 +54,20 @@ cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda"
 cs <- cs0 %>%
   select(-c(ends_with(c("MM_05_yr", "coverage", "quality"))),
          #keep NS & P-TRAK exposure estimate from main epi model from issue 12 (for comparision against the all-data HEI model)
-         cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr) %>%
+         cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr,
+         # full onroad ptrak model (primary model, scale 0.99, truncate 0.75)
+         cum_exp_pnc_onrd_MM_05_yr
+         ) %>%
   # modeling units
   mutate(avg_0_5_yr = ifelse(grepl("_ns|_pnc", model), avg_0_5_yr/pnc_units,
                              ifelse(grepl("no2", model), avg_0_5_yr/no2_units, NA)))
 
-# data with issue 12 epi models (for reference)
+# data with issue 12 epi models (for reference), includes all-data stationary & plume adjusted on-road
 cs_issue12_models <- select(cs, -c(avg_0_5_yr, model)) %>%
   distinct() %>%
   pivot_longer(contains("cum_exp_"), values_to = "avg_0_5_yr", names_to = "model") %>%
   # modeling units
-  mutate(avg_0_5_yr = ifelse(grepl("_ufp_", model), avg_0_5_yr/pnc_units,
+  mutate(avg_0_5_yr = ifelse(grepl("_ufp_|_pnc_", model), avg_0_5_yr/pnc_units,
                              ifelse(grepl("no2", model), avg_0_5_yr/no2_units, NA)))
 
 #####################################################################################
@@ -186,9 +189,9 @@ saveRDS(model_coefs_all, file.path(output_data_path, "model_coefs_all.rda"))
 
 ###########
 # issue 12 reference models: NS & P-TRAK
+## note that these are developed slighly differntly (see roadside epi paper, e.g., 3 PLS components...)
 
-# --> note that this doesn't use the extended covariates (This is for the HEI report where we did not use the extended covariate health models)
-
+## reduced models
 message("running ISSUE 12 reference epi models...")
 models_issue12 <- mclapply(group_split(cs_issue12_models, model), mc.cores=use_cores, function(x) {lm_fn(df=x)})
 saveRDS(models_issue12, file.path(output_data_path, "models_issue12.rda"))
@@ -200,6 +203,16 @@ saveRDS(model_coefs_issue12, file.path(output_data_path, "model_coefs_issue12.rd
 # same as above but raw for all coefficients
 model_coefs_all_issue12 <- get_model_results_all_coefs(models_issue12)
 saveRDS(model_coefs_all_issue12, file.path(output_data_path, "model_coefs_issue12_all.rda"))
+
+## EXTENDED MODELS 
+message("...running extended models")
+models_issue12_extended <- mclapply(group_split(cs_issue12_models, model), mc.cores=use_cores, function(x) {lm_fn(df=x, model_covars. = model_covars_extended)})
+saveRDS(models_issue12_extended, file.path(output_data_path, "models_issue12_extended.rda"))
+
+message("saving model coeficients...")
+model_coefs_all_issue12_extended <- get_model_results_all_coefs(models_issue12_extended)
+saveRDS(model_coefs_all_issue12_extended, file.path(output_data_path, "model_coefs_issue12_all_extended.rda"))
+
 
 ####################################
 # 5/20/24. extended models

@@ -244,8 +244,9 @@ health <- health %>%
          #QC variables for NO2 and UFP
          ends_with(c("no2_MM_05_yr", "ufp_10_42_MM_05_yr")),
          -starts_with(c("cum_exp_", "var_avg_", "num_years_")), 
-         #keep NS & P-TRAK exposure estimate from main epi model (for comparision against the all-data HEI model)
+         #keep stationary NS & P-TRAK exposure estimate from main epi model (for comparision against the all-data HEI model)
          cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr, 
+         cum_exp_pnc_onrd_MM_05_yr, #full onroad ptrak model (primary model, scale 0.99, truncate 0.75)
          visitdt)
 
 ######################################################################
