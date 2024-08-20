@@ -9,3 +9,5 @@ health_plot:
   max_y: 0.01
   min_y: -0.023 # -0.02
   min_y_ci: -0.04 #-0.039
+
+ref_model_col: "darkgreen" 

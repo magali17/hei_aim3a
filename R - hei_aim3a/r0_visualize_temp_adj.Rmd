@@ -31,8 +31,11 @@ pacman::p_load(tidyverse, lubridate, #zoo,
 source("functions.R")
 dt_pt <- file.path("data", "onroad", "annie", "v2")
 dt_pt2 <- file.path("data", "onroad", "annie", "v2", "temporal_adj", "20240421")
-image_path <- file.path("..", "..", "Manuscript", "Images", "v4", "other", "road")
-dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), "qc", "road")
+image_path <- file.path("..", "..", "Manuscript - Onroad data", "Images", "v5", "SI", "temporal adjustment")
+dt_out <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")), 
+                    #"qc", "road"
+                    "onroad", "qc"
+                    )
 if(!dir.exists(dt_out)){dir.create(dt_out, recursive = T)}
 
 set.seed(1)
@@ -269,9 +272,8 @@ underwrite_adj %>%
   select(-c(bg_hour_avg, bg_lta)) %>%
   pivot_wider(names_from = background_adj, values_from = avg_hourly_adj) %>% 
   pivot_longer(cols = c(starts_with("hr"), -all_of(main_bg))) %>%
-  
-  # --> need to update 'hr1_pct5' if change this
-  ggplot(aes(x=hr1_pct5, y=value, col=name)) + 
+
+  ggplot(aes(x=hr3_pct1, y=value, col=name)) + 
   facet_wrap(~road_types) +
   geom_point(alpha=0.3) + 
   geom_smooth() +
@@ -308,13 +310,13 @@ underwrite_adj %>%
        col = "Background Adjustment",
        linetype = "Roads Used", shape = "Roads Used")
 
-#ggsave(file.path(dt_out, "example_bg_conc.png"), width = 14, height = 8)
+ggsave(file.path(image_path, "example_bg_conc.png"), width = 14, height = 8)
 
 print("same as above but hourly adjustments vs estimated background concentrations")
 underwrite_adj %>%
   filter(runname %in% sample_runs) %>%
   
-  ggplot(aes(x=time, y=avg_hourly_adj, col=background_adj, shape=road_types, linetype=road_types)) + 
+ggplot(aes(x=time, y=avg_hourly_adj, col=background_adj, shape=road_types, linetype=road_types)) + 
   facet_wrap(~runname, scales="free_x") +
   geom_hline(yintercept = 0, linetype=2, alpha=0.5) +
   geom_point() + 
@@ -324,7 +326,7 @@ underwrite_adj %>%
        col = "Background Adjustment",
        linetype = "Roads Used", shape = "Roads Used")
 
-#ggsave(file.path(dt_out, "example_hourly_adjustments.png"), width = 14, height = 8)
+ggsave(file.path(image_path, "example_hourly_adjustments.png"), width = 14, height = 8)
 
 ##################################################################################################
 # by DOW
@@ -373,7 +375,9 @@ time_series_plot <- function(runs) {
   
   bg_data <- ltas %>% 
     filter(background_adj %in% main_bg) %>%
-    mutate(ufp = "background_lta")
+    mutate(UFP = "background LTA",
+           road_types = gsub("_", " ", road_types),
+           )
   
   bind_rows(all, no_highways) %>% 
     # only show main approach
@@ -382,14 +386,23 @@ time_series_plot <- function(runs) {
     rename(measured_ufp=ufp, background_ufp_1s = background) %>%
     mutate(hour = hour(time)) %>%
     left_join(select(underwrite_adj, runname, hour, background_adj, road_types, background_ufp_1hr = bg_hour_avg), relationship="many-to-many") %>%
-    pivot_longer(cols = c(measured_ufp, background_ufp_1s, background_ufp_1hr), names_to = "ufp") %>% 
+    pivot_longer(cols = c(measured_ufp, background_ufp_1s, background_ufp_1hr), names_to = "UFP") %>% 
     
-    ggplot(aes(x=time, col=ufp, linetype=road_types)) +
+    mutate(UFP = gsub("ufp", "UFP", UFP),
+           UFP = gsub("lta", "LTA", UFP),
+           UFP = gsub("_", " ", UFP),
+           road_types = gsub("_", " ", road_types),
+           ) %>%
+    
+    
+    ggplot(aes(x=time, col=UFP, linetype=road_types)) +
     facet_grid(background_adj~runname, scales="free_x", switch = "both") +
     geom_line(aes(y=value)) +
-    geom_hline(data=bg_data, aes(yintercept=bg_lta,  col=ufp, linetype=road_types)) + 
+    geom_hline(data=bg_data, aes(yintercept=bg_lta,  col=UFP, linetype=road_types)) + 
     labs(y="UFP (pt/cm3)",
-         x="Time"
+         x="Time",
+         col="UFP",
+         linetype="Road Types"
     )
   }
 
@@ -410,7 +423,8 @@ time_series_plot(sample_ts_runs)
 print("on log y scale")
 time_series_plot(sample_ts_runs) + scale_y_log10()
 
-#ggsave(file.path(dt_out, "time_series_sample.png"), width = 12, height = 8)
+ggsave(file.path(image_path, "SI", "time_series_sample.png"), width = 12, height = 8)
+
 ```
 
 ## visits vs hourly adjustments (FILES ARE TOO LARGE)

@@ -42,6 +42,8 @@ pacman::p_load(tidyverse,
                cowplot #layering ggplots. ggdraw(), draw_plot()
                )    
 
+config <- yaml::read_yaml("config.yaml")
+
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
 
 set.seed(1)
@@ -87,6 +89,8 @@ one_to_one_band <- 0.2
 uw_purple <- "#4b2e83"
 uw_gold1 <- "#b7a57a" # web: e8e3d3
 uw_gold2 <- "#85754d"
+
+ref_model_col <- config$ref_model_col  
 
 ##################################################################################################
 # LOAD DATA
@@ -1320,11 +1324,13 @@ tot_pnc <- filter(true_betas, grepl("Total|10-420", variable)) %>%
 tot_pnc_extended <- filter(true_betas_extended, grepl("Total|10-420", variable)) %>%
   pull(est)
 
-#y_lims <- c(-0.018, 0.0005)
-y_lims <- rbind(model_coefs, model_coefs_extended) %>%# View()
-  filter(grepl("tot_", model)) %>%
-  pull(est) %>%
-  range()
+# y_lims <- rbind(model_coefs, model_coefs_extended) %>%# View()
+#   filter(grepl("tot_", model)) %>%
+#   pull(est) %>%
+#   range()
+
+y_lims <- c(config$health_plot$min_y_ci, config$health_plot$max_y_ci)
+
 
 y_lims_pct <- seq(-2,2,1)
 
@@ -1349,49 +1355,57 @@ model_coefs_extended %>%
 # plots 
 # for individual pollutants
 
-beta_summary_plot <- function(dt, true_betas., variable.="Total|10-420", facet_label="Reduced Health Model") {
+beta_summary_plot <- function(dt,
+                              true_betas.,
+                              variable.="Total|10-420",
+                              facet_label="Reduced Health Model",
+                              reference_text_offset=0,
+                              null_text_offset=0
+                              ) {
   true_betas. <- filter(true_betas., grepl(variable., variable)) %>%
     mutate(design="All Data",
            design= factor(design, levels= levels(model_coefs$design)),
            significant = ifelse(significant==TRUE, "Statistically Significant", "Not Statistically Significant"))
-    
+
   p <- dt %>%
-  filter(grepl(variable., variable),
-         design != "All Data"
-         ) %>% 
-  mutate(version = gsub("Bus", "Business", version),
-         version = gsub("Adj 1", "\nTemporally\nAdjusted", version),
-         version = factor(version, levels=version_levels2)) %>%
-  
-  group_by(version, design, variable, ref) %>%
-  summary_table(var = "est") %>%
-  mutate(facet_label = facet_label) %>%
-  ggplot(aes(x=version, fill=ref)) +
-  geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
-  facet_grid(facet_label~design, scales="free_x", switch="both") +
-  geom_hline(yintercept = true_betas.$est, linetype=1, #alpha=0.5, #col="darkgreen"
-             ) +
-  geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
-  scale_y_continuous(sec.axis = sec_axis(trans=~(.-true_betas.$est)/-true_betas.$est, 
-                                         name= NULL, 
-                                         labels = scales::percent, 
+    filter(grepl(variable., variable),
+           design != "All Data") %>%
+    mutate(version = gsub("Bus", "Business", version),
+           version = gsub("Adj 1", "\nTemporally\nAdjusted", version),
+           version = factor(version, levels=version_levels2)) %>%
+
+    group_by(version, design, variable, ref) %>%
+    summary_table(var = "est") %>%
+    mutate(facet_label = facet_label) %>%
+    ggplot(aes(x=version, fill=ref)) +
+    geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+    facet_grid(facet_label~design, scales="free_x", switch="both") +
+
+
+    annotate("rect", xmin = -Inf, xmax = Inf, ymin = true_betas.$lower, ymax = true_betas.$upper,
+           alpha = 0.1, fill = ref_model_col) +
+    geom_hline(yintercept = true_betas.$est, linetype=2, col=ref_model_col,) +
+    geom_hline(yintercept = 0, linetype=2, col="red") +
+
+    scale_y_continuous(sec.axis = sec_axis(trans=~(.-true_betas.$est)/-true_betas.$est,
+                                         name= NULL,
+                                         labels = scales::percent,
                                          breaks = y_lims_pct),
                      position="left", limits = y_lims) +
-  # scale_y_continuous(sec.axis = sec_axis(trans=~./true_betas.$est, name="Health Point Estimate (% of Reference Model)", labels = scales::percent),
-  #                      position="right") +
-    
-    #geom_label(inherit.aes = F, data=true_betas., aes(x=1, y=est, label = round(est, 3))) +
-    labs(y = NULL, #"Health Point Estimate", 
-         x = "Design",
+        scale_x_discrete(labels = function(x) str_wrap(x, width = 8)) +  
+
+    labs(y = NULL,  
+         x = NULL, 
        fill= NULL)
-    
+
   print(p)
   }
 
-reduced_models <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas)
-extended_models <- beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Primary Health Model")
 
-ggarrange(reduced_models,  extended_models, ncol = 1, common.legend = T, legend = "bottom") %>%
+reduced_models <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas)
+extended_models <- beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Main Health Model")
+
+ggarrange(reduced_models,  extended_models, ncol = 2, common.legend = T, legend = "bottom") %>%
   annotate_figure(left = "Health Point Estimate",
                   right = "Health Point Estimate (% Different from Reference)", 
                   bottom = "Design")
@@ -1401,38 +1415,29 @@ ggsave(file.path(image_path, "beta_boxplots_main_reduced.png"), width = 12, heig
 # HEI Report results
 
 reduced_models_hei <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas, facet_label = "Main Health Model")
-extended_models_hei <- beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Extended Adjusted Health Model")
+extended_models_hei <- beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Extended Health Model")
 
 ggarrange(reduced_models_hei,  extended_models_hei, ncol = 1, common.legend = T, legend = "bottom") %>%
-  annotate_figure(left = "Health Point Estimate",
-                  right = "Health Point Estimate (% Different from Reference)", 
-                  bottom = "Design")
-ggsave(file.path(image_path, "HEI Report", "beta_boxplots_main_reduced.png"), width = 12, height = 10)
+  annotate_figure(left = text_grob(expression(beta), 
+                                   rot = 90, size = 14),
+                right = text_grob("% Difference", 
+                                  rot = 270, size = 14))
 
-# beta_summary_plot(dt=model_coefs, true_betas.=true_betas, facet_label = "") + 
-#   labs(y="Health Point Estimate")
-# 
-# ggsave(file.path(image_path, "HEI Report", "beta_boxplots_main_reduced.png"), width = 12, height = 5)
-# 
-# 
-# beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Extended Adjusted Health Model") + 
-#   labs(y="Health Point Estimate")
-# ggsave(file.path(image_path, "HEI Report", "Appendix", "beta_boxplots_extended.png"), width = 12, height = 5)
+ggsave(file.path(image_path, "HEI Report", "beta_boxplots_main_reduced.png"),bg = "white", width = 12, height = 10)
 
 ################################################################################################
 # SI - other pollutants
-y_lims_sensitivity <- range(model_coefs_extended$est)
-y_lims_sensitivity_pct <- seq(-2,2, 1)
+#y_lims_sensitivity <- range(model_coefs_extended$est)
+y_lims_sensitivity <- range(config$health_plot$min_y_ci, config$health_plot$max_y_ci)
+
+y_lims_sensitivity_pct <- seq(-2,2, 2)
 
 print("extended health models")
 lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)"), 
        function(x) {
   
   true_betas2 <- true_betas_extended %>% 
-    filter(#grepl(x, variable)
-      variable==x
-      #variable2==x
-           ) %>%
+    filter(variable==x) %>%
     mutate(variable = ifelse(variable == "10-420 nm", "10-420 nm (Primary)", as.character(variable)),
            design="All Data",
            design= factor(design, levels= levels(model_coefs$design)))
@@ -1456,14 +1461,15 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)"),
     geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
     
     facet_grid(variable~design, scales="free", switch="both", space="free") + 
-    geom_hline(yintercept = ref_conc, linetype=1,# alpha=0.5, 
-               #size=1.5
-               ) +
-    geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+    # geom_hline(yintercept = ref_conc, linetype=1) +
+    # geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+    annotate("rect", xmin = -Inf, xmax = Inf, ymin = true_betas2$lower, ymax = true_betas2$upper,
+           alpha = 0.1, fill = ref_model_col) +
+    geom_hline(yintercept = true_betas2$est, linetype=2, col=ref_model_col,) +
+    geom_hline(yintercept = 0, linetype=2, col="red") +
+    
     scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_conc)/-ref_conc, name=NULL, labels = scales::percent, breaks = y_lims_sensitivity_pct
                                            ), position="left", limits = y_lims_sensitivity) +
-    #scale_y_continuous(sec.axis = sec_axis(trans=~./ref_conc, name=NULL, labels = scales::percent), position="right") +
-    #geom_label(inherit.aes = F, data=true_betas2, aes(x=1, y=est, label = round(est, 2))) +
   labs(y=NULL, x = "Design", fill=NULL)
   
   p
@@ -1472,7 +1478,7 @@ lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm", "NO2 (ppb)"),
   annotate_figure(right = "Health Point Estimate (% Different from Reference)", 
                   left = "Health Point Estimate")
   
-ggsave(file.path(image_path, "SI", "beta_boxplots.png"), width = 10, height = 12)
+ggsave(file.path(image_path, "SI", "beta_boxplots.png"), bg="white", width = 10, height = 12)
 
 
 ```
@@ -1491,6 +1497,71 @@ model_coefs_2010 %>%
 
 ```
 
+### HEI report 
+
+reduced models are 'primary' models & no NO2
+ 
+```{r}
+# SI - other pollutants
+y_lims <- range(config$health_plot$min_y_ci, config$health_plot$max_y_ci)
+y_lims_sensitivity_pct <- seq(-2,2, 1)
+
+print("extended health models")
+# x="20-1,000 nm"
+lapply(c("10-420 nm", "10-100 nm", "20-1,000 nm"), 
+       function(x) {
+  
+  true_betas2 <- true_betas %>% 
+    filter(variable==x) %>%
+    mutate(variable = ifelse(variable == "10-420 nm", "10-420 nm (Primary)", as.character(variable)),
+           design="All Data",
+           design= factor(design, levels= levels(model_coefs$design)))
+ 
+  # for second axis
+  ref_conc <- true_betas2$est 
+ 
+  p <- model_coefs %>%
+    mutate(variable = ifelse(grepl("Total", variable), "10-420 nm", as.character(variable))) %>%
+     filter(#grepl(x, variable)
+      variable==x,
+      design != "All Data"
+           ) %>%
+    mutate(variable = ifelse(grepl("Total|10-420 nm", variable), "10-420 nm (Primary)", as.character(variable)),
+           variable = factor(variable, levels = c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm", "NO2 (ppb)")))  %>%
+   
+  
+    group_by(version, design, variable, ref) %>%
+    summary_table(var = "est") %>%
+    ggplot(aes(x=version, fill=ref)) +
+    geom_boxplot(stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
+    
+    facet_grid(variable~design, scales="free", switch="both", space="free") + 
+    # geom_hline(yintercept = ref_conc, linetype=1) +
+    # geom_hline(yintercept = 0, linetype=2, alpha=0.2) +
+    annotate("rect", xmin = -Inf, xmax = Inf, ymin = true_betas2$lower, ymax = true_betas2$upper,
+           alpha = 0.1, fill = ref_model_col) +
+    geom_hline(yintercept = true_betas2$est, linetype=2, col=ref_model_col,) +
+    geom_hline(yintercept = 0, linetype=2, col="red") +
+    
+    
+    scale_y_continuous(sec.axis = sec_axis(trans=~(.-ref_conc)/-ref_conc, name=NULL, labels = scales::percent, 
+                                           breaks = y_lims_sensitivity_pct
+                                           ), position="left", 
+                       limits = y_lims) +
+  labs(y=NULL, x = "Design", fill=NULL)
+  
+  p
+  }) %>%
+  ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
+  annotate_figure(right = "% Different from Reference", 
+                  left = "Health Point Estimate")
+  
+ggsave(file.path(image_path, "HEI Report", "Appendix", "beta_boxplots.png"), bg="white", width = 10, height = 12)
+
+
+
+
+```
 
 
 ### for ppt
