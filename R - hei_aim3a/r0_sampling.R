@@ -180,6 +180,21 @@ pnc_med %>%
   pull(id) %>%
   saveRDS(., file.path(new_dt_pt, "ids_included.rds"))
 
+
+# save segment annual averages
+# pnc_med <- readRDS(file.path(new_dt_pt, "pnc_med.rds"))
+pnc_annual_avg <- pnc_med %>%
+  group_by(id, adjusted) %>%
+  summarize(visits = n(),
+            value = mean(median_value)) %>%
+  ungroup()
+saveRDS(pnc_annual_avg, file.path(new_dt_pt, "pnc_annual_avg_TEMP.rds"))
+
+
+
+
+
+
 # filter(test, id==534) %>% View()
 road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
   filter(

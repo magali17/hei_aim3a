@@ -71,42 +71,57 @@ make_dt_smaller <- function(dt) {
 
 # Load data 
 
-# --> TO DO: UPDATE FILE PATHS TO LATEST FILES FROM r0_temporal_adjustment.R
-
 ```{r}
 # adjusted annual averages (n=30 campaigns per design-version)
 ## underwrite adjusted annual avgs 
-annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% 
-  mutate(road_types = "all_road_types") %>%
-  bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% mutate(road_types = "no_highways"))  
+# annual_adj2 <- readRDS(file.path(dt_pt2, "site_avgs_uw_adj.rds")) %>% 
+#   mutate(road_types = "all_road_types") %>%
+#   bind_rows(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")) %>% 
+#               mutate(road_types = "no_highways"))  
 
-annual_adj2_main0 <- filter(readRDS(file.path(dt_pt2, "site_avgs_uw_adj_no_hwy.rds")), background_adj == main_bg) %>% 
-  select(-background_adj)
-# dim(annual_adj2_main0)
+annual_files <- list.files(file.path(dt_pt2, "site_avgs")) %>%
+  str_subset("adj1|_wide", negate = T)
+
+#annual_files <- annual_files[1:2]
+annual_adj2 <- lapply(annual_files, function(f){readRDS(file.path(dt_pt2, "site_avgs", f))})
+
+# example adjustments 
+annual_files_example <- list.files(file.path(dt_pt2, "site_avgs")) %>%
+  str_subset("adj1|_wide", negate = T) %>%
+  str_subset("no_hwy")
+
+# --> ERROR: THESE FILES ARE INCOMPLETE IN PLASMID; NEED TO BE TRASFERED FROM BRAIN TO VISUALIZE THESE RESULTS.
+
+annual_adj2_example <- lapply(annual_files_example, function(f){readRDS(file.path(dt_pt2, "site_avgs", f))}) %>%
+  bind_rows()
+
+# primary background adjustment
+annual_adj2_main0 <- readRDS(file.path(dt_pt2, "site_avgs", "temp_adj2_no_hwy_hr3_pct1.rds")) #%>% select(-background_adj)
+
+
+
 
 ## fixed site adj annual avgs (UFP~NO2)
-temporal_adjustments1 <- readRDS(file.path(dt_pt2, "TEMP_bh_site_avgs_fixed_site_temporal_adj.rds"))
-# dim(temporal_adjustments1)
+temporal_adjustments1 <- readRDS(file.path(dt_pt2, "site_avgs", "temp_adj1.rds"))
 
-## unadjusted annual averages
-annual_unadjusted <- bind_rows(readRDS(file.path("data", "onroad", "annie", "v2", "nonspatial_site_avgs.rds")),
-                    readRDS(file.path("data", "onroad", "annie", "v2", "cluster_site_avgs.rds"))) %>%
-  filter(grepl("business", version),
-         cluster_type %in% unique(temporal_adjustments1$cluster_type) #drops cluster3
-         )
-# dim(annual_unadjusted)
 
-## combine unadjusted and temporally-adjusted annual averages
-annual_comparison <- bind_rows(temporal_adjustments1, annual_adj2_main0) %>%
-  rename(annual_mean_adj = annual_mean) %>%
-  left_join(select(annual_unadjusted, -c(version, cluster_value)))
+temporally_adjusted_example <- annual_adj2_example %>%  #annual_adj2_main0 %>%
+  filter(
+    adjusted=="unadjusted",
+    design=="balanced",
+    visits== "12 visits",
+    version=="business hours temp adj 2",
+    is.na(cluster_type)
+    )  %>%
+  select(id, campaign, background_adj, annual_mean_temp_adjusted=annual_mean)
+  
+annual_comparison <- readRDS(file.path(new_dt_pt, "site_avgs", "nonspatial", "unadjusted_12_balanced_businesshours.rds")) %>%
+  select(-contains("cluster"), -version) %>%
+  left_join(temporally_adjusted_example) %>%
+  mutate(adjusted = paste("plume", adjusted))
 
-dim(annual_comparison) 
+saveRDS(annual_comparison, file.path(dt_pt, "annual_temp_adj_and_unadj_example_comparison.rds"))
 
-  # 
-  # bind_rows(annual_unadjusted) %>%
-  # mutate(version = gsub("business hours", "business", version),
-  #        version = gsub(" ", "_", version),)
 
 #rm(temporal_adjustments1, annual_unadjusted)
  
@@ -696,20 +711,19 @@ negative_sites %>%
 
 annual averages
 
-# --> TO DO - why are some temp adj missing?? old file?
 
 ```{r}
 
 annual_comparison %>%
-  pivot_wider(names_from=version, values_from=annual_mean) %>% View()
   
-  pivot_longer(cols=contains("temp_adj"), #names_to=adjusted, values_to=value
-               ) #%>%
-  
-  ggplot(aes(x=business, y=value, col=version)) + 
-  facet_wrap(~adjusted+visits) + 
-  geom_point(alpha=0.1) + 
-  geom_smooth()
+  ggplot(aes(x=annual_mean, y=annual_mean_temp_adjusted, col=background_adj)) + 
+  facet_wrap(~adjusted+visits+design) + 
+  #geom_point(alpha=0.1) + 
+  geom_smooth() + 
+  labs(x="Temporally-Unadjusted Annual Average (pt/cm3)",
+       y = "Temporally-Adjusted Annual Average  (pt/cm3)",
+       col="Underwrite\nTemporal\nAdjustment"
+       )
   
 
 ```
