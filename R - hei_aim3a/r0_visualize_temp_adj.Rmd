@@ -164,7 +164,8 @@ if(testing_mode==TRUE) {
 segment_info <- readRDS(file.path(dt_pt, "segment_lat_long.rda")) %>%
   st_as_sf(coords=c("mx", "my"), crs=project_crs)
 
-ltas <- distinct(underwrite_adj, background_adj, road_types, bg_lta)
+ltas <- distinct(underwrite_adj, background_adj, road_types, bg_lta) %>%
+  mutate(road_types = gsub("_", " ", road_types)) 
 
 bg_data <- ltas %>% 
     filter(road_types == main_road_types,
@@ -314,6 +315,7 @@ sample_runs <- underwrite_adj %>%
 print("estimated hourly background concentrations for various approaches. dashed lines are the LTAs from each approach")
 underwrite_adj %>%
   filter(runname %in% sample_runs) %>%
+  mutate(road_types = gsub("_", " ", road_types)) %>%
   
   ggplot(aes(x=time, y=bg_hour_avg, col=background_adj, shape=road_types, linetype=road_types)) + 
   facet_wrap(~runname, scales="free_x") +
@@ -330,6 +332,7 @@ ggsave(file.path(image_path, "example_bg_conc.png"), width = 14, height = 8)
 print("same as above but hourly adjustments vs estimated background concentrations")
 underwrite_adj %>%
   filter(runname %in% sample_runs) %>%
+  mutate(road_types = gsub("_", " ", road_types)) %>%
   
 ggplot(aes(x=time, y=avg_hourly_adj, col=background_adj, shape=road_types, linetype=road_types)) + 
   facet_wrap(~runname, scales="free_x") +
@@ -339,7 +342,10 @@ ggplot(aes(x=time, y=avg_hourly_adj, col=background_adj, shape=road_types, linet
   labs(x = "Time",
        y = "Hourly Adjustment (pt/cm3)",
        col = "Background Adjustment",
-       linetype = "Roads Used", shape = "Roads Used")
+       linetype = "Roads Used", shape = "Roads Used") 
+
+
+
 
 ggsave(file.path(image_path, "example_hourly_adjustments.png"), width = 14, height = 8)
 
@@ -390,7 +396,7 @@ time_series_plot <- function(runs) {
   
   bg_data <- ltas %>% 
     filter(background_adj %in% main_bg) %>%
-    mutate(UFP = "background LTA",
+    mutate(PNC = "long-term avg background",
            road_types = gsub("_", " ", road_types),
            )
   
@@ -401,22 +407,22 @@ time_series_plot <- function(runs) {
     rename(measured_ufp=ufp, background_ufp_1s = background) %>%
     mutate(hour = hour(time)) %>%
     left_join(select(underwrite_adj, runname, hour, background_adj, road_types, background_ufp_1hr = bg_hour_avg), relationship="many-to-many") %>%
-    pivot_longer(cols = c(measured_ufp, background_ufp_1s, background_ufp_1hr), names_to = "UFP") %>% 
+    pivot_longer(cols = c(measured_ufp, background_ufp_1s, background_ufp_1hr), names_to = "PNC") %>% 
     
-    mutate(UFP = gsub("ufp", "UFP", UFP),
-           UFP = gsub("lta", "LTA", UFP),
-           UFP = gsub("_", " ", UFP),
+    mutate(PNC = ifelse(PNC=="background_ufp_1hr", "1 hr background",
+                        ifelse(PNC=="background_ufp_1s", "1 sec background",
+                               ifelse(PNC=="measured_ufp", "raw 1 sec measurement", PNC))),
            road_types = gsub("_", " ", road_types),
            ) %>%
     
     
-    ggplot(aes(x=time, col=UFP, linetype=road_types)) +
+    ggplot(aes(x=time, col=PNC, linetype=road_types)) +
     facet_grid(background_adj~runname, scales="free_x", switch = "both") +
     geom_line(aes(y=value)) +
-    geom_hline(data=bg_data, aes(yintercept=bg_lta,  col=UFP, linetype=road_types)) + 
-    labs(y="UFP (pt/cm3)",
+    geom_hline(data=bg_data, aes(yintercept=bg_lta,  col=PNC, linetype=road_types), size=1.5) + 
+    labs(y="PNC (pt/cm3)",
          x="Time",
-         col="UFP",
+         col="PNC",
          linetype="Road Types"
     )
   }
@@ -438,7 +444,8 @@ time_series_plot(sample_ts_runs)
 print("on log y scale")
 time_series_plot(sample_ts_runs) + scale_y_log10()
 
-ggsave(file.path(image_path, "SI", "time_series_sample.png"), width = 12, height = 8)
+
+ggsave(file.path(image_path, "time_series_sample.png"), width = 12, height = 8)
 
 ```
 
