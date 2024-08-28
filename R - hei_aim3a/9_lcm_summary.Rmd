@@ -73,7 +73,6 @@ cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis_lcm.r
   drop_na(exposure)
 
 
-# --> START HERE. ERROR. WHY WON'T MODEL FACTOR SO LAST PLOT IS REARRANGED??
 # health effect estimates & CW
 model_coefs <- readRDS(file.path(output_data_path, "model_coefs_lcm.rda")) %>%
   
@@ -144,16 +143,16 @@ sp_cs <- cs %>%
   pivot_longer(cols = starts_with(c("fp_", "rp_")))
   
 print("the full model is our default epi model with stationary and LCM")
-rbind(st_cs, sp_cs) %>%
-  mutate(name = gsub("fp_|rp_|fptv_|_SP|_ST", "", name)) %>%
-  ggplot(aes(x=full_model, y=value, col=name)) +
-  facet_wrap(~model_type, scales="free") +
-  geom_point(alpha=0.05) +
-  geom_smooth() +
-  geom_abline(slope = 1, intercept = 0, linetype=2) + 
-  labs(col="LCM Model", y="LCM Model Prediction", x= "Full ST PM2.5 Model Prediction")
-
-ggsave(file.path(image_path, "5yr_exposure_comparisons.png"), width = 8, height = 6)
+# rbind(st_cs, sp_cs) %>%
+#   mutate(name = gsub("fp_|rp_|fptv_|_SP|_ST", "", name)) %>%
+#   ggplot(aes(x=full_model, y=value, col=name)) +
+#   facet_wrap(~model_type, scales="free") +
+#   geom_point(alpha=0.05) +
+#   geom_smooth() +
+#   geom_abline(slope = 1, intercept = 0, linetype=2) + 
+#   labs(col="LCM Model", y="LCM Model Prediction", x= "Full ST PM2.5 Model Prediction")
+# 
+# ggsave(file.path(image_path, "5yr_exposure_comparisons.png"), width = 8, height = 6)
 
 #table
 cs %>%
@@ -173,19 +172,19 @@ cs %>%
 ```{r}
 comparison_models <- setdiff(unique(cs$model), st_ref_model) %>% setdiff("full_SP")
 
-cs %>%
-  select(study_id, exposure, model) %>%
-  filter(model != sp_ref_model) %>%
-  pivot_wider(names_from = model, values_from = exposure) %>%  
-  pivot_longer(cols = comparison_models) %>%  
-  # 1 person doesn't have ST full predictions
-  drop_na(st_ref_model) %>%
-  group_by(name) %>% 
-  summarize(correlation = cor(get(st_ref_model), value)) %>%
-  kable(caption = "Correlation (R) of fptv_no predictions with predictions from other methods", 
-        digits = 2, 
-        col.names = c("Model", "Correlation with fptv_no")) %>%
-  kable_styling()
+# cs %>%
+#   select(study_id, exposure, model) %>%
+#   filter(model != sp_ref_model) %>%
+#   pivot_wider(names_from = model, values_from = exposure) %>%  
+#   pivot_longer(cols = comparison_models) %>%  
+#   # 1 person doesn't have ST full predictions
+#   drop_na(st_ref_model) %>%
+#   group_by(name) %>% 
+#   summarize(correlation = cor(get(st_ref_model), value)) %>%
+#   kable(caption = "Correlation (R) of fptv_no predictions with predictions from other methods", 
+#         digits = 2, 
+#         col.names = c("Model", "Correlation with fptv_no")) %>%
+#   kable_styling()
 
 ```
 
