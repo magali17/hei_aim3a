@@ -191,10 +191,6 @@ pnc_annual_avg <- pnc_med %>%
 saveRDS(pnc_annual_avg, file.path(new_dt_pt, "pnc_annual_avg_TEMP.rds"))
 
 
-
-
-
-
 # filter(test, id==534) %>% View()
 road_type <- readRDS(file.path("data", "onroad", "annie", "OnRoad Paper Code Data", "data", "All_Onroad_12.20.rds")) %>%
   filter(
