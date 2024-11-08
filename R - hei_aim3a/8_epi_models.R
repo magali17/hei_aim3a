@@ -54,10 +54,8 @@ save(pm25_units, pnc_units, no2_units, file= file.path(output_data_path, "modeli
 cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   filter(grepl(paste(main_pollutants_models, collapse = "|"), model))
 
-# cs0 %>% filter(grepl("_01", model), study_id==first(study_id)) %>% View()
-
 cs <- cs0 %>%
-  select(-c(ends_with(c("MM_05_yr", "coverage", "quality"))),
+  dplyr::select(-c(ends_with(c("MM_05_yr", "coverage", "quality"))),
          #keep NS & P-TRAK exposure estimate from main epi model from issue 12 (for comparision against the all-data HEI model)
          cum_exp_ufp_10_42_MM_05_yr, cum_exp_ufp_20_1k_MM_05_yr,
          # full onroad ptrak model (primary model, scale 0.99, truncate 0.75)
