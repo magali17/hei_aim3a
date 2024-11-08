@@ -3,7 +3,7 @@ pacman::p_load(DiagrammeR,
                DiagrammeRsvg, rsvg # convert DiagrammeR plot to SVG and then PNG
 )
 
-image_path <- file.path("..", "Manuscript", "Images", "v5", "other", "road")
+image_path <- file.path("..", "..", "Manuscript - Onroad data", "Images", "v5")
 
 ##############################################################################################################################
 # Define the diagram using Graphviz dot notation
@@ -16,24 +16,20 @@ digraph flowchart {
   VisitsPerLocation [label="Visits per Location", shape=rect, style="rounded,filled", fillcolor="#56B4E9", width=2.5, height=1];
   Visits4 [label="4 visits", fillcolor="white", width=2.5, height=0.8];
   Visits12 [label="12 visits", fillcolor="white", width=2.5, height=0.8];
-  SpatialBalance [label="Spatial Balance", shape=rect, style="rounded,filled", fillcolor="#56B4E9", width=2.5, height=1];
-  Balanced [label="Balanced Sampling\n(Same Visits)", shape=rect, style="rounded,filled", fillcolor="#56B4E9", width=2.5, height=1];
-  Unbalanced [label="Unbalanced Sampling\n(Lognormal distribution)", shape=rect, style="rounded,filled", fillcolor="#56B4E9", width=2.5, height=1];
-  Routes [label="Routes", fillcolor="white", width=2.5, height=0.8];
-  RoadSegments [label="Road segments", fillcolor="white", width=2.5, height=0.8];
-  RandomClusters [label="Random Clusters", fillcolor="white", width=2.5, height=0.8];
-  SensibleClusters [label="Sensible Clusters", fillcolor="white", width=2.5, height=0.8];
-  UnsensibleClusters [label="Unsensible Clusters", fillcolor="white", width=2.5, height=0.8];
-  RoadType [label="Road Type", fillcolor="white", width=2.5, height=0.8];
+  SpatialBalance [label="Spatially Balanced Sampling\nBalanced: Same Visit Frequency\nUnbalanced:Different Visit Frequency", shape=rect, style="rounded,filled", fillcolor="#56B4E9", width=2.5, height=1];
+  Routes [label="Spatially Balanced\nRoutes", fillcolor="white", width=2.5, height=0.8];
+  RoadSegments [label="Spatially Balanced/Unbalanced\nSegments", fillcolor="white", width=2.5, height=0.8];
+  RandomClusters [label="Spatially Unbalanced\nRandom Clusters", fillcolor="white", width=2.5, height=0.8];
+  RoadType [label="Spatially Unbalanced\nRoad Type", fillcolor="white", width=2.5, height=0.8];
   TimeSelection [label="Time Selection", shape=rect, style="rounded,filled", fillcolor="#56B4E9", width=2.5, height=1];
-  AllDaysHours [label="All Days & Hours", fillcolor="white", width=2.5, height=0.8];
-  WeekdayBusinessHours [label="Weekday Business Hours", fillcolor="white", width=2.5, height=0.8];
+  AllDaysHours [label="All Days and Hours Sampling", fillcolor="white", width=2.5, height=0.8];
+  WeekdayBusinessHours [label="Weekday Business Hours Sampling", fillcolor="white", width=2.5, height=0.8];
   TemporalAdjustment [label="Temporal Adjustment", shape=rect, style="rounded,filled", fillcolor="#0072B2", width=2.5, height=1];
-  NoneTempAdj [label="None", fillcolor="white", width=2.5, height=0.8];
-  FixedSiteAdj [label="Fixed Site Adjustment", fillcolor="white", width=2.5, height=0.8];
-  UnderwriteAdj [label="Underwrite Adjustment", fillcolor="white", width=2.5, height=0.8];
+  NoneTempAdj [label="   No Temporal Adjustment      ", fillcolor="white", width=2.5, height=0.8];
+  FixedSiteAdj [label="Fixed Site Temporal Adjustment", fillcolor="white", width=2.5, height=0.8];
+  UnderwriteAdj [label="Underwrite Temporal Adjustment", fillcolor="white", width=2.5, height=0.8];
   PlumeAdjustment [label="Plume Adjustment", shape=rect, style="rounded,filled", fillcolor="#0072B2", width=2.5, height=1];
-  NonePlumeAdj [label="None", fillcolor="white", width=2.5, height=0.8];
+  NonePlumeAdj [label="No Plume Adjustment", fillcolor="white", width=2.5, height=0.8];
   PlumeAdj [label="Plume Adjustment", fillcolor="white", width=2.5, height=0.8];
   AvgConcentrations [label="Annual Average Segment Concentrations", shape=rect, style="rounded,filled", fillcolor="#009E73", width=2.5, height=1];
   ExposureModel [label="On-Road Exposure Model", shape=rect, style="rounded,filled", fillcolor="#009E73", width=2.5, height=1];
@@ -47,20 +43,13 @@ digraph flowchart {
   VisitsPerLocation -> Visits12 [label="", color="black"];
   Visits4 -> SpatialBalance [label="", color="black"];
   Visits12 -> SpatialBalance [label="", color="black"];
-  SpatialBalance -> Balanced [label="", color="black"];
-  SpatialBalance -> Unbalanced [label="", color="black"];
-  Balanced -> Routes [label="", color="black"];
-  Balanced -> RoadSegments [label="", color="black"];
-  Unbalanced -> RandomClusters [label="", color="black"];
-  Unbalanced -> SensibleClusters [label="", color="black"];
-  Unbalanced -> UnsensibleClusters [label="", color="black"];
-  Unbalanced -> RoadType [label="", color="black"];
-  Unbalanced -> RoadSegments [label="", color="black"];
+  SpatialBalance -> Routes [label="", color="black"];
+  SpatialBalance -> RoadSegments [label="", color="black"];
+  SpatialBalance -> RandomClusters [label="", color="black"];
+  SpatialBalance -> RoadType [label="", color="black"];
   Routes -> TimeSelection [label="", color="black"];
   RoadSegments -> TimeSelection [label="", color="black"];
   RandomClusters -> TimeSelection [label="", color="black"];
-  SensibleClusters -> TimeSelection [label="", color="black"];
-  UnsensibleClusters -> TimeSelection [label="", color="black"];
   RoadType -> TimeSelection [label="", color="black"];
   TimeSelection -> AllDaysHours [label="", color="black"];
   TimeSelection -> WeekdayBusinessHours [label="", color="black"];
