@@ -48,7 +48,7 @@ theme_update(legend.position = "bottom")
 # VARIABLES
 ##################################################################################################
 main_road_types <-"no_highways" 
-main_bg <- "hr3_pct1" #"hr1_pct5"
+main_bg <- "hr3_pct1" 
 main_cluster <- "cluster1"
 
 project_crs <- 4326  #lat/long
