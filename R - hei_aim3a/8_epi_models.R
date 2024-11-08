@@ -18,7 +18,9 @@ pacman::p_load(tidyverse, parallel,
 set.seed(1)
 
 dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rda")))
-output_data_path <- file.path(dt_path, "epi", "20240725")
+output_data_path <- file.path(dt_path, "epi", "20241108" #"20240725"
+                              )
+if(!dir.exists(output_data_path)) {dir.create(output_data_path, recursive = T)}
 
 use_cores <- 1 #4
 ######################################################################

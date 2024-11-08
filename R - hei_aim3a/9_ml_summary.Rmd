@@ -38,7 +38,8 @@ dt_path <- file.path("Output", readRDS(file.path("Output", "latest_dt_version.rd
 set.seed(1)
 
 source("functions.R")
-output_data_path <- file.path(dt_path, "epi")
+output_data_path <- file.path(dt_path, "epi", "20241108" #"20240725"
+                              )
 
 image_path <- file.path("..", "Manuscript", "Images", "v4", "other", "ml")
 if(!dir.exists(image_path)) {dir.create(image_path, recursive = T)}
