@@ -545,7 +545,7 @@ bbox_vector <- c(as.numeric(bbox["xmin"]),
                  as.numeric(bbox["ymax"]))
 
 # Create the query for major roads and get the data in sf format
-major_roads <- opq(bbox_vector) %>%
+major_roads <- osmdata::opq(bbox_vector) %>%
   add_osm_feature(key = "highway", value = c(#"motorway", 
     #"trunk", 
                                              "primary"#, "secondary"
@@ -756,6 +756,11 @@ r3$plot
 
 ggsave(file.path(image_path, "r2_mse.png"), width = 8, height = 6)
 
+# save numbers
+r3$table %>%
+  mutate_if(is.numeric, ~round(., 2)) %>%
+  write.csv(file.path(image_path, "r2_mse.csv"), row.names = F)
+
 #############################################
 # SI: cluster comparison
 
@@ -766,6 +771,7 @@ model_eval %>%
   add_labels() %>%
   filter(visits %in% 12,
          design %in% cluster_designs,
+         !grepl("Sensible|Unsensible", design),
          cluster_type %in% c("cluster1", "cluster2"),
          !grepl("Random", version)) %>%
   drop_na(cluster_type) %>%
@@ -863,20 +869,25 @@ df_merged <- df_no_adjustment %>%
          random_adjustment = ifelse(grepl("Random", version), "Random", "Main"))
 
 df_merged %>%
-  ggplot(aes(x=MSE_based_R2_no_adjustment, y= MSE_based_R2_other, col=design, shape=random_adjustment, linetype=random_adjustment)) + 
+  # drop random noise
+  filter(random_adjustment=="Main") %>%
+  
+  ggplot(aes(x=MSE_based_R2_no_adjustment, y= MSE_based_R2_other, col=design, 
+             #shape=random_adjustment, linetype=random_adjustment
+             )) + 
   facet_grid_equal(#rows = vars(visit_label),
                    cols=vars(temporal_adjustment), 
                    #switch = "both"
                    ) + 
   geom_abline(slope = 1, intercept = 0, linetype=2) +
-  geom_point(alpha=0.2) + 
+  geom_point(alpha=0.4) + 
   geom_smooth(se=F) +
   scale_x_continuous(limits = c(0, 0.4)) +
   scale_linetype_manual(values=c(1,4))+
   labs(x= expression(R[MSE]^2 ~ "Without Temporal Adjustment"),
        y= expression(R[MSE]^2 ~ "With Temporal Adjustment"),
-       linetype="Temporal\nAdjustment",
-       shape="Temporal\nAdjustment",
+       # linetype="Temporal\nAdjustment",
+       # shape="Temporal\nAdjustment",
        col="Design"
        ) + 
   theme(aspect.ratio = 1)
@@ -983,7 +994,7 @@ ggsave(file.path(image_path, "HEI Report", "Appendix", "r2_regression.png"), wid
 
 lms 
 
-```{r}
+```{r, eval=F}
 
 fit_r2_lm <- function(y="MSE_based_R2",
                       x = c("design", "version", "plumed_adjusted", "visits")
@@ -1161,6 +1172,38 @@ health_plot <- function(dt,
 
 ```
 
+save table numbers 
+
+```{r}
+# reduced models
+model_coefs_reduced_model_table <- model_coefs_reduced_model %>%
+  add_labels() %>%
+  keep_main_results() %>%
+  mutate(design = gsub("\n", " ", design)) %>%
+  group_by(design, time_selection, version, visit_label) %>%
+  summary_table(var = "est") %>%
+  ungroup()
+
+model_coefs_reduced_model_table %>%
+  mutate_if(is.numeric, ~round(., 3)) %>%
+  write.csv(., file.path(image_path, "betas_reduced_health_model.csv"), row.names = F)
+
+
+# extended models
+model_coefs_extended_model_table <- model_coefs %>%
+  add_labels() %>%
+  keep_main_results() %>%
+  mutate(design = gsub("\n", " ", design)) %>%
+  group_by(design, time_selection, version, visit_label) %>%
+  summary_table(var = "est") %>%
+  ungroup()
+
+model_coefs_extended_model_table %>%
+  mutate_if(is.numeric, ~round(., 3)) %>%
+  write.csv(., file.path(image_path, "betas_extended_health_model.csv"), row.names = F)
+
+```
+
 
 ```{r, fig.height=10, fig.with=10}
 
@@ -1179,7 +1222,7 @@ lapply(c(4, 12), function(v){
   extended_health_model <- model_coefs %>%
     add_labels() %>%
     keep_main_results(visits_to_keep = v) %>%
-    mutate(visit_label = paste0("Main Health Model (", visit_label, ")")) %>%
+    mutate(visit_label = paste0("Primary Health Model (", visit_label, ")")) %>%
     health_plot(dt=., 
                 reference = ref_model_coefs$est, 
                 lower=ref_model_coefs$lower,
@@ -1203,7 +1246,7 @@ if(v==4){ggsave(file.path(image_path, "SI", paste0("betas_", v, "_visits.png")),
 ```
 
 
-```{r}
+```{r, eval=F}
 # routes
 model_coefs %>%
   add_labels() %>% 
@@ -1279,5 +1322,54 @@ if(v==12){ggsave(file.path(image_path, "HEI Report", "betas.png"),
 
 ```
 
+## Point & 95% CI
+
+
+```{r}
+rectangle_alpha <- 0.15
+
+plot_point_ci <- function(beta_data, reference_data){
+  
+  beta_data %>%
+  add_labels() %>%
+  keep_main_results(visits_to_keep = 12,
+                    versions_to_keep = c("No Adjustment",
+                                          "Plume Adj"#,
+                                         #"Underwrite Temporal Adj"#,
+                                         #"Fixed Site Temporal Adj"
+                                         )
+
+                    ) %>% 
+   mutate(design=gsub("\n", " ", design)) %>%
+  
+  ggplot(aes(x=campaign, shape=version, col=version)) +
+  facet_wrap(~design+time_selection, ncol = 2) + 
+  
+  geom_hline(yintercept = 0, linetype=2, alpha=0.2, col="red") +
+  geom_rect(inherit.aes = F, data=reference_data, aes(ymin = lower, ymax = upper, xmin=-Inf, xmax=Inf), alpha=rectangle_alpha, fill=ref_model_col) +
+  geom_hline(data=reference_data, linetype=2, aes(yintercept = est), col=ref_model_col) +
+  geom_pointrange(aes(y=est, ymin=lower, ymax=upper), size=0.4,
+                  position=position_dodge(width=0.7)) +
+  scale_x_continuous(breaks = c(1, seq(10,30,10))) +
+  labs(x="Campaign", 
+       y= expression(beta[m] ~ " (95% CI)"),
+       #y = "Health Estimate (95% CI)", 
+       shape=NULL, col=NULL)
+  
+  
+}
+ 
+# reduced model
+plot_point_ci(model_coefs_reduced_model, ref_model_coefs_reduced)
+
+ggsave(file.path(image_path, "SI", "beta_point_ci_reduced.png"), width = 8, height = 10)
+
+# extended model
+plot_point_ci(model_coefs, ref_model_coefs)
+
+ggsave(file.path(image_path, "SI", "beta_point_ci_extended.png"), width = 8, height = 10)
+       
+
+```
 
 

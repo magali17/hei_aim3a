@@ -31,7 +31,7 @@ dt_path <- file.path(dt_path, "epi","20240725")
 set.seed(1)
 
 source("functions.R")
-out_path <- file.path(dt_path, "9_comparisons")
+out_path <- file.path("..", "Manuscript", "Images", "v5", "HEI Report")
 
 ##################################################################################################
 # LOAD DATA
@@ -65,15 +65,27 @@ coefs <- rbind(coef_all, coef_lcm_all) %>%
   mutate(term = ifelse(term == "avg_0_5_yr", "ap",
                        ifelse(term == "visit_age_centered75", "age", term)),
          label = paste0(round(est, 3), " (", round(lower, 3), ", ", round(upper, 3), ")")
-         ) %>%
-   select(term, est, label, #lower, upper,
+         )  %>%
+   select(term, est, label, est_lower=lower, est_upper=upper,
          model) %>% 
-  pivot_wider(names_from = term, values_from = c(est, label)) %>%
+  pivot_wider(names_from = term, values_from = c(est, label,
+                                                 est_lower, est_upper,
+                                                 )) %>% 
+  
+  select(model, contains("ap"), contains("age"), -contains("label"), contains("label"), everything()) %>% 
   mutate(
     ap_age_equivalent = est_ap/est_age,
-    ap_month_equivalent = ap_age_equivalent*12
+    ap_age_equivalent_lower = est_lower_ap/est_age,
+    ap_age_equivalent_upper = est_upper_ap/est_age,
+    
+    ap_month_equivalent = ap_age_equivalent*12,
+    ap_month_equivalent_lower = ap_age_equivalent_lower*12,
+    ap_month_equivalent_upper = ap_age_equivalent_upper*12,
   )
 
+write.csv(coefs, 
+          file.path(out_path, "hei_table3.2_age_equivalents.csv"), 
+          row.names = F)
 
 ```
 
@@ -81,12 +93,15 @@ coefs <- rbind(coef_all, coef_lcm_all) %>%
 compare beta & age coefficients for all-data estimates
 ```{r}
 coefs %>%
-  select(model, label_ap, label_age, ap_month_equivalent) %>%
+  select(model, label_ap, label_age, ap_month_equivalent,
+         ap_month_equivalent_lower, ap_month_equivalent_upper
+         ) %>%
   kable(caption = "Estimated associations between air pollutants (PNC [1,900 pt/cm3], PM2.5 [1 ug/m3]) and one year of aging with baseline CASI-IRT score, as determined by reference models (PNC all-data stationary mobile monitoring model, PM2.5 models with LCMs). Air pollution associations are scaled relative to the age association to contextualize their effects.",
         digits=3, 
-        col.names = c("Model", "Air Pollution", "Age", "Air Pollution Month Equivalent")
+        col.names = c("Model", "Air Pollution", "Age", "Air Pollution Month Equivalent", "..Month Equiv Lower", "..Month Equiv Upper")
         ) %>%
   kable_styling()
+
 
 ```
 

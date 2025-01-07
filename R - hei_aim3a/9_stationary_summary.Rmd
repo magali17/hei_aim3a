@@ -135,14 +135,19 @@ model_eval <- readRDS(file.path(dt_path, "model_eval.rda")) %>%
 #rm(model_eval_other_designs0)
 
 ##################################################################################################  
+model_covars_reduced <- readRDS(file.path(output_data_path, "model_covars.rda"))
+
 model_covars_extended <- readRDS(file.path(output_data_path, "model_covars_extended.rda"))
 
-cs <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
+# need more complete datset for HEI ("Model 1 - Reduced Model")
+cs0 <- readRDS(file.path(output_data_path, "dt_for_cross_sectional_analysis.rda")) %>%
   rename(exposure = avg_0_5_yr) %>%
-  # only keep subjects in extended (main) health models
-  drop_na(all_of(model_covars_extended)) %>%
   right_join(select(cw, model, variable, design, version, campaign), by="model") %>%
   label_pollutants() %>% label_designs() 
+
+cs <- cs0 %>%
+  # only keep subjects in extended (main) health models
+  drop_na(all_of(model_covars_extended)) 
 
 ##################################################################################################
 model_coefs0 <- readRDS(file.path(output_data_path, "model_coefs.rda"))  
@@ -191,11 +196,23 @@ ap_age_equivalents <- readRDS(file.path(output_data_path, "model_coefs_extended_
                        ifelse(term == "visit_age_centered75", "age", term)),
          label = paste0(round(est, 3), " (", round(lower, 3), ", ", round(upper, 3), ")")
          ) %>%
-   select(analysis, term, est, label, model) %>% 
-  pivot_wider(names_from = term, values_from = c(est, label)) %>%
+   select(analysis, term, est, label, model,
+          lower, upper
+          ) %>% 
+  pivot_wider(names_from = term, values_from = c(est, label,
+                                                 lower, upper
+                                                 )) %>%
   mutate(
     ap_age_equivalent = est_ap/est_age,
-    ap_month_equivalent = ap_age_equivalent*12
+    ap_month_equivalent = ap_age_equivalent*12,
+    
+    # add CI to age-equivalent AP effect estimate
+    ap_age_equivalent_lower = lower_ap/est_age,
+    ap_month_equivalent_lower = ap_age_equivalent_lower*12,
+    
+    ap_age_equivalent_upper = upper_ap/est_age,
+    ap_month_equivalent_upper = ap_age_equivalent_upper*12,
+    
   ) %>% 
   left_join(cw, by="model") %>%
   label_pollutants() 
@@ -1040,7 +1057,11 @@ pop <- cs %>%
          ) %>% 
   distinct(study_id, casi_irt, visit_age, year2, #apoe, 
            male, degree, 
-           #race_white, 
+           
+           race_white, 
+           nses_z_cx,
+           
+           
            variable, exposure, #high_exposure, 
            exposure_group) #%>% pivot_wider(names_from = variable, values_from = c(exposure_group, exposure))  
 
@@ -1080,7 +1101,10 @@ t1_labels <- list(
     apoe = "APOE e4 Allele",
     male = "Sex",
     degree = "Degree",
-    #race_white = "Race",
+    
+    race_white = "Race",
+    nses_z_cx = "Neighborhood Disadvantage Index (NDI)",
+    
     variable = "Pollutant",
     #apoe_available = "Included in Main Analysis",
     #model_wt = "IPW for Modeling Cohort",
@@ -1106,8 +1130,8 @@ t1_labels <- list(
                   '5' = "Doctorate",
                   '6' = "Other" #, digits.pct=0
                   ),
-    # race_white = list('1' = "White",
-    #                   '0' = "People of Color"),
+    race_white = list('1' = "White",
+                      '0' = "People of Color"),
 
     # income_cat = list('1' = "<$35,000",
     #                   '2' = "$35,000 - <$50,000",
@@ -1123,9 +1147,49 @@ print("Baseline cohort characteristics stratified by whether 5-year PNC exposure
 # Main Table 1
 t1read(pop, t1_labels#, render.continuous.default = my.render.cont
          ) %>%
-  table1(~ visit_age + male + degree + casi_irt + exposure | exposure_group, data=.)
+  table1(~ visit_age + male + degree + race_white +  nses_z_cx + casi_irt + exposure | exposure_group, data=.)
 
 ```
+
+### HEI Report / Reduced Health Models 
+
+```{r}
+# same as above for HEI Model 1 - Reduced
+
+pop_reduced_health_model <- cs0 %>%
+  
+  drop_na(all_of(model_covars_reduced)) %>%
+  
+  filter(variable %in% main_pollutants_labels,
+         design== "All Data") %>% 
+  group_by(variable) %>%
+  mutate(#high_exposure = exposure > median(exposure),
+         exposure_group = ifelse(exposure <= quantile(exposure, 0.33), "Low PNC",
+                                 ifelse(exposure > quantile(exposure, 0.33) & exposure < quantile(exposure, 0.66), "Medium PNC",
+                                        ifelse(exposure >= quantile(exposure, 0.66), "High PNC", NA))),
+         exposure_group = factor(exposure_group, levels = c("Low PNC", "Medium PNC", "High PNC")), 
+         visit_age = visit_age_centered75+75
+         ) %>% 
+  distinct(study_id, casi_irt, visit_age, year2, #apoe, 
+           male, degree, 
+           
+           race_white, 
+           nses_z_cx,
+           
+           
+           variable, exposure, #high_exposure, 
+           exposure_group) #%>% pivot_wider(names_from = variable, values_from = c(exposure_group, exposure))  
+
+names(pop_reduced_health_model) <- gsub("\\ .*|\\,.*", "", names(pop_reduced_health_model))
+
+ # Reduced Health Model
+t1read(pop_reduced_health_model, t1_labels#, render.continuous.default = my.render.cont
+         ) %>%
+  table1(~ visit_age + male + degree + race_white +  nses_z_cx + casi_irt + exposure | exposure_group, data=.)
+
+```
+
+
 
 # Health Model Results
 
@@ -1947,11 +2011,15 @@ Percent error in the estimated betas (n=30 campaign models for each design-versi
 ```{r}
 
 ap_age_equivalents %>%
-  select(analysis, variable, label_ap, est_age, ap_month_equivalent) %>%
+  select(analysis, variable, label_ap, est_age, ap_month_equivalent, 
+         ap_month_equivalent_lower, ap_month_equivalent_upper
+         ) %>%
   arrange(variable) %>%
   kable(caption = "Estimated associations between air pollutants (PNC [1,900 pt/cm3], NO2 [3 ppb]) and one year of aging with baseline CASI-IRT score based on all-data air pollution exposure models. Air pollution associations are scaled relative to the age association to contextualize their effects.",
         digits=3, 
-        col.names = c("Model", "Pollutant", "Air Pollution Association", "Age Association", "Air Pollution Month Equivalent")
+        col.names = c("Model", "Pollutant", "Air Pollution Association", "Age Association", "Air Pollution Month Equivalent",
+                      "Lower Equivalent", "Upper Equivalent"
+                      )
         ) %>%
   kable_styling()
 
