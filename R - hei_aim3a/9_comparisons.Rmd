@@ -7,8 +7,8 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F, 
+```{r setup}
+knitr::opts_chunk$set(echo = T, 
                       cache=F, cache.comments = F, 
                       message = F, warning = F, 
                       tidy.opts=list(width.cutoff=60), tidy=TRUE#, fig.height = 10, fig.width = 10
@@ -40,9 +40,6 @@ out_path <- file.path("..", "Manuscript", "Images", "v5", "HEI Report")
 coef_all <- readRDS(file.path(dt_path, "model_coefs_all.rda")) %>%
   filter((grepl("nstot_all|pncnoscreen_all", model)))
 
-## --> no all-data model??
-#coef_r_all <- readRDS(file.path(dt_path, "models_r_all.rda")) 
-
 # ## stationary and LCM
 # st_ref_model <- "full_ST" #ST 
 # sp_ref_model <- "full_SP" # SP 
@@ -54,7 +51,7 @@ coef_all <- readRDS(file.path(dt_path, "model_coefs_all.rda")) %>%
 coef_lcm_all <- readRDS(file.path(dt_path, "models_lcm_all.rda")) %>%
   filter(grepl("full_", model) |
            
-           # --> TEMP: LS would prefer to report the exact models chris used. these are Slightly different and will be updated 
+        
            model %in% c("no22_1", "no2_SP_2_1", #gold w/o historical - all monitors, ST & SP models
                         "no26_1", "no2_SP_6_1" #no homes - AQS + 3 snapshot
                         ))

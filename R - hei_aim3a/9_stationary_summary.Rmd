@@ -300,9 +300,10 @@ sensitivity_pollutant_labels <- all_pollutants_labels[str_detect(all_pollutants_
 # x-axis labels for posters
 version_levels2 <- setdiff(levels(model_eval$version), c("Business", "Rush")) %>%
   append(c("Business",
-         "Business \nTemporally\nAdjusted",
+         "Business \nTemporally\nAdjusted", "Bus\nTemp\nAdj", "Bus\nAdj",
          "Rush",
-         "Rush \nTemporally\nAdjusted"))
+         "Rush \nTemporally\nAdjusted", "Rush\nTemp\nAdj", "Rush\nAdj")) %>%
+  unique()
 
 design_labels <- unique(model_eval$design) %>% 
   # drop?
@@ -609,7 +610,9 @@ ggsave(file.path(image_path, "SI", "r2_reg_based_sensitivity.png"), bg="white", 
 
 for HEI Report
 
-```{r}
+```{r, eval=F}
+# setting this to eval=F since function was updated since this and facet_variable is no longer a parameter
+
 # no NO2
 lapply(c("10-420 nm (Primary)", "10-100 nm", "20-1,000 nm"), function(x) {r2_plot_multifacet(y_variable= "MSE_based_R2", facet_variable=x)}) %>%
   ggarrange(plotlist = ., ncol = 1, common.legend = T, legend = "bottom") %>%
@@ -1078,6 +1081,8 @@ pop %>%
 
 # Table 1
 
+## Extended Models
+
 ```{r}
 # Table1 tutorials: 
 ## https://cran.r-project.org/web/packages/table1/table1.pdf 
@@ -1151,11 +1156,11 @@ t1read(pop, t1_labels#, render.continuous.default = my.render.cont
 
 ```
 
-### HEI Report / Reduced Health Models 
+## HEI Report / Reduced Health Models 
+
+Same table as above, but for the reduced model, which is used for the HEI report and has fewer adjustment variables (i.e., less missingness)
 
 ```{r}
-# same as above for HEI Model 1 - Reduced
-
 pop_reduced_health_model <- cs0 %>%
   
   drop_na(all_of(model_covars_reduced)) %>%
@@ -1482,7 +1487,14 @@ beta_summary_plot <- function(dt,
            design != "All Data") %>%
     mutate(version = gsub("Bus", "Business", version),
            version = gsub("Adj 1", "\nTemporally\nAdjusted", version),
-           version = factor(version, levels=version_levels2)) %>%
+           
+          #version = gsub(" Adj 1", "\nAdj", version),
+          
+          version = factor(version, levels=c(version_levels2))
+            
+          
+          
+           ) %>% #distinct(version) %>% pull()
 
     group_by(version, design, variable, ref) %>%
     summary_table(var = "est") %>%
@@ -1505,6 +1517,12 @@ beta_summary_plot <- function(dt,
                                          breaks = y_lims_pct),
                      position="left", limits = y_lims) +
         scale_x_discrete(labels = function(x) str_wrap(x, width = 8)) +  
+    theme(
+      # strip.text = element_text(size = 14),     # Facet labels
+      # axis.text.x = element_text(size = 10)     # X-axis labels
+      legend.text = element_text(size = 14),      # Legend item text
+      legend.title = element_text(size = 14) 
+    ) +
 
     labs(y = NULL,  
          x = NULL, 
@@ -1514,8 +1532,14 @@ beta_summary_plot <- function(dt,
   }
 
 
-reduced_models <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas)
-extended_models <- beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Primary Health Model")
+reduced_models <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas) + 
+  theme(axis.text.x = element_text(angle = 25, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 11),
+        strip.text = element_text(size = 14))
+extended_models <- beta_summary_plot(dt=model_coefs_extended, true_betas.=true_betas_extended, facet_label = "Primary Health Model") +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1, size = 12),
+        axis.text.y = element_text(size = 11),
+        strip.text = element_text(size = 14))
 
 ggarrange(reduced_models,  extended_models, ncol = 1, common.legend = T, legend = "bottom") %>%
   annotate_figure(left = text_grob(expression(beta[m]), rot = 90, size = 18),
@@ -1523,10 +1547,11 @@ ggarrange(reduced_models,  extended_models, ncol = 1, common.legend = T, legend 
                   bottom = "Design")
 
 ggsave(file.path(image_path, "beta_boxplots_main_reduced.png"), bg="white", #width = 12, height = 10
-       width=12, height=10
+       width=12,#12, 
+       height=12#10
        )
 
-################################################################################################
+  ################################################################################################
 # HEI Report results
 
 reduced_models_hei <- beta_summary_plot(dt=model_coefs, true_betas.=true_betas, facet_label = "Model 1") #Main Health Model

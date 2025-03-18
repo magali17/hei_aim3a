@@ -723,7 +723,7 @@ r2 <- all_predictions %>%
 
 r2$plot 
 
-ggsave(file.path(image_path, "SI", "predicted_ufp_309_sites.png"), width=10, height=10)
+ggsave(file.path(image_path, "SI", "predicted_ufp_309_sites.png"), width=8, height=8)
 
 ```
 
@@ -752,11 +752,13 @@ r3 <- model_eval %>%
               y_label = expression("Exposure Model" ~ R[MSE]^2),
               add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
 
-r3$plot
+r3$plot + 
+  theme(text = element_text(size=12))
+
 
 ggsave(file.path(image_path, "r2_mse.png"), width = 8, height = 6)
 
-# save numbers
+ # save numbers
 r3$table %>%
   mutate_if(is.numeric, ~round(., 2)) %>%
   write.csv(file.path(image_path, "r2_mse.csv"), row.names = F)
@@ -798,19 +800,13 @@ ggsave(file.path(image_path, "SI", paste0("r2_mse_clusters.png")), width = 8, he
 # SI: routes - increasing visits
 model_eval %>%
   add_labels() %>%
-  keep_main_results(designs_to_keep = c("Balanced\nRoutes", "Balanced\nSegments"), visits_to_keep = c(4, 
-                                                                                                      #12, 
-                                                                                                      20)) %>%
-#   plot_values(summary_var = "MSE_based_R2", y_label = expression("Exposure Model" ~ R[MSE]^2),
-#               add_dahsed_line = T, ref_dt = stationary_r2_mse_ref)
-  
+  keep_main_results(designs_to_keep = c("Balanced\nRoutes", "Balanced\nSegments"), visits_to_keep = c(4, 20)) %>%
   filter(model != ref_model_coefs$model) %>%
   group_by(across(all_of(c("design", "version", "time_selection", "visit_label")))) %>%
   summary_table(var = "MSE_based_R2") %>%
     
   ggplot(aes(x=version, fill=design, linetype=visit_label)) +
-  facet_grid(#rows = vars(visit_label), 
-               cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x") +
+  facet_grid(cols = vars(time_selection), switch = "both", scales = "free_x", space="free_x") +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
   geom_hline(yintercept = stationary_r2_mse_ref, alpha=0.8, col=ref_model_col, linetype=2) +
   geom_boxplot(position = "dodge", stat="identity", aes(ymin=Q10, lower=Q25, middle=Q50, upper=Q75, ymax=Q90)) +
@@ -824,7 +820,7 @@ model_eval %>%
        linetype="Visits"
        )
     
-ggsave(file.path(image_path, "SI", paste0("r2_mse_routes.png")), width = 10, height = 8)
+ggsave(file.path(image_path, "SI", paste0("r2_mse_routes.png")), width = 8, height = 6)
 
 #############################################
 ```
@@ -934,7 +930,7 @@ model_eval %>%
   pivot_longer(cols = contains("R2")) %>%
   group_by(across(all_of(c("design", "version", "time_selection", "visit_label", "name")))) %>%
   summary_table(var = "value") %>%
-  mutate(name = ifelse(name=="MSE_based_R2", "MSE-based R2 (Main)", "Regression-based R2")) %>%
+  mutate(name = ifelse(name=="MSE_based_R2", "MSE-based\nR2 (Main)", "Regression-based\nR2")) %>%
   
   ggplot(aes(x=version, fill=design, linetype=name, col=name)) +
   
@@ -954,7 +950,7 @@ model_eval %>%
        col="R2",
        linetype="R2")
   
-ggsave(file.path(image_path, "SI", "r2_regression.png"), width = 10, height = 8)
+ggsave(file.path(image_path, "SI", "r2_regression.png"), width = 9, height = 6)
 
 ```
 
@@ -1217,8 +1213,11 @@ lapply(c(4, 12), function(v){
     health_plot(dt=., reference_text_offset = -0.005,
                 reference = ref_model_coefs_reduced$est,  
                 lower=ref_model_coefs_reduced$lower,
-                upper = ref_model_coefs_reduced$upper)
-
+                upper = ref_model_coefs_reduced$upper) + 
+    theme(text = element_text(size=16),
+          #axis.text.x = element_text(size=16)
+          )
+  
   extended_health_model <- model_coefs %>%
     add_labels() %>%
     keep_main_results(visits_to_keep = v) %>%
@@ -1227,19 +1226,20 @@ lapply(c(4, 12), function(v){
                 reference = ref_model_coefs$est, 
                 lower=ref_model_coefs$lower,
                 upper = ref_model_coefs$upper, 
-                null_text_offset = -0.007)
+                null_text_offset = -0.007) + 
+    theme(text = element_text(size=16))
 
   ggarrange(reduced_health_model, extended_health_model, ncol = 1, 
           common.legend = T, legend = "bottom") %>%
   annotate_figure(left = text_grob(expression(beta[m]), 
-                                 rot = 90, size = 14),
+                                 rot = 90, size = 16),
                 right = text_grob("% Difference from Reference", 
-                                  rot = 270, size = 14))
+                                  rot = 270, size = 16))
 
 
-if(v==12){ggsave(file.path(image_path, "betas.png"), bg="white", width = 10, height = 11)} 
+if(v==12){ggsave(file.path(image_path, "betas.png"), bg="white", width = 11, height = 11)} 
 
-if(v==4){ggsave(file.path(image_path, "SI", paste0("betas_", v, "_visits.png")), bg="white", width = 10, height = 11)}
+if(v==4){ggsave(file.path(image_path, "SI", paste0("betas_", v, "_visits.png")), bg="white", width = 11, height = 11)}
 
 })
 
