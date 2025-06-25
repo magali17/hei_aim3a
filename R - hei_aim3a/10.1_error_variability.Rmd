@@ -49,7 +49,7 @@ theme_update(legend.position = "bottom")
 ######################################################################
 # LOAD DATA
 ######################################################################
-main_pollutants <- readRDS(file.path(dt_path, "epi", "main_pollutants.rda"))
+main_pollutants <- readRDS(file.path(dt_path, "epi", "20240725", "main_pollutants.rda"))
 # --> just look at this here?
 main_pollutant1 <- c("ns_total_conc")
 
@@ -57,12 +57,12 @@ main_pollutant1 <- c("ns_total_conc")
 load(file.path(output_data_path, "modeling_units.rdata"))
 
 # merged issue 12 [clean health dataset] & issue 16 (for non-parametric, bootstrapped measurement models)
-cs <- readRDS(file.path(dt_path, "epi", "dt_for_cross_sectional_analysis_error.rda")) %>%
+cs <- readRDS(file.path(dt_path, "epi","20240725", "dt_for_cross_sectional_analysis_error.rda")) %>%
   select(-starts_with("avg_"), -visitdt, avg_0_5_yr) %>%
   #transform units to match modeling units
   mutate_at(vars(avg_0_5_yr), ~./pnc_units)
 
-model_covars <- readRDS(file.path(dt_path, "epi", "model_covars.rda"))
+model_covars <- readRDS(file.path(dt_path, "epi", "20240725","model_covars.rda"))
 
 # reference health models using all the data
 ref_models0 <- read.csv(file.path(dt_path, "model_cw.csv")) %>%
@@ -75,13 +75,18 @@ ref_models <- ref_models0 %>% pull(model)
 # ---> use this model vs what is in issue 12??
 ## all models with stationary data
 
-models_fp <- file.path(dt_path, "epi", "ref_models.rda")
+models_fp <- file.path(dt_path, "epi", 
+                       # --> TEMP?
+                       #"20240725",
+                       "old/pre20240725",
+                       
+                       "ref_models.rda")
 
 if(file.exists(models_fp)) {
   models <- readRDS(models_fp)
 } else { 
   # note: this file has to be re-run & re-saved if anything changes with the models (e.g., covariates, data)
-  models0 <- readRDS(file.path(dt_path, "epi", "models.rda")) 
+  models0 <- readRDS(file.path(dt_path, "epi", "20240725","models.rda")) 
   
   ## only keep reference (all data) models
   models <- lapply(models0, function(x) {if(as.character(x$model) %in% ref_models) {x}})  
@@ -128,6 +133,11 @@ unique_monitoring_sites <- unique(monitoring_sites$location)
 ######################################################################
 sim_n <- 500
 cohort_n <- length(unique(cs$study_id)) #5409
+
+# Define the confidence level
+confidence_level <- 0.95
+# Calculate the z-value
+z_value <- qnorm((1 + confidence_level) / 2)
 
 ######################################################################
 # FUNCTIONS
@@ -405,7 +415,10 @@ adjusted_se <- filter(betas_summary, grepl("(b)", Description) & Bootstrap=="non
 total_bias <- total_bias %>%
   mutate(
     total_SE_diff = adjusted_se-ref_se,
-    pct_SE_diff = total_SE_diff/adjusted_se # 12.67%
+    pct_SE_diff = total_SE_diff/adjusted_se, # 12.67%
+    adjusted_beta_lower = adjusted_beta - z_value * adjusted_se,
+    adjusted_beta_upper = adjusted_beta + z_value * adjusted_se
+
     ) %>%
   select(contains("Ref"), contains("total"), everything())
   
