@@ -1,30 +1,48 @@
-# HEI Studies - Impact of mobile monitoring design on exposure assessment and environmental epidemiology
+# HEI Studies – Impact of Mobile Monitoring Design on Exposure Assessment and Environmental Epidemiology
 
-This repository contains some of the analysis code for the HEI work. It includes much of the mobile monitoring work and some additional health analyses related to low-cost monitors, machine learning, costs, etc.
+This repository contains analysis conducted under the Health Effects Institute (HEI) award to Dr. Lianne Sheppard:  
+**"Optimizing Exposure Assessment for Inference About Air Pollution Effects with Application to the Aging Brain"** (RFA 19-1).
 
-# Scripts
+The work includes:
 
-### Stationary roadside mobile monitoring work 
-Scripts are numbered for the stationary data work.
+- Analyses of mobile monitoring designs  
+- Health analyses related to low-cost monitors  
+- Applications of machine learning  
+- Cost assessments  
 
-Scripts that start with "other_designs_...R" include analyses that were added later, including spatially unbalanced designs, temporal adjustments
+---
 
-### On-road mobile monitoring work 
-The on-road mobile monitoring work has scripts that start with "r_" like the model names. 
+## Scripts Overview
+
+### Stationary Roadside Mobile Monitoring
+
+Scripts for stationary data analysis are numbered sequentially. Examples include:
+
+- `0_setup.R`  
+- `1.1_temporal_adjustment.Rmd`  
+- `1.2_site_type.Rmd`  
+
+Additional analyses (e.g., spatially unbalanced designs, temporal adjustments) are included in scripts prefixed with `other_designs_...R`.
+
+### On-Road Mobile Monitoring
+
+Scripts beginning with `r_` summarize analyses using on-road mobile monitoring data.
+
+### Related Health Analyses
+
+- `7_clean_act_dt.R` and `8_eip_models.R`: Run health models based on low-cost monitor and machine learning data.  
+- Summaries of these results are found in:
+  - `9_ml_summary.Rmd`  
+  - `9_lcm_summary.Rmd`  
+  - `9_comparisons.Rmd`  
+
+---
+
+## Other Utilities
+
+Several `.bash` scripts are included to automate the execution of multiple R scripts.
 
 
-### Related work
-The 7_clean_act_dt.R and 8_eip_models.R scripts run health models based on the low-cost monitor and machine learning work. 
-
-These results are summarized in the 9_ml..Rmd, 9_lcm...Rmd, and 9_comparisons.Rmd scripts. 
 
 
-## Other 
-There are several .bash scripts that were used to run multiple scripts back-to-back for efficiency. 
-
-
-## Location
-This work was primarily run from plasmid, with longer running scripts (most of the on-road scripts) on the Brain Cluster, with results transfered back to plasmid.
-
-Some of the result summary scripts (e.g., for manuscript, reports) were coded locally for efficiency and synced with plasmid. 
 
