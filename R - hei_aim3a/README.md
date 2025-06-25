@@ -1,14 +1,14 @@
 # HEI Studies – Impact of Mobile Monitoring Design on Exposure Assessment and Environmental Epidemiology
 
-This repository contains analysis conducted under the Health Effects Institute (HEI) award to Dr. Lianne Sheppard:  
+This repository contains some of the analysis conducted under the Health Effects Institute (HEI) award to Dr. Lianne Sheppard:  
 **"Optimizing Exposure Assessment for Inference About Air Pollution Effects with Application to the Aging Brain"** (RFA 19-1).
 
 The work includes:
 
 - Analyses of mobile monitoring designs  
-- Health analyses related to low-cost monitors  
-- Applications of machine learning  
-- Cost assessments  
+- Summary of health analyses related to low-cost monitors  
+- Summary of applications of machine learning  
+- Summary of cost assessments  
 
 ---
 
